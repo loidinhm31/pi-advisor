@@ -11,6 +11,11 @@ import {
 import { recentConversation } from "../conversation.ts";
 import { capRepositoryContext, escapeRepositoryText } from "../git.ts";
 import type { GitContextLevel, GitContextResult } from "../git.ts";
+import completionGatePrompt from "./prompts/completion-gate.md";
+import failureGatePrompt from "./prompts/failure-gate.md";
+import invocationRoutingPrompt from "./prompts/invocation-routing.md";
+import planGatePrompt from "./prompts/plan-gate.md";
+import simpleModePrompt from "./prompts/simple-mode.md";
 
 interface ProjectRulesPrompt {
   global?: string;
@@ -138,35 +143,33 @@ export const advisorRequestConversation = (
     imageNonce
   );
 
+const SIMPLE_MODE_RULE = simpleModePrompt.trim();
+const PLAN_GATE_RULE = planGatePrompt.trim();
+const FAILURE_GATE_RULE = failureGatePrompt.trim();
+const COMPLETION_GATE_RULE = completionGatePrompt.trim();
+const INVOCATION_ROUTING_RULE = invocationRoutingPrompt.trim();
+
 export const advisorInvocationGuidelines = () => {
   if (isSimpleMode()) {
-    return [
-      "When uncertain and normal available tools cannot resolve it, call ask_advisor for a second opinion.",
-    ];
+    return [SIMPLE_MODE_RULE];
   }
   const guidelines: string[] = [];
   if (advisorPlanGateRef) {
-    guidelines.push(
-      "Before committing to a materially consequential plan, use ask_advisor with a concise draft after investigating and forming your own candidate direction. The draft must name proposed work, validation, and remaining risks. A draft claim is not verification evidence."
-    );
+    guidelines.push(PLAN_GATE_RULE);
   }
   if (advisorFailureGateRef) {
-    guidelines.push(
-      "Use ask_advisor after two consecutive materially equivalent failed attempts, when a fix recreates an earlier failure, or after two actions produce no measurable progress. Do not make another materially equivalent attempt before consulting."
-    );
+    guidelines.push(FAILURE_GATE_RULE);
   }
   if (advisorCompletionGateRef) {
-    guidelines.push(
-      "Before declaring success, use ask_advisor with a concise draft naming changed work, validation, and remaining risks. A draft claim is not verification evidence. Skip this only for demonstrably trivial, low-risk work."
-    );
+    guidelines.push(COMPLETION_GATE_RULE);
   }
   if (advisorCustomInvocationRef) {
-    guidelines.push(`Also use ask_advisor when: ${advisorCustomInvocationRef}`);
+    guidelines.push(
+      `Also consult the Advisor (via xd://ask_advisor or ask_advisor) when: ${advisorCustomInvocationRef}`
+    );
   }
   if (guidelines.length > 0) {
-    guidelines.push(
-      "Call ask_advisor with an empty object by default. Do not invent a question merely to request a review: the Advisor already receives context. Include question only for a genuinely specific assumption or trade-off."
-    );
+    guidelines.push(INVOCATION_ROUTING_RULE);
   }
   return guidelines;
 };

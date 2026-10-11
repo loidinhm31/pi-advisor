@@ -154,6 +154,42 @@ test("bundled package keeps settings state shared under Node DefaultResourceLoad
     assert.equal(reloaded.contextMaxChars, 100_000);
     assert.equal(reloaded.advisorEffort, "off");
     assert.equal(reloaded.executor, "provider/executor");
+
+    const freshLoaded = freshLoader.getExtensions();
+    freshLoaded.runtime.getActiveTools = () => ["ask_advisor"];
+    const beforeAgentStartHandlers =
+      freshLoaded.extensions[0]?.handlers.get("before_agent_start") ?? [];
+    assert.ok(
+      beforeAgentStartHandlers.length > 0,
+      "before_agent_start handler was not registered in bundled extension"
+    );
+    const sections = { mcp_servers: "servers" };
+    for (const handler of beforeAgentStartHandlers) {
+      await handler({ systemPromptOptions: { sections } }, context);
+    }
+    assert.ok(
+      sections.advisor_invocation_settings?.includes("xd://ask_advisor"),
+      "bundled Pi sections prompt did not include static .md routing asset"
+    );
+
+    let ompPrompt = [
+      "System header",
+      "Advisor invocation settings:\n- Foreign rule",
+    ];
+    for (const handler of beforeAgentStartHandlers) {
+      const outcome = await handler({ systemPrompt: ompPrompt }, context);
+      if (Array.isArray(outcome?.systemPrompt)) {
+        ompPrompt = outcome.systemPrompt;
+      }
+    }
+    assert.equal(ompPrompt.length, 3);
+    assert.equal(ompPrompt[1], "Advisor invocation settings:\n- Foreign rule");
+    assert.ok(
+      ompPrompt[2].startsWith(
+        "<!-- pi-advisor-flow:invocation-settings:start -->"
+      ) && ompPrompt[2].includes("xd://ask_advisor"),
+      "bundled OMP array prompt did not include delimited static .md assets"
+    );
   } finally {
     if (originalAgentDir === undefined) {
       delete process.env.PI_CODING_AGENT_DIR;

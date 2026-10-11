@@ -1,9 +1,12 @@
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+
 import {
   advisorSessionSummaryRef,
   getAdvisorMaxCallsPerSession,
   isSimpleMode,
 } from "../config/state.ts";
 import { loadConfig } from "../config/storage.ts";
+import { isRecordOf, isString } from "../content-utils.ts";
 import { reserveAdvisorCall } from "./gate-policy.ts";
 import { handleAutomaticGate } from "./loop-gate.ts";
 import {
@@ -11,8 +14,42 @@ import {
   sameModelAdvisorDisabled,
 } from "./model-access.ts";
 import { advisorInvocationGuidelines } from "./prompts.ts";
-import type { ToolRegistrationContext } from "./types.ts";
+import type {
+  DualHostBeforeAgentStartEvent,
+  ToolRegistrationContext,
+} from "./types.ts";
 
+const ADVISOR_PROMPT_BLOCK_START =
+  "<!-- pi-advisor-flow:invocation-settings:start -->";
+const ADVISOR_PROMPT_BLOCK_END =
+  "<!-- pi-advisor-flow:invocation-settings:end -->";
+
+interface DualHostPromptEventTarget {
+  on: (
+    event: "before_agent_start",
+    handler: (
+      event: DualHostBeforeAgentStartEvent | undefined,
+      ctx: Parameters<typeof loadConfig>[0]
+    ) => { systemPrompt: string[] } | undefined
+  ) => void;
+}
+
+const isOwnedAdvisorBlock = (block: unknown): block is string =>
+  isString(block) &&
+  block.startsWith(`${ADVISOR_PROMPT_BLOCK_START}\n`) &&
+  block.endsWith(`\n${ADVISOR_PROMPT_BLOCK_END}`);
+
+const hasUnrecognizedPromptContainer = (
+  event: DualHostBeforeAgentStartEvent | undefined
+): boolean => {
+  const rawSections = event?.systemPromptOptions?.sections;
+  return (
+    (event?.systemPrompt !== undefined &&
+      event?.systemPrompt !== null &&
+      event?.systemPrompt !== "") ||
+    (rawSections !== undefined && rawSections !== null)
+  );
+};
 const modelAccessBlock = (
   toolName: string,
   ctx: Parameters<typeof loadConfig>[0]
@@ -36,12 +73,9 @@ export const registerToolLifecycle = ({
   scoutStatus,
   session,
 }: ToolRegistrationContext): void => {
-  // A throwing tool_call handler makes pi block that tool call (fail-safe), so
-  // a malformed advisor.json must not escape this handler: gating is skipped
-  // for that call and the failure is surfaced once per distinct outage. Config
-  // errors stay an Advisor concern instead of escalating into a session-wide
-  // outage.
+  // A throwing tool_call handler makes pi block that tool call (fail-safe); keep config errors local.
   let lastConfigErrorNotified: string | undefined;
+  let unsupportedPromptEventNotified = false;
   const loadConfigOrSkipGating = (ctx: Parameters<typeof loadConfig>[0]) => {
     try {
       loadConfig(ctx);
@@ -71,19 +105,17 @@ export const registerToolLifecycle = ({
     }
   });
 
-  pi.on("before_agent_start", (event, ctx) => {
-    // Hosts may omit systemPromptOptions; don't crash the extension on it.
-    const sections = event.systemPromptOptions?.sections;
-    if (!sections) {
-      return;
-    }
-    delete sections.advisor_invocation_settings;
+  const buildActiveAdvisorBody = (
+    ctx: Parameters<typeof loadConfig>[0]
+  ): string | undefined => {
     if (!pi.getActiveTools().includes("ask_advisor")) {
-      return;
+      return undefined;
     }
-    loadConfig(ctx);
+    if (!loadConfigOrSkipGating(ctx)) {
+      return undefined;
+    }
     if (!advisorModelAccess(ctx).allowed || sameModelAdvisorDisabled(ctx)) {
-      return;
+      return undefined;
     }
     const guidelines = advisorInvocationGuidelines();
     const budget = isSimpleMode()
@@ -94,10 +126,55 @@ export const registerToolLifecycle = ({
         `Advisor calls remaining this session: ${budget}.\nReserve calls for material decisions, repeated failures, or final review.`
       );
     }
-    if (guidelines.length > 0) {
-      sections.advisor_invocation_settings = `Advisor invocation settings:\n${guidelines.map((rule) => `- ${rule}`).join("\n")}`;
+    return guidelines.length > 0
+      ? `Advisor invocation settings:\n${guidelines.map((rule) => `- ${rule}`).join("\n")}`
+      : undefined;
+  };
+
+  // SAFETY: Both Pi 1.x and OMP dispatch before_agent_start through pi.on; OMP consumes returned string[] systemPrompt overrides.
+  const dualHostPi = pi as DualHostPromptEventTarget & ExtensionAPI;
+  dualHostPi.on(
+    "before_agent_start",
+    (
+      event: DualHostBeforeAgentStartEvent | undefined,
+      ctx: Parameters<typeof loadConfig>[0]
+    ) => {
+      const rawSections = event?.systemPromptOptions?.sections;
+      if (isRecordOf(rawSections)) {
+        delete rawSections.advisor_invocation_settings;
+        const body = buildActiveAdvisorBody(ctx);
+        if (body) {
+          rawSections.advisor_invocation_settings = body;
+        }
+        return undefined;
+      }
+      if (Array.isArray(event?.systemPrompt)) {
+        const cleaned = event.systemPrompt.filter(
+          (block) => !isOwnedAdvisorBlock(block)
+        );
+        const hadOwnedBlock = cleaned.length !== event.systemPrompt.length;
+        const body = buildActiveAdvisorBody(ctx);
+        if (!body) {
+          return hadOwnedBlock ? { systemPrompt: cleaned } : undefined;
+        }
+        const ownedBlock = `${ADVISOR_PROMPT_BLOCK_START}\n${body}\n${ADVISOR_PROMPT_BLOCK_END}`;
+        return { systemPrompt: [...cleaned, ownedBlock] };
+      }
+      if (
+        hasUnrecognizedPromptContainer(event) &&
+        !unsupportedPromptEventNotified
+      ) {
+        unsupportedPromptEventNotified = true;
+        if (ctx?.hasUI) {
+          ctx.ui.notify(
+            "Advisor prompt injection skipped: host before_agent_start prompt container is unsupported.",
+            "warning"
+          );
+        }
+      }
+      return undefined;
     }
-  });
+  );
 
   pi.on("input", () => {
     session.clearFollowUps();

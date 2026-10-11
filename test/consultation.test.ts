@@ -31,9 +31,24 @@ import { handleAutomaticGate } from "../src/tools/loop-gate.ts";
 import { ScoutStatusManager } from "../src/tools/scout-status.ts";
 import { withAgentDir } from "./helpers/config-fixture.ts";
 import { asExtensionContext } from "./helpers/extension-context.ts";
+import { dispatchBeforeAgentStart } from "./helpers/harness.ts";
+import type { DualHostEventHandler } from "./helpers/harness.ts";
 import { mockPi } from "./helpers/mock-pi.ts";
 
 type PromptSections = BeforeAgentStartEvent["systemPromptOptions"]["sections"];
+
+const registerBeforeAgentStart = (activeTools = ["ask_advisor"]) => {
+  const events = new Map<string, DualHostEventHandler>();
+  registerExtension(
+    mockPi(
+      { activeTools, events },
+      {
+        registerTool: () => undefined,
+      }
+    )
+  );
+  return events;
+};
 
 const fauxContext = (
   cwd: string,
@@ -476,107 +491,288 @@ describe("Advisor consultation request construction", () => {
     }
   });
 
-  test("injects only the enabled invocation rules into the active prompt", async () => {
+  test("injects only the enabled invocation rules and conditional routing into Pi sections and OMP systemPrompt arrays (P1, P2, P3)", async () => {
+    const defaultEvents = registerBeforeAgentStart();
+    const ctx = asExtensionContext({
+      cwd: tmpdir(),
+      getSystemPrompt: () => "Base prompt",
+      isProjectTrusted: () => false,
+    });
+    const foreignBlock =
+      "Advisor invocation settings:\n- Foreign extension rule";
+    const baseOmpPrompt = [
+      "System header",
+      foreignBlock,
+      "## Devices\n- xd://ask_advisor",
+    ];
+
+    await withAgentDir(
+      {
+        advisorCompletionGate: true,
+        advisorFailureGate: true,
+        advisorMaxCallsPerSession: 3,
+        advisorPlanGate: true,
+        simpleMode: false,
+      },
+      async () => {
+        const events = defaultEvents;
+        const ompOutcome = await dispatchBeforeAgentStart(
+          events,
+          { systemPrompt: [...baseOmpPrompt] },
+          ctx
+        );
+        const ompPrompt = ompOutcome.result?.systemPrompt;
+        expect(Array.isArray(ompPrompt)).toBe(true);
+        if (!Array.isArray(ompPrompt)) {
+          throw new TypeError("Expected OMP systemPrompt array result");
+        }
+        expect(ompPrompt.slice(0, 3)).toEqual(baseOmpPrompt);
+        const ownedBlock = ompPrompt[3] ?? "";
+        expect(
+          ownedBlock.startsWith(
+            "<!-- pi-advisor-flow:invocation-settings:start -->\nAdvisor invocation settings:\n"
+          )
+        ).toBe(true);
+        expect(
+          ownedBlock.endsWith(
+            "\n<!-- pi-advisor-flow:invocation-settings:end -->"
+          )
+        ).toBe(true);
+        expect(ownedBlock).toContain("materially consequential plan");
+        expect(ownedBlock).toContain(
+          "two consecutive materially equivalent failed attempts"
+        );
+        expect(ownedBlock).toContain("Before declaring success");
+        expect(ownedBlock).toContain("xd://ask_advisor");
+        expect(ownedBlock).toContain("ask_advisor");
+        expect(ownedBlock).toContain("xd://record_advisor_outcome");
+        expect(ownedBlock).toContain("record_advisor_outcome");
+        expect(ownedBlock).toContain(
+          "Advisor calls remaining this session: 3."
+        );
+      }
+    );
+
     await withAgentDir(
       {
         advisorCompletionGate: false,
         advisorCustomInvocation: "a deployment changes production data",
         advisorFailureGate: true,
         advisorPlanGate: false,
+        simpleMode: false,
       },
-      () => {
-        let beforeAgentStart: any;
-        registerExtension(
-          mockPi(
-            { activeTools: ["ask_advisor"] },
-            {
-              on(event: string, handler: any) {
-                if (event === "before_agent_start") {
-                  beforeAgentStart = handler;
-                }
-              },
-              registerTool: () => {},
-            }
-          )
-        );
+      async () => {
+        const events = registerBeforeAgentStart();
         const sections: PromptSections = {
           mcp_servers: "<mcp_servers>servers</mcp_servers>",
         };
-        const result = beforeAgentStart(
+        const piOutcome = await dispatchBeforeAgentStart(
+          events,
           { systemPromptOptions: { sections } },
-          {
-            cwd: tmpdir(),
-            getSystemPrompt: () => "Base prompt",
-            isProjectTrusted: () => false,
-          }
+          ctx
         );
-        const prompt = sections.advisor_invocation_settings;
-        expect(result).toBeUndefined();
+        const prompt = sections.advisor_invocation_settings ?? "";
+        expect(piOutcome.result).toBeUndefined();
         expect(sections.mcp_servers).toBe("<mcp_servers>servers</mcp_servers>");
         expect(prompt).toStartWith("Advisor invocation settings:");
         expect(prompt).toContain(
           "two consecutive materially equivalent failed attempts"
         );
         expect(prompt).toContain("a deployment changes production data");
-        expect(prompt).not.toContain("consequential plan");
+        expect(prompt).toContain("xd://ask_advisor");
+        expect(prompt).toContain("ask_advisor");
+        expect(prompt).not.toContain("materially consequential plan");
         expect(prompt).not.toContain("Before declaring success");
+
+        const ompOutcome = await dispatchBeforeAgentStart(
+          events,
+          { systemPrompt: [...baseOmpPrompt] },
+          ctx
+        );
+        const ompOwned = Array.isArray(ompOutcome.result?.systemPrompt)
+          ? (ompOutcome.result.systemPrompt[3] ?? "")
+          : "";
+        expect(ompOwned).toContain(
+          "two consecutive materially equivalent failed attempts"
+        );
+        expect(ompOwned).toContain("a deployment changes production data");
+        expect(ompOwned).not.toContain("materially consequential plan");
+        expect(ompOwned).not.toContain("Before declaring success");
+      }
+    );
+
+    await withAgentDir(
+      {
+        advisorCompletionGate: true,
+        advisorFailureGate: true,
+        advisorMaxCallsPerSession: 3,
+        advisorPlanGate: true,
+        simpleMode: true,
+      },
+      async () => {
+        const events = registerBeforeAgentStart();
+        const ompOutcome = await dispatchBeforeAgentStart(
+          events,
+          { systemPrompt: [...baseOmpPrompt] },
+          ctx
+        );
+        const ompOwned = Array.isArray(ompOutcome.result?.systemPrompt)
+          ? (ompOutcome.result.systemPrompt[3] ?? "")
+          : "";
+        expect(ompOwned).toContain("When uncertain");
+        expect(ompOwned).toContain("xd://ask_advisor");
+        expect(ompOwned).toContain("ask_advisor");
+        expect(ompOwned).not.toContain("materially consequential plan");
+        expect(ompOwned).not.toContain(
+          "two consecutive materially equivalent failed attempts"
+        );
+        expect(ompOwned).not.toContain("Before declaring success");
+        expect(ompOwned).not.toContain("Advisor calls remaining this session:");
       }
     );
   });
 
-  test("ignores missing system prompt options", async () => {
-    await withAgentDir({}, () => {
-      let beforeAgentStart: any;
+  test("ignores missing prompt options, warns once on unsupported prompt shape, and fails open on invalid advisor.json (P4)", async () => {
+    await withAgentDir({}, async (agentDir) => {
+      const events = new Map<string, DualHostEventHandler>();
+      const notifications: { level: string; message: string }[] = [];
       registerExtension(
         mockPi(
-          { activeTools: ["ask_advisor"] },
+          { activeTools: ["ask_advisor"], events },
           {
-            on(event: string, handler: any) {
-              if (event === "before_agent_start") {
-                beforeAgentStart = handler;
-              }
-            },
-            registerTool: () => {},
+            registerTool: () => undefined,
           }
         )
       );
-      const ctx = { cwd: tmpdir(), isProjectTrusted: () => false };
+      const ctx = asExtensionContext({
+        cwd: agentDir,
+        hasUI: true,
+        isProjectTrusted: () => false,
+        ui: {
+          notify: (message: string, level: string) => {
+            notifications.push({ level, message });
+          },
+        },
+      });
 
-      expect(() => beforeAgentStart({}, ctx)).not.toThrow();
-      expect(() =>
-        beforeAgentStart({ systemPromptOptions: {} }, ctx)
-      ).not.toThrow();
-      expect(() =>
-        beforeAgentStart({ systemPromptOptions: null }, ctx)
-      ).not.toThrow();
+      const emptyEventOutcome = await dispatchBeforeAgentStart(events, {}, ctx);
+      expect(emptyEventOutcome.result).toBeUndefined();
+      const emptyOptionsOutcome = await dispatchBeforeAgentStart(
+        events,
+        { systemPromptOptions: {} },
+        ctx
+      );
+      expect(emptyOptionsOutcome.result).toBeUndefined();
+      const nullOptionsOutcome = await dispatchBeforeAgentStart(
+        events,
+        { systemPromptOptions: null },
+        ctx
+      );
+      expect(nullOptionsOutcome.result).toBeUndefined();
+      expect(notifications).toHaveLength(0);
+
+      const firstUnsupported = await dispatchBeforeAgentStart(
+        events,
+        { systemPrompt: "legacy-flat-string-without-sections" },
+        ctx
+      );
+      expect(firstUnsupported.result).toBeUndefined();
+      const secondUnsupported = await dispatchBeforeAgentStart(
+        events,
+        { systemPrompt: "second-unsupported-call" },
+        ctx
+      );
+      expect(secondUnsupported.result).toBeUndefined();
+      expect(notifications).toHaveLength(1);
+      expect(notifications[0]?.level).toBe("warning");
+      expect(notifications[0]?.message).toContain(
+        "prompt container is unsupported"
+      );
+
+      const seedOutcome = await dispatchBeforeAgentStart(
+        events,
+        {
+          systemPrompt: [
+            "System header",
+            "Advisor invocation settings:\n- Foreign rule",
+          ],
+        },
+        ctx
+      );
+      const seededPrompt = Array.isArray(seedOutcome.result?.systemPrompt)
+        ? seedOutcome.result.systemPrompt
+        : [];
+      expect(seededPrompt).toHaveLength(3);
+
+      writeFileSync(
+        join(agentDir, "advisor.json"),
+        JSON.stringify({ simpleMode: "invalid" })
+      );
+      const invalidOmpOutcome = await dispatchBeforeAgentStart(
+        events,
+        { systemPrompt: seededPrompt },
+        ctx
+      );
+      expect(invalidOmpOutcome.result).toEqual({
+        systemPrompt: [
+          "System header",
+          "Advisor invocation settings:\n- Foreign rule",
+        ],
+      });
+      expect(notifications).toHaveLength(2);
+      expect(notifications[1]?.level).toBe("error");
+      expect(notifications[1]?.message).toContain("Fix advisor.json");
     });
   });
 
-  test("removes the invocation rules when ask_advisor is inactive", async () => {
-    await withAgentDir({ advisorFailureGate: true }, () => {
-      let beforeAgentStart: any;
+  test("removes only the plugin-owned invocation block when ask_advisor is inactive (P1, P2)", async () => {
+    await withAgentDir({ advisorFailureGate: true }, async () => {
+      const events = new Map<string, DualHostEventHandler>();
       registerExtension(
         mockPi(
-          { activeTools: [] },
+          { activeTools: [], events },
           {
-            on(event: string, handler: any) {
-              if (event === "before_agent_start") {
-                beforeAgentStart = handler;
-              }
-            },
-            registerTool: () => {},
+            registerTool: () => undefined,
           }
         )
       );
+      const ctx = asExtensionContext({
+        cwd: tmpdir(),
+        isProjectTrusted: () => false,
+      });
       const sections: PromptSections = {
         advisor_invocation_settings: "stale",
         mcp_servers: "servers",
       };
-      beforeAgentStart(
+      await dispatchBeforeAgentStart(
+        events,
         { systemPromptOptions: { sections } },
-        { cwd: tmpdir(), isProjectTrusted: () => false }
+        ctx
       );
       expect(sections).toEqual({ mcp_servers: "servers" });
+
+      const cleanPrompt = [
+        "System header",
+        "Advisor invocation settings:\n- Foreign extension rule",
+      ];
+      const cleanOutcome = await dispatchBeforeAgentStart(
+        events,
+        { systemPrompt: cleanPrompt },
+        ctx
+      );
+      expect(cleanOutcome.result).toBeUndefined();
+
+      const staleOwnedBlock = [
+        "<!-- pi-advisor-flow:invocation-settings:start -->",
+        "Advisor invocation settings:\n- Stale plugin rule",
+        "<!-- pi-advisor-flow:invocation-settings:end -->",
+      ].join("\n");
+      const dirtyOutcome = await dispatchBeforeAgentStart(
+        events,
+        { systemPrompt: [...cleanPrompt, staleOwnedBlock] },
+        ctx
+      );
+      expect(dirtyOutcome.result).toEqual({ systemPrompt: cleanPrompt });
     });
   });
 });

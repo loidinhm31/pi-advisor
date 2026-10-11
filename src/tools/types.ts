@@ -150,10 +150,10 @@ export interface ToolRegistrationDependencies {
 
 export interface DualHostBeforeAgentStartEvent {
   prompt?: string;
-  systemPrompt?: string[];
+  systemPrompt?: unknown;
   systemPromptOptions?: {
     sections?: Record<string, string | undefined>;
-  };
+  } | null;
 }
 
 export interface HostAgentEndEvent {

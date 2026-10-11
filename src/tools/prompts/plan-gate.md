@@ -1,0 +1,1 @@
+Before committing to a materially consequential plan, consult the Advisor (via xd://ask_advisor or ask_advisor) with a concise draft after investigating and forming your own candidate direction. The draft must name proposed work, validation, and remaining risks. A draft claim is not verification evidence.

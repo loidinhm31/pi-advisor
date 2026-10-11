@@ -10,7 +10,7 @@ Implementation is executed in six dependency-gated phases:
 | --- | --- | --- | --- | --- |
 | [Phase 01](#phase-01-host-contracts-capability-boundaries--test-harness) | Host Contracts & Harness | Capability interfaces, isolated subprocess test harness | DONE | 2026-10-11 |
 | [Phase 02](#phase-02-tui-compatibility-manual-dialog-settings-adapter--masked-input) | TUI Compatibility | Manual dialog overlay, settings adapter, masked input | DONE | 2026-10-11 |
-| Phase 03 | Prompt Injection | System prompt section preservation and tool route alignment | Pending | — |
+| [Phase 03](#phase-03-prompt-injection-preserved-prompt--route-rules) | Prompt Injection (`phase-03-prompt-injection.md`) | System prompt section preservation and tool route alignment | DONE (2026-10-11) / 100% | 2026-10-11 |
 | Phase 04 | Device Lifecycle Safety | Accounting normalization, disclosure safety, child session isolation | Pending | — |
 | Phase 05 | Full-Gate Settings | Verification and documentation of settings and loop gates | Pending | — |
 | Phase 06 | Integration & Installation | Dual-host end-to-end verification, packaging, and release docs | Pending | — |
@@ -29,6 +29,7 @@ Implementation is executed in six dependency-gated phases:
 ## Phase Milestones
 
 ### Phase 01: Host Contracts, Capability Boundaries & Test Harness
+
 - **Status**: Completed (2026-10-11)
 - **Delivered**:
   - Defined host symbol contracts (`HostSymbolTheme`, `HostBoxSymbols`, `HostRoundedBoxSymbols`) and public adapter contracts (`SettingsListPublicAdapterContract`) in `src/ui/types.ts`.
@@ -36,6 +37,7 @@ Implementation is executed in six dependency-gated phases:
   - Created isolated dual-host subprocess harness and probes in `test/helpers/dual-host-harness.ts` and `test/helpers/dual-host-probes.ts`.
 
 ### Phase 02: TUI Compatibility (Manual Dialog, Settings Adapter & Masked Input)
+
 - **Status**: Completed (2026-10-11)
 - **Delivered**:
   - **Manual Advisor Dialog (`src/ui/manual-dialog.ts`)**:
@@ -56,18 +58,22 @@ Implementation is executed in six dependency-gated phases:
     - Extended `test/helpers/dual-host-harness.ts` and test suite (`test/ui.test.ts`, `test/manual-dialog.test.ts`, `test/settings-navigation.test.ts`) with dual-host test coverage.
 
 ### Phase 03: Prompt Injection (Preserved Prompt & Route Rules)
-- **Status**: Pending
+
+- **Status**: DONE (2026-10-11) / 100% (`phase-03-prompt-injection.md`)
 - **Scope**: Ensure prompt sections and tool route alignment (`xd://ask_advisor`) are cleanly registered across both hosts without clobbering existing system prompt blocks.
 
 ### Phase 04: Device Lifecycle Safety
+
 - **Status**: Pending
 - **Scope**: Normalize advisor device envelopes without double accounting or disclosure; preserve child model ownership and settlement semantics.
 
 ### Phase 05: Full-Gate Settings
+
 - **Status**: Pending
 - **Scope**: Verify that loop gates, failure modes, budgets, and settings work reliably across both hosts.
 
 ### Phase 06: Integration, Dual-Host Verification & Release
+
 - **Status**: Pending
 - **Scope**: Final end-to-end integration proof across Pi 1.x and OMP, package build verification, and user-facing installation documentation.
 
@@ -76,6 +82,7 @@ Implementation is executed in six dependency-gated phases:
 ## Verification & Quality Gates
 
 Each roadmap phase must satisfy strict validation gates:
+
 - Boundary checks: `bun run check:boundaries`
 - Type checking: `bun run typecheck`
 - Linting: `bun run lint`

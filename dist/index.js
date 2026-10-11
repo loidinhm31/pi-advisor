@@ -3852,6 +3852,26 @@ var curateAdvisorConversation = async (ctx, legacyConversation, signal, onScout,
   return { conversation: legacyConversation, scout: outcome };
 };
 
+// src/tools/prompts/completion-gate.md
+var completion_gate_default = `Before declaring success, consult the Advisor (via xd://ask_advisor or ask_advisor) with a concise draft naming changed work, validation, and remaining risks. A draft claim is not verification evidence. Skip this only for demonstrably trivial, low-risk work.
+`;
+
+// src/tools/prompts/failure-gate.md
+var failure_gate_default = `Consult the Advisor (via xd://ask_advisor or ask_advisor) after two consecutive materially equivalent failed attempts, when a fix recreates an earlier failure, or after two actions produce no measurable progress. Do not make another materially equivalent attempt before consulting.
+`;
+
+// src/tools/prompts/invocation-routing.md
+var invocation_routing_default = `When the host advertises xd://ask_advisor, read xd://ask_advisor for its schema when needed and write JSON content ("{}" by default, or JSON with draft, question, followUpTo, gitContext) to xd://ask_advisor (and write JSON content to xd://record_advisor_outcome when advertised); when ask_advisor (or record_advisor_outcome) is directly exposed as a tool, call it directly with {} by default. Do not invent a question merely to request a review: the Advisor already receives context. Include question only for a genuinely specific assumption or trade-off.
+`;
+
+// src/tools/prompts/plan-gate.md
+var plan_gate_default = `Before committing to a materially consequential plan, consult the Advisor (via xd://ask_advisor or ask_advisor) with a concise draft after investigating and forming your own candidate direction. The draft must name proposed work, validation, and remaining risks. A draft claim is not verification evidence.
+`;
+
+// src/tools/prompts/simple-mode.md
+var simple_mode_default = `When uncertain and normal available tools cannot resolve it, consult the Advisor for a second opinion: when the host advertises xd://ask_advisor, read xd://ask_advisor for its schema when needed and write JSON content ("{}" by default, or JSON with draft, question, followUpTo, gitContext) to xd://ask_advisor (and write JSON content to xd://record_advisor_outcome when advertised); when ask_advisor (or record_advisor_outcome) is directly exposed as a tool, call it directly.
+`;
+
 // src/tools/prompts.ts
 var projectRulesBlock = (projectRules) => {
   const sources = [
@@ -3936,27 +3956,30 @@ var advisorRepositoryContext = (result, requested, allowed, budget) => {
 `);
 };
 var advisorRequestConversation = (ctx, maxChars = contextMaxCharsRef, describeImages = false, imageNonce = "") => recentConversation(ctx, maxChars, undefined, undefined, undefined, undefined, describeImages, imageNonce);
+var SIMPLE_MODE_RULE = simple_mode_default.trim();
+var PLAN_GATE_RULE = plan_gate_default.trim();
+var FAILURE_GATE_RULE = failure_gate_default.trim();
+var COMPLETION_GATE_RULE = completion_gate_default.trim();
+var INVOCATION_ROUTING_RULE = invocation_routing_default.trim();
 var advisorInvocationGuidelines = () => {
   if (isSimpleMode()) {
-    return [
-      "When uncertain and normal available tools cannot resolve it, call ask_advisor for a second opinion."
-    ];
+    return [SIMPLE_MODE_RULE];
   }
   const guidelines = [];
   if (advisorPlanGateRef) {
-    guidelines.push("Before committing to a materially consequential plan, use ask_advisor with a concise draft after investigating and forming your own candidate direction. The draft must name proposed work, validation, and remaining risks. A draft claim is not verification evidence.");
+    guidelines.push(PLAN_GATE_RULE);
   }
   if (advisorFailureGateRef) {
-    guidelines.push("Use ask_advisor after two consecutive materially equivalent failed attempts, when a fix recreates an earlier failure, or after two actions produce no measurable progress. Do not make another materially equivalent attempt before consulting.");
+    guidelines.push(FAILURE_GATE_RULE);
   }
   if (advisorCompletionGateRef) {
-    guidelines.push("Before declaring success, use ask_advisor with a concise draft naming changed work, validation, and remaining risks. A draft claim is not verification evidence. Skip this only for demonstrably trivial, low-risk work.");
+    guidelines.push(COMPLETION_GATE_RULE);
   }
   if (advisorCustomInvocationRef) {
-    guidelines.push(`Also use ask_advisor when: ${advisorCustomInvocationRef}`);
+    guidelines.push(`Also consult the Advisor (via xd://ask_advisor or ask_advisor) when: ${advisorCustomInvocationRef}`);
   }
   if (guidelines.length > 0) {
-    guidelines.push("Call ask_advisor with an empty object by default. Do not invent a question merely to request a review: the Advisor already receives context. Include question only for a genuinely specific assumption or trade-off.");
+    guidelines.push(INVOCATION_ROUTING_RULE);
   }
   return guidelines;
 };
@@ -10469,6 +10492,15 @@ var handleAutomaticGate = async (pi, event, ctx, session, runGate, scoutStatus, 
 };
 
 // src/tools/register-lifecycle.ts
+var ADVISOR_PROMPT_BLOCK_START = "<!-- pi-advisor-flow:invocation-settings:start -->";
+var ADVISOR_PROMPT_BLOCK_END = "<!-- pi-advisor-flow:invocation-settings:end -->";
+var isOwnedAdvisorBlock = (block) => isString(block) && block.startsWith(`${ADVISOR_PROMPT_BLOCK_START}
+`) && block.endsWith(`
+${ADVISOR_PROMPT_BLOCK_END}`);
+var hasUnrecognizedPromptContainer = (event) => {
+  const rawSections = event?.systemPromptOptions?.sections;
+  return event?.systemPrompt !== undefined && event?.systemPrompt !== null && event?.systemPrompt !== "" || rawSections !== undefined && rawSections !== null;
+};
 var modelAccessBlock = (toolName, ctx) => {
   const access = advisorModelAccess(ctx);
   if (access.allowed || toolName !== "ask_advisor") {
@@ -10489,6 +10521,7 @@ var registerToolLifecycle = ({
   session
 }) => {
   let lastConfigErrorNotified;
+  let unsupportedPromptEventNotified = false;
   const loadConfigOrSkipGating = (ctx) => {
     try {
       loadConfig(ctx);
@@ -10513,16 +10546,13 @@ var registerToolLifecycle = ({
       ctx.ui.setStatus("advisor-usage", undefined);
     }
   });
-  pi.on("before_agent_start", (event, ctx) => {
-    const sections = event.systemPromptOptions?.sections;
-    if (!sections) {
-      return;
-    }
-    delete sections.advisor_invocation_settings;
+  const buildActiveAdvisorBody = (ctx) => {
     if (!pi.getActiveTools().includes("ask_advisor")) {
       return;
     }
-    loadConfig(ctx);
+    if (!loadConfigOrSkipGating(ctx)) {
+      return;
+    }
     if (!advisorModelAccess(ctx).allowed || sameModelAdvisorDisabled(ctx)) {
       return;
     }
@@ -10532,11 +10562,40 @@ var registerToolLifecycle = ({
       guidelines.push(`Advisor calls remaining this session: ${budget}.
 Reserve calls for material decisions, repeated failures, or final review.`);
     }
-    if (guidelines.length > 0) {
-      sections.advisor_invocation_settings = `Advisor invocation settings:
+    return guidelines.length > 0 ? `Advisor invocation settings:
 ${guidelines.map((rule) => `- ${rule}`).join(`
-`)}`;
+`)}` : undefined;
+  };
+  const dualHostPi = pi;
+  dualHostPi.on("before_agent_start", (event, ctx) => {
+    const rawSections = event?.systemPromptOptions?.sections;
+    if (isRecordOf(rawSections)) {
+      delete rawSections.advisor_invocation_settings;
+      const body = buildActiveAdvisorBody(ctx);
+      if (body) {
+        rawSections.advisor_invocation_settings = body;
+      }
+      return;
     }
+    if (Array.isArray(event?.systemPrompt)) {
+      const cleaned = event.systemPrompt.filter((block) => !isOwnedAdvisorBlock(block));
+      const hadOwnedBlock = cleaned.length !== event.systemPrompt.length;
+      const body = buildActiveAdvisorBody(ctx);
+      if (!body) {
+        return hadOwnedBlock ? { systemPrompt: cleaned } : undefined;
+      }
+      const ownedBlock = `${ADVISOR_PROMPT_BLOCK_START}
+${body}
+${ADVISOR_PROMPT_BLOCK_END}`;
+      return { systemPrompt: [...cleaned, ownedBlock] };
+    }
+    if (hasUnrecognizedPromptContainer(event) && !unsupportedPromptEventNotified) {
+      unsupportedPromptEventNotified = true;
+      if (ctx?.hasUI) {
+        ctx.ui.notify("Advisor prompt injection skipped: host before_agent_start prompt container is unsupported.", "warning");
+      }
+    }
+    return;
   });
   pi.on("input", () => {
     session.clearFollowUps();

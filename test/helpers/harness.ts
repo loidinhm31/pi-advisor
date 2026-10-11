@@ -167,7 +167,10 @@ export const activationContext = (
     hasUI: true,
     isProjectTrusted: () => false,
     modelRegistry: registry,
-    ui: { notify: (message: string) => notes.push(message) },
+    ui: {
+      notify: (message: string) => notes.push(message),
+      setStatus: () => undefined,
+    },
   });
 };
 

@@ -9,6 +9,8 @@ import { AdvisorSessionState } from "../src/session-state.ts";
 import { registerAdvisorTool } from "../src/tools.ts";
 import { withAgentDir } from "./helpers/config-fixture.ts";
 import { asExtensionContext } from "./helpers/extension-context.ts";
+import { dispatchBeforeAgentStart } from "./helpers/harness.ts";
+import type { DualHostEventHandler } from "./helpers/harness.ts";
 import { mockPi } from "./helpers/mock-pi.ts";
 
 const deferred = () => {
@@ -565,5 +567,83 @@ describe("Advisor loop-gate budget behavior", () => {
       expect(consultations).toBe(1);
       expect(session.consumedCalls).toBe(1);
     });
+  });
+
+  test("includes remaining session call budget in OMP systemPrompt array when simpleMode is false and omits it when simpleMode is true (P2, P3)", async () => {
+    const basePrompt = [
+      "System header",
+      "Advisor invocation settings:\n- Foreign extension rule",
+    ];
+
+    await withAgentDir(
+      {
+        advisorMaxCallsPerSession: 2,
+        simpleMode: false,
+      },
+      async (agentDir) => {
+        const events = new Map<string, DualHostEventHandler>();
+        const session = new AdvisorSessionState();
+        registerAdvisorTool(
+          mockPi(
+            { activeTools: ["ask_advisor"], events },
+            { registerTool: () => undefined }
+          ),
+          session
+        );
+        const ctx = asExtensionContext({
+          cwd: agentDir,
+          hasUI: false,
+          isProjectTrusted: () => false,
+        });
+
+        const initialOutcome = await dispatchBeforeAgentStart(
+          events,
+          { systemPrompt: [...basePrompt] },
+          ctx
+        );
+        const initialPrompt = Array.isArray(initialOutcome.result?.systemPrompt)
+          ? initialOutcome.result.systemPrompt
+          : [];
+        expect(initialPrompt).toHaveLength(3);
+        expect(initialPrompt[2]).toContain(
+          "Advisor calls remaining this session: 2."
+        );
+
+        session.reserveCall("call-1", 2);
+        session.consumeCall("call-1");
+        const updatedOutcome = await dispatchBeforeAgentStart(
+          events,
+          { systemPrompt: initialPrompt },
+          ctx
+        );
+        const updatedPrompt = Array.isArray(updatedOutcome.result?.systemPrompt)
+          ? updatedOutcome.result.systemPrompt
+          : [];
+        expect(updatedPrompt).toHaveLength(3);
+        expect(updatedPrompt.slice(0, 2)).toEqual(basePrompt);
+        expect(updatedPrompt[2]).toContain(
+          "Advisor calls remaining this session: 1."
+        );
+
+        writeFileSync(
+          join(agentDir, "advisor.json"),
+          JSON.stringify({ advisorMaxCallsPerSession: 2, simpleMode: true })
+        );
+        resetConfigCache();
+        const simpleOutcome = await dispatchBeforeAgentStart(
+          events,
+          { systemPrompt: updatedPrompt },
+          ctx
+        );
+        const simplePrompt = Array.isArray(simpleOutcome.result?.systemPrompt)
+          ? simpleOutcome.result.systemPrompt
+          : [];
+        expect(simplePrompt).toHaveLength(3);
+        expect(simplePrompt[2]).toContain("When uncertain");
+        expect(simplePrompt[2]).not.toContain(
+          "Advisor calls remaining this session:"
+        );
+      }
+    );
   });
 });
