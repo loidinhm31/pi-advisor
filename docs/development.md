@@ -31,6 +31,13 @@ git -c diff.stat=false diff --no-ext-diff --check --no-stat
 
 `bun test` covers the normal suite. Run `bun run test:bench` for the repository-only benchmark tests.
 
+### Dual-host & TUI testing
+
+The test suite validates TUI compatibility across both Pi 1.x and Oh-My-Pi (OMP) environments (`test/ui.test.ts`, `test/manual-dialog.test.ts`, `test/settings-navigation.test.ts`):
+- In-process tests verify Pi 1.x components (`ManualAdvisorDialog`, `SettingsListAdapter`, `MaskedInput`).
+- Subprocess harness tests (`test/helpers/dual-host-harness.ts`) verify OMP components in an isolated child process to prevent prototype pollution.
+- Set `OMP_ROOT` to specify an alternate OMP checkout path; OMP-specific subprocess tests skip cleanly when absent.
+
 `src/tools/register-ask-advisor.ts` exceeds the usual ~300-line target because registration and the sequential screening, budget, one-shot handoff, streaming, and error cleanup path share one ordered execution boundary; splitting that boundary risks changing when a call becomes chargeable or consumes consent.
 
 GitHub Actions manages release tags and publishing from `package.json`. Do not create release tags manually.

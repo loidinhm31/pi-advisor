@@ -2,12 +2,13 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 const packageJson = JSON.parse(readFileSync("package.json", "utf-8"));
-const [result] = JSON.parse(
+const parsed = JSON.parse(
   execFileSync("npm", ["pack", "--dry-run", "--json"], {
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "inherit"],
   })
 );
+const [result] = Array.isArray(parsed) ? parsed : Object.values(parsed);
 const actualFiles = result.files.map(({ path }) => path).toSorted();
 const expectedFiles = [
   "CHANGELOG.md",

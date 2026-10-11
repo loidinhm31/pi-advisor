@@ -1,3 +1,4 @@
+import { getSelectListTheme } from "@earendil-works/pi-coding-agent";
 import { Editor, Key, matchesKey } from "@earendil-works/pi-tui";
 import type {
   Component,
@@ -5,12 +6,17 @@ import type {
   Focusable,
   Keybindings,
   KeyId,
+  TUI,
 } from "@earendil-works/pi-tui";
 
+import { isRecordOf, isString } from "../content-utils.ts";
 import { clampGitContextLevel, GIT_CONTEXT_LEVELS } from "../git.ts";
 import type { GitContextLevel } from "../git.ts";
 import { renderManualAdvisorDialog } from "./manual-dialog-render.ts";
 import type {
+  HostBoxSymbols,
+  HostRoundedBoxSymbols,
+  HostSymbolTheme,
   ManualAdvisorDialogOptions,
   ManualAdvisorFocus,
   ManualAdvisorRequest,
@@ -29,6 +35,112 @@ interface ManualDialogState {
 
 const isShiftTab = (keyData: string): boolean =>
   matchesKey(keyData, Key.shift("tab"));
+
+interface HostConfigurableEditor extends Editor {
+  setBorderStyle?: (style: "box" | "pi") => void;
+  setTheme?: (theme: EditorTheme) => void;
+}
+
+interface HostSelectListTheme {
+  symbols?: HostSymbolTheme;
+}
+
+const ROUND_BOX_KEYS: (keyof HostRoundedBoxSymbols)[] = [
+  "bottomLeft",
+  "bottomRight",
+  "horizontal",
+  "topLeft",
+  "topRight",
+  "vertical",
+];
+
+const SHARP_BOX_KEYS: (keyof HostBoxSymbols)[] = [
+  ...ROUND_BOX_KEYS,
+  "cross",
+  "teeDown",
+  "teeLeft",
+  "teeRight",
+  "teeUp",
+];
+
+const hasNonEmptyStringKeys = <Value>(
+  value: Value,
+  keys: readonly string[]
+): boolean => {
+  if (!isRecordOf(value)) {
+    return false;
+  }
+  return keys.every((key) => {
+    const entry = value[key];
+    return isString(entry) && entry.length > 0;
+  });
+};
+
+const isHostSymbolTheme = <Value>(
+  candidate: Value
+): candidate is Value & HostSymbolTheme => {
+  if (!isRecordOf(candidate)) {
+    return false;
+  }
+  const { boxRound, boxSharp, colorSwatch, spinnerFrames, table } = candidate;
+  if (colorSwatch !== undefined && !isString(colorSwatch)) {
+    return false;
+  }
+  if (
+    !Array.isArray(spinnerFrames) ||
+    spinnerFrames.length === 0 ||
+    !spinnerFrames.every((frame) => isString(frame) && frame.length > 0)
+  ) {
+    return false;
+  }
+  return (
+    hasNonEmptyStringKeys(candidate, [
+      "cursor",
+      "hrChar",
+      "inputCursor",
+      "quoteBorder",
+    ]) &&
+    hasNonEmptyStringKeys(boxRound, ROUND_BOX_KEYS) &&
+    hasNonEmptyStringKeys(boxSharp, SHARP_BOX_KEYS) &&
+    hasNonEmptyStringKeys(table, SHARP_BOX_KEYS)
+  );
+};
+
+const hasOmpEditorCapability = (
+  prototype: Editor
+): prototype is HostConfigurableEditor => {
+  // SAFETY: Editor.prototype is a non-null object; narrowing checks whether OMP's setTheme method is callable.
+  const candidate = prototype as HostConfigurableEditor;
+  return "setTheme" in prototype && typeof candidate.setTheme === "function";
+};
+
+const createManualDialogEditor = (
+  tui: TUI,
+  editorTheme: EditorTheme
+): Editor => {
+  if (!hasOmpEditorCapability(Editor.prototype)) {
+    return new Editor(tui, editorTheme);
+  }
+  // SAFETY: OMP attaches its runtime SymbolTheme to the returned SelectListTheme object.
+  const { symbols } = getSelectListTheme() as HostSelectListTheme;
+  if (!isHostSymbolTheme(symbols)) {
+    throw new Error(
+      "Incompatible host Editor capability: OMP Editor requires a complete SymbolTheme from getSelectListTheme()."
+    );
+  }
+  const ompTheme = {
+    ...editorTheme,
+    selectList: { ...editorTheme.selectList, symbols },
+    symbols,
+  };
+  // SAFETY: "setTheme" in Editor.prototype selects OMP's 1-arg Editor(theme) constructor.
+  const editor = Reflect.construct(Editor, [
+    ompTheme,
+  ]) as HostConfigurableEditor;
+  editor.setBorderStyle?.("pi");
+  editor.setPaddingX?.(0);
+  return editor;
+};
 
 /** The small, non-persistent /advisor-manual form; callers own budget and consultation decisions. */
 export class ManualAdvisorDialog implements Component, Focusable {
@@ -74,7 +186,7 @@ export class ManualAdvisorDialog implements Component, Focusable {
         selectedText: (text) => options.theme.fg("accent", text),
       },
     };
-    this.editor = new Editor(options.tui, editorTheme);
+    this.editor = createManualDialogEditor(options.tui, editorTheme);
     this.editor.setText(options.initialMessage ?? "");
     this.editor.onChange = () => options.tui.requestRender();
     this.editor.onSubmit = (message) => this.submit(message);

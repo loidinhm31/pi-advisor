@@ -245,3 +245,17 @@ export const runOmpHostProbe = (): Promise<OmpHostProbeResult> => {
     }
   );
 };
+
+export const runOmpScript = <T>(
+  prefix: string,
+  script: string,
+  parse: (line: string) => T,
+  setup?: (dirs: { agentDir: string; cwd: string; home: string }) => void
+): Promise<T> => {
+  if (!existsSync(OMP_ROOT)) {
+    throw new Error(
+      `Missing OMP reference checkout at ${OMP_ROOT}; set OMP_ROOT to a valid oh-my-pi workspace.`
+    );
+  }
+  return runSubprocessProbe(prefix, OMP_ROOT, script, parse, setup);
+};

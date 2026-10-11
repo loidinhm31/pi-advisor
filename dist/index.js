@@ -5549,6 +5549,7 @@ var registerCommandLifecycle = (runtime, activateAdvisor2) => {
 };
 
 // src/ui/manual-dialog.ts
+import { getSelectListTheme } from "@earendil-works/pi-coding-agent";
 import { Editor, Key, matchesKey } from "@earendil-works/pi-tui";
 
 // src/ui/manual-dialog-render.ts
@@ -5646,6 +5647,73 @@ var renderManualAdvisorDialog = (view) => {
 // src/ui/manual-dialog.ts
 var TUI_INPUT_TAB = ["tui", "input", "tab"].join(".");
 var isShiftTab = (keyData) => matchesKey(keyData, Key.shift("tab"));
+var ROUND_BOX_KEYS = [
+  "bottomLeft",
+  "bottomRight",
+  "horizontal",
+  "topLeft",
+  "topRight",
+  "vertical"
+];
+var SHARP_BOX_KEYS = [
+  ...ROUND_BOX_KEYS,
+  "cross",
+  "teeDown",
+  "teeLeft",
+  "teeRight",
+  "teeUp"
+];
+var hasNonEmptyStringKeys = (value, keys) => {
+  if (!isRecordOf(value)) {
+    return false;
+  }
+  return keys.every((key) => {
+    const entry = value[key];
+    return isString(entry) && entry.length > 0;
+  });
+};
+var isHostSymbolTheme = (candidate) => {
+  if (!isRecordOf(candidate)) {
+    return false;
+  }
+  const { boxRound, boxSharp, colorSwatch, spinnerFrames, table } = candidate;
+  if (colorSwatch !== undefined && !isString(colorSwatch)) {
+    return false;
+  }
+  if (!Array.isArray(spinnerFrames) || spinnerFrames.length === 0 || !spinnerFrames.every((frame) => isString(frame) && frame.length > 0)) {
+    return false;
+  }
+  return hasNonEmptyStringKeys(candidate, [
+    "cursor",
+    "hrChar",
+    "inputCursor",
+    "quoteBorder"
+  ]) && hasNonEmptyStringKeys(boxRound, ROUND_BOX_KEYS) && hasNonEmptyStringKeys(boxSharp, SHARP_BOX_KEYS) && hasNonEmptyStringKeys(table, SHARP_BOX_KEYS);
+};
+var hasOmpEditorCapability = (prototype) => {
+  const candidate = prototype;
+  return "setTheme" in prototype && typeof candidate.setTheme === "function";
+};
+var createManualDialogEditor = (tui, editorTheme) => {
+  if (!hasOmpEditorCapability(Editor.prototype)) {
+    return new Editor(tui, editorTheme);
+  }
+  const { symbols } = getSelectListTheme();
+  if (!isHostSymbolTheme(symbols)) {
+    throw new Error("Incompatible host Editor capability: OMP Editor requires a complete SymbolTheme from getSelectListTheme().");
+  }
+  const ompTheme = {
+    ...editorTheme,
+    selectList: { ...editorTheme.selectList, symbols },
+    symbols
+  };
+  const editor = Reflect.construct(Editor, [
+    ompTheme
+  ]);
+  editor.setBorderStyle?.("pi");
+  editor.setPaddingX?.(0);
+  return editor;
+};
 
 class ManualAdvisorDialog {
   options;
@@ -5681,7 +5749,7 @@ class ManualAdvisorDialog {
         selectedText: (text) => options.theme.fg("accent", text)
       }
     };
-    this.editor = new Editor(options.tui, editorTheme);
+    this.editor = createManualDialogEditor(options.tui, editorTheme);
     this.editor.setText(options.initialMessage ?? "");
     this.editor.onChange = () => options.tui.requestRender();
     this.editor.onSubmit = (message) => this.submit(message);
@@ -8240,6 +8308,10 @@ var renderJevProvider = (options, state, input, width) => {
 
 // src/ui/masked-input.ts
 import { Input as Input2, truncateToWidth as truncateToWidth6 } from "@earendil-works/pi-tui";
+var resolveInputCursor = (input, valueLength) => {
+  const rawCursor = input.getCursor ? input.getCursor() : input.cursor;
+  return isNumber(rawCursor) && Number.isFinite(rawCursor) ? Math.max(0, Math.min(Math.trunc(rawCursor), valueLength)) : valueLength;
+};
 
 class MaskedInput {
   input;
@@ -8273,8 +8345,9 @@ class MaskedInput {
   }
   render(width) {
     const value = this.input.getValue();
-    const { cursor } = this.input;
-    const masked = `${"•".repeat(Math.min(cursor, value.length))}█${"•".repeat(Math.max(0, value.length - cursor))}`;
+    const hostInput = this.input;
+    const cursor = resolveInputCursor(hostInput, value.length);
+    const masked = `${"•".repeat(cursor)}█${"•".repeat(Math.max(0, value.length - cursor))}`;
     const placeholder = value.length === 0 && this.options.placeholder ? this.options.placeholder : masked;
     return [truncateToWidth6(placeholder, Math.max(1, width))];
   }
@@ -9041,6 +9114,23 @@ var createSettingsItems = ({
 
 // src/ui/settings-list-adapter.ts
 import { Key as Key4, matchesKey as matchesKey4 } from "@earendil-works/pi-tui";
+var hasSettingsListPublicContract = (list) => {
+  const candidate = list;
+  return typeof candidate.getSelectedItem === "function" && typeof candidate.hasOpenSubmenu === "function" && typeof candidate.hasSearchQuery === "function" && typeof candidate.selectItem === "function" && typeof candidate.updateValue === "function";
+};
+var nextSettingValue = (item, direction) => {
+  if (!item?.values?.length) {
+    return;
+  }
+  const currentIndex = item.values.indexOf(item.currentValue);
+  let nextIndex;
+  if (currentIndex === -1) {
+    nextIndex = direction > 0 ? 0 : item.values.length - 1;
+  } else {
+    nextIndex = (currentIndex + direction + item.values.length) % item.values.length;
+  }
+  return item.values[nextIndex];
+};
 
 class SettingsListAdapter {
   list;
@@ -9057,9 +9147,19 @@ class SettingsListAdapter {
     this.list.handleInput(keyData);
   }
   get submenuComponent() {
+    if (hasSettingsListPublicContract(this.list)) {
+      return this.list.openSubmenu?.component ?? null;
+    }
     return this.privateFields().submenuComponent;
   }
   setFocused(value) {
+    if (hasSettingsListPublicContract(this.list)) {
+      const submenu2 = this.list.openSubmenu?.component;
+      if (submenu2) {
+        submenu2.focused = value;
+      }
+      return;
+    }
     const fields = this.privateFields();
     const submenu = fields.submenuComponent;
     if (submenu) {
@@ -9067,6 +9167,10 @@ class SettingsListAdapter {
     }
   }
   setSelectedId(items, selectedId) {
+    if (hasSettingsListPublicContract(this.list)) {
+      this.list.selectItem(selectedId);
+      return;
+    }
     const selectedIndex = items.findIndex((item) => item.id === selectedId);
     if (selectedIndex !== -1) {
       this.privateFields().selectedIndex = selectedIndex;
@@ -9082,23 +9186,27 @@ class SettingsListAdapter {
     if (direction === 0) {
       return false;
     }
+    if (hasSettingsListPublicContract(this.list)) {
+      if (this.list.hasOpenSubmenu() || this.list.hasSearchQuery()) {
+        return false;
+      }
+      const item2 = this.list.getSelectedItem();
+      const nextValue2 = nextSettingValue(item2, direction);
+      if (!item2 || nextValue2 === undefined) {
+        return false;
+      }
+      this.list.updateValue(item2.id, nextValue2);
+      item2.currentValue = nextValue2;
+      onChange(item2.id, nextValue2);
+      return true;
+    }
     const fields = this.privateFields();
     if (fields.submenuComponent || fields.searchInput?.getValue()) {
       return false;
     }
     const item = fields.filteredItems[fields.selectedIndex];
-    if (!item?.values?.length) {
-      return false;
-    }
-    const currentIndex = item.values.indexOf(item.currentValue);
-    let nextIndex;
-    if (currentIndex === -1) {
-      nextIndex = direction > 0 ? 0 : item.values.length - 1;
-    } else {
-      nextIndex = (currentIndex + direction + item.values.length) % item.values.length;
-    }
-    const nextValue = item.values[nextIndex];
-    if (nextValue === undefined) {
+    const nextValue = nextSettingValue(item, direction);
+    if (!item || nextValue === undefined) {
       return false;
     }
     item.currentValue = nextValue;
