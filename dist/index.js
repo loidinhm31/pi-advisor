@@ -306,16 +306,6 @@ var splitRef = (ref) => {
   return i === -1 ? ["openai-codex", ref] : [ref.slice(0, i), ref.slice(i + 1)];
 };
 
-// src/child-session.ts
-var isMarkedSubagent = () => process.env.PI_SUBAGENT_CHILD === "1";
-var effectiveExecutorRef = (ctx) => {
-  if (isMarkedSubagent() && ctx.model) {
-    return `${ctx.model.provider}/${ctx.model.id}`;
-  }
-  return executorRef;
-};
-var effectiveExecutorEffort = (ctx) => isMarkedSubagent() ? ctx.thinkingLevel : executorEffortRef;
-
 // src/content-utils.ts
 var isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 var isRecordOf = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -342,6 +332,16 @@ var capUtf8Bytes = (value, maxBytes) => {
   }
   return result;
 };
+
+// src/child-session.ts
+var isMarkedSubagent = () => process.env.PI_SUBAGENT_CHILD === "1";
+var effectiveExecutorRef = (ctx) => {
+  if (isMarkedSubagent() && ctx.model) {
+    return `${ctx.model.provider}/${ctx.model.id}`;
+  }
+  return executorRef;
+};
+var effectiveExecutorEffort = (ctx) => isMarkedSubagent() ? ctx.thinkingLevel : executorEffortRef;
 
 // src/git.ts
 import { execFileSync } from "node:child_process";
@@ -1819,8 +1819,8 @@ class HerdrAdvisorBlock {
   emitBlocked;
   report;
   enabled;
-  constructor(report = sendToHerdr, enabled = () => true, emitBlocked = safeEmitBlocked) {
-    this.emitBlocked = emitBlocked;
+  constructor(report = sendToHerdr, enabled = () => true, emitBlocked2 = safeEmitBlocked) {
+    this.emitBlocked = emitBlocked2;
     this.report = report;
     this.enabled = enabled;
   }
@@ -2939,8 +2939,8 @@ var toolResultEntry = (message, toolResultMaxLines, toolResultMaxBytes, policies
     return `[Tool Result for ${toolName}] (excluded by Advisor tool policy)`;
   }
   if (policy === "summary") {
-    const capped = capToolResult(source, toolResultMaxLines, toolResultMaxBytes);
-    return `[Tool Result for ${toolName}] (output omitted by Advisor tool policy: summary; status: ${status}; ${capped.totalLines} lines, ${capped.totalBytes} bytes; source output was${capped.truncated ? "" : " not"} truncated)`;
+    const capped2 = capToolResult(source, toolResultMaxLines, toolResultMaxBytes);
+    return `[Tool Result for ${toolName}] (output omitted by Advisor tool policy: summary; status: ${status}; ${capped2.totalLines} lines, ${capped2.totalBytes} bytes; source output was${capped2.truncated ? "" : " not"} truncated)`;
   }
   const disclosed = redact ? redactSecrets(source) : source;
   const capped = capToolResult(disclosed, toolResultMaxLines, toolResultMaxBytes);
@@ -2982,17 +2982,17 @@ var selectRecentEntries = (entries, maxChars) => {
   }
   const newestTruncated = "[Newest entry truncated]";
   if (entries.length === 1) {
-    const prefix = `${newestTruncated}${separator}`;
-    return `${prefix}${entries[0].slice(0, Math.max(0, maxChars - prefix.length))}`.slice(0, maxChars);
+    const prefix2 = `${newestTruncated}${separator}`;
+    return `${prefix2}${entries[0].slice(0, Math.max(0, maxChars - prefix2.length))}`.slice(0, maxChars);
   }
   const selected = [];
   let selectedLength = 0;
   for (let index = entries.length - 1;index >= 0; index -= 1) {
     const entry = entries[index];
     const candidateCount = selected.length + 1;
-    const omitted = entries.length - candidateCount;
+    const omitted2 = entries.length - candidateCount;
     const candidateLength = selectedLength + entry.length + (selected.length > 0 ? separator.length : 0);
-    if (omissionMarker(omitted).length + separator.length + candidateLength > maxChars) {
+    if (omissionMarker(omitted2).length + separator.length + candidateLength > maxChars) {
       break;
     }
     selected.unshift(entry);
@@ -3743,15 +3743,15 @@ var runAdvisorScout = async (ctx, manifest, parentSignal, onEvent, timeoutMs = a
     return { cancelled: true, ok: false };
   };
   const fallback = (category, message, usage) => {
-    const outcome = {
+    const outcome2 = {
       category,
       message,
       metrics: usage === undefined ? baseMetrics(manifest, startedAt) : { ...baseMetrics(manifest, startedAt), usage },
       model: effectiveExecutorRef(ctx),
       ok: false
     };
-    publish({ outcome, type: "fallback" });
-    return outcome;
+    publish({ outcome: outcome2, type: "fallback" });
+    return outcome2;
   };
   if (parentSignal?.aborted) {
     return cancelled();
@@ -3872,12 +3872,12 @@ ${sources.join(`
 `)}
 </project_rules>`;
 };
-var advisorMessageText = (conversation, question, changes, draft, preferences, untracked, tracked, projectRules) => {
+var advisorMessageText = (conversation, question, changes, draft, preferences, untracked2, tracked2, projectRules) => {
   const safeConversation = escapeRepositoryText(conversation);
   const safeDraft = draft ? escapeRepositoryText(draft) : undefined;
   const safePreferences = preferences ? escapeRepositoryText(preferences) : undefined;
-  const safeUntracked = (untracked ?? []).map(escapeRepositoryText);
-  const safeTracked = (tracked ?? []).map(escapeRepositoryText);
+  const safeUntracked = (untracked2 ?? []).map(escapeRepositoryText);
+  const safeTracked = (tracked2 ?? []).map(escapeRepositoryText);
   const projectRulesText = projectRulesBlock(projectRules);
   const text = `${safeConversation ? `<conversation>
 ${safeConversation}
@@ -3993,8 +3993,8 @@ var assembleConsultationContext = async (options) => {
   const preferences = await readProjectPreferences(ctx, ATTACHMENT_TEXT_MAX_BYTES, advisorRedactSecretsRef);
   const projectRules = advisorAgentsMdContextRef ? await readProjectRules(ctx, ATTACHMENT_TEXT_MAX_BYTES, advisorRedactSecretsRef) : undefined;
   const draftText = options.draft ? redactAndCapText(options.draft, ATTACHMENT_TEXT_MAX_BYTES, advisorRedactSecretsRef) : undefined;
-  const untracked = await readUntrackedFiles(ctx.cwd, options.includeUntracked ?? [], advisorUntrackedContentRef, advisorRedactSecretsRef);
-  const tracked = await readTrackedFiles(ctx.cwd, options.includeTracked ?? [], advisorTrackedFileContentRef, advisorRedactSecretsRef, Math.max(0, ATTACHMENTS_TOTAL_MAX_BYTES - untracked.reduce((sum, item) => sum + item.bytes, 0)));
+  const untracked2 = await readUntrackedFiles(ctx.cwd, options.includeUntracked ?? [], advisorUntrackedContentRef, advisorRedactSecretsRef);
+  const tracked2 = await readTrackedFiles(ctx.cwd, options.includeTracked ?? [], advisorTrackedFileContentRef, advisorRedactSecretsRef, Math.max(0, ATTACHMENTS_TOTAL_MAX_BYTES - untracked2.reduce((sum, item) => sum + item.bytes, 0)));
   const supportsImages = options.supportsImages ?? false;
   const untrackedImages = await readImageFiles(ctx.cwd, options.includeUntracked ?? [], supportsImages && advisorUntrackedContentRef, "untracked", ADVISOR_IMAGES_TOTAL_MAX_BYTES, ADVISOR_IMAGES_MAX_COUNT);
   const trackedImages = await readImageFiles(ctx.cwd, options.includeTracked ?? [], supportsImages && advisorTrackedFileContentRef, "tracked", ADVISOR_IMAGES_TOTAL_MAX_BYTES - untrackedImages.images.reduce((sum, item) => sum + item.bytes, 0), ADVISOR_IMAGES_MAX_COUNT - untrackedImages.images.length);
@@ -4025,8 +4025,8 @@ var assembleConsultationContext = async (options) => {
     projectRules,
     scout: curated.scout,
     supportsImages,
-    tracked,
-    untracked
+    tracked: tracked2,
+    untracked: untracked2
   };
 };
 
@@ -4090,11 +4090,11 @@ var parseAutomaticDecision = (text) => {
     if (!subsequent) {
       continue;
     }
-    const repeated = namedGroups(subsequent).decision.trim().toLowerCase();
+    const repeated2 = namedGroups(subsequent).decision.trim().toLowerCase();
     if (openingFence) {
-      pendingFencedDecisions.push(repeated);
+      pendingFencedDecisions.push(repeated2);
     } else {
-      decisions.push(repeated);
+      decisions.push(repeated2);
     }
   }
   if (openingFence) {
@@ -5488,14 +5488,14 @@ Advisor flow ${sameModelAdvisorDisabled(ctx, activeModel) ? "configured" : "read
 };
 
 // src/commands/lifecycle.ts
-var registerCommandLifecycle = (runtime, activateAdvisor) => {
+var registerCommandLifecycle = (runtime, activateAdvisor2) => {
   runtime.pi.on("session_start", async (_event, ctx) => {
     runtime.pendingExecutorModelRef = undefined;
     runtime.resetSameModelNotice();
     try {
       loadConfig(ctx);
       if (alwaysOnRef) {
-        await activateAdvisor("", ctx, false);
+        await activateAdvisor2("", ctx, false);
       } else {
         runtime.updateSameModelNotice(ctx);
       }
@@ -5614,12 +5614,12 @@ var renderManualAdvisorDialog = (view) => {
   addLine(`${focusMarker("git")}${theme.bold(`Git repository context (max: ${gitCeiling}; ↑/↓ or Space to choose)`)}`);
   for (let index = 0;index < gitLevels.length; index += 1) {
     const level = gitLevels[index];
-    const copy = MANUAL_GIT_CONTEXT_COPY[level];
+    const copy2 = MANUAL_GIT_CONTEXT_COPY[level];
     const selected = index === gitIndex;
     const marker = selected ? "●" : "○";
     const optionFocus = focusTarget === "git" && selected ? "▸ " : "  ";
     const color = selected ? "accent" : "text";
-    addWrapped(`${optionFocus}${marker} ${copy.label} — ${copy.description}`, color);
+    addWrapped(`${optionFocus}${marker} ${copy2.label} — ${copy2.description}`, color);
   }
   addLine("");
   let interactionHint = "Enter submit · Shift+Enter newline · Tab/Shift+Tab focus · Esc cancel";
@@ -6114,12 +6114,12 @@ var sleepWithAbort = (signal, ms) => {
   if (signal.aborted) {
     return Promise.resolve();
   }
-  return new Promise((resolve) => {
-    const timer = setTimeout(resolve, ms);
+  return new Promise((resolve4) => {
+    const timer = setTimeout(resolve4, ms);
     timer.unref?.();
     signal.addEventListener("abort", () => {
       clearTimeout(timer);
-      resolve();
+      resolve4();
     }, { once: true });
   });
 };
@@ -7575,12 +7575,12 @@ var formatAdvisorStats = ({
 ${error}`;
   }
   if (!stats || stats.total === 0) {
-    const ignored = malformedLines ? `
+    const ignored2 = malformedLines ? `
 
 Ignored ${malformedLines} malformed ledger line${malformedLines === 1 ? "" : "s"}.` : "";
     return `**No Advisor outcomes recorded yet.**
 
-Enable outcome logging and record an outcome after an Advisor response to build this report.${ignored}`;
+Enable outcome logging and record an outcome after an Advisor response to build this report.${ignored2}`;
   }
   const { validationByAdoption } = stats;
   const { followed } = validationByAdoption;

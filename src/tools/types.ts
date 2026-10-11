@@ -147,3 +147,17 @@ export interface ToolRegistrationDependencies {
   statusManager?: ScoutStatusManager;
   turnGateDeps?: JevTurnGateDeps;
 }
+
+export interface DualHostBeforeAgentStartEvent {
+  prompt?: string;
+  systemPrompt?: string[];
+  systemPromptOptions?: {
+    sections?: Record<string, string | undefined>;
+  };
+}
+
+export interface HostAgentEndEvent {
+  messages?: unknown[];
+  type?: "agent_end";
+  willContinue?: boolean;
+}

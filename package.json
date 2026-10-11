@@ -36,7 +36,7 @@
     "bench:evaluate": "bun bench/src/cli.ts evaluate",
     "bench:replay": "bun bench/src/cli.ts replay",
     "bench:screen": "bun bench/src/cli.ts screen",
-    "build": "bun build ./extensions/index.ts --outfile dist/index.js --target node --format esm --external @earendil-works/pi-ai --external @earendil-works/pi-coding-agent --external @earendil-works/pi-tui --external typebox",
+    "build": "bun build ./extensions/index.ts --outfile dist/index.js --target node --format esm --loader .md:text --external @earendil-works/pi-ai --external @earendil-works/pi-coding-agent --external @earendil-works/pi-tui --external typebox",
     "check:boundaries": "node scripts/check-module-boundaries.mjs",
     "format": "oxfmt",
     "knip": "knip",
