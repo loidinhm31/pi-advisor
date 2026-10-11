@@ -125,6 +125,7 @@ export interface AdvisorToolContext {
 }
 
 export interface ToolRegistrationContext {
+  activeExecutions?: Set<string>;
   appendOutcome: typeof appendOutcome;
   consult: typeof consultAdvisor;
   herdrActivity: HerdrAdvisorActivityScope;

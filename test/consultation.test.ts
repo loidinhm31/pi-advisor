@@ -9,7 +9,10 @@ import {
   registerFauxProvider,
 } from "@earendil-works/pi-ai/compat";
 import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
-import type { BeforeAgentStartEvent } from "@earendil-works/pi-coding-agent";
+import type {
+  BeforeAgentStartEvent,
+  ExtensionAPI,
+} from "@earendil-works/pi-coding-agent";
 
 import registerExtension, {
   consultAdvisor,
@@ -23,19 +26,29 @@ import {
 import { setAdvisorScoutTimeoutMsRef } from "../src/config/state.ts";
 import { loadConfig } from "../src/config/storage.ts";
 import { DEFAULT_SCOUT_TIMEOUT_MS } from "../src/config/types.ts";
+import type { AdvisorFollowUpPayload } from "../src/follow-up.ts";
 import { HerdrAdvisorBlock } from "../src/herdr-block.ts";
 import { herdrAdvisorActivity } from "../src/herdr.ts";
 import { AdvisorSessionState } from "../src/session-state.ts";
 import { advisorRequestConversation } from "../src/tools.ts";
+import { handleJevTurnEnd } from "../src/tools/jev-turn-gate.ts";
 import { handleAutomaticGate } from "../src/tools/loop-gate.ts";
+import { registerAdvisorTool } from "../src/tools/registration.ts";
 import { ScoutStatusManager } from "../src/tools/scout-status.ts";
 import { withAgentDir } from "./helpers/config-fixture.ts";
-import { asExtensionContext } from "./helpers/extension-context.ts";
-import { dispatchBeforeAgentStart } from "./helpers/harness.ts";
+import {
+  asExtensionContext,
+  asExtensionToolContext,
+} from "./helpers/extension-context.ts";
+import {
+  activationContext,
+  dispatchBeforeAgentStart,
+} from "./helpers/harness.ts";
 import type { DualHostEventHandler } from "./helpers/harness.ts";
 import { mockPi } from "./helpers/mock-pi.ts";
 
 type PromptSections = BeforeAgentStartEvent["systemPromptOptions"]["sections"];
+type RegisteredTool = Parameters<ExtensionAPI["registerTool"]>[0];
 
 const registerBeforeAgentStart = (activeTools = ["ask_advisor"]) => {
   const events = new Map<string, DualHostEventHandler>();
@@ -774,5 +787,333 @@ describe("Advisor consultation request construction", () => {
       );
       expect(dirtyOutcome.result).toEqual({ systemPrompt: cleanPrompt });
     });
+  });
+});
+
+describe("OMP xd:// lifecycle and settlement safety (D1, D2, D3, D5)", () => {
+  test("outer write xd:// envelopes preserve follow-up expiry on 3rd non-advisor tool result (D1)", async () => {
+    await withAgentDir(
+      { advisor: "provider/advisor", executor: "provider/executor" },
+      async () => {
+        const events = new Map<string, DualHostEventHandler>();
+        const pi = mockPi({
+          activeTools: ["ask_advisor", "record_advisor_outcome"],
+          events,
+        });
+        const session = new AdvisorSessionState();
+        registerAdvisorTool(pi, session);
+        const ctx = asExtensionContext({ cwd: tmpdir() });
+
+        const followUpPayload: AdvisorFollowUpPayload = {
+          depth: 1,
+          messages: [],
+          model: "provider/advisor",
+          privacyKey: "key",
+          redacted: false,
+          systemPrompt: "prompt",
+        };
+        session.captureFollowUp("advice-1", followUpPayload);
+        await events.get("tool_result")?.({ toolName: "ask_advisor" }, ctx);
+        await events.get("tool_result")?.(
+          { details: { xdev: { tool: "ask_advisor" } }, toolName: "write" },
+          ctx
+        );
+        expect(session.followUpFor("advice-1").payload).toBeDefined();
+
+        await events.get("tool_result")?.({ toolName: "read" }, ctx);
+        expect(session.followUpFor("advice-1").payload).toBeDefined();
+
+        await events.get("tool_result")?.(
+          { toolName: "record_advisor_outcome" },
+          ctx
+        );
+        await events.get("tool_result")?.(
+          {
+            details: { xdev: { tool: "record_advisor_outcome" } },
+            toolName: "write",
+          },
+          ctx
+        );
+        expect(session.followUpFor("advice-1").payload).toBeDefined();
+
+        await events.get("tool_result")?.({ toolName: "bash" }, ctx);
+        expect(session.followUpFor("advice-1").payload).toBeUndefined();
+        expect(session.followUpFor("advice-1").reason).toContain(
+          "no longer cached"
+        );
+      }
+    );
+  });
+
+  test("outer write xd://ask_advisor does not trigger loop gate or reset bash streak, and record_advisor_outcome counts once (D2)", async () => {
+    await withAgentDir(
+      { advisor: "provider/advisor", executor: "provider/executor" },
+      async () => {
+        const events = new Map<string, DualHostEventHandler>();
+        const pi = mockPi({
+          activeTools: ["ask_advisor", "record_advisor_outcome"],
+          events,
+        });
+        const session = new AdvisorSessionState();
+        registerAdvisorTool(pi, session);
+        const ctx = asExtensionContext({ cwd: tmpdir() });
+
+        const bash1 = await events.get("tool_call")?.(
+          { input: { command: "test" }, toolCallId: "b1", toolName: "bash" },
+          ctx
+        );
+        expect(bash1).toBeUndefined();
+        const bash2 = await events.get("tool_call")?.(
+          { input: { command: "test" }, toolCallId: "b2", toolName: "bash" },
+          ctx
+        );
+        expect(bash2).toBeUndefined();
+
+        for (let i = 0; i < 3; i += 1) {
+          const writeCall = await events.get("tool_call")?.(
+            {
+              input: { content: "{}", path: "xd://ask_advisor" },
+              toolCallId: `w${i}`,
+              toolName: "write",
+            },
+            ctx
+          );
+          expect(writeCall).toBeUndefined();
+        }
+
+        const writeOutcome = await events.get("tool_call")?.(
+          {
+            input: { content: "{}", path: "xd://record_advisor_outcome" },
+            toolCallId: "wo1",
+            toolName: "write",
+          },
+          ctx
+        );
+        expect(writeOutcome).toBeUndefined();
+
+        const innerOutcome = await events.get("tool_call")?.(
+          {
+            input: { adopted: true, adviceId: "a1" },
+            toolCallId: "wo1",
+            toolName: "record_advisor_outcome",
+          },
+          ctx
+        );
+        expect(innerOutcome).toBeUndefined();
+      }
+    );
+  });
+
+  test("budget accounting: help and pre-execution consume 0 budget while post-consumeCall failures preserve consumed slot (D3)", async () => {
+    const faux = registerFauxProvider({
+      api: "pi-advisor-budget-test",
+      models: [{ id: "advisor", input: ["text"] }],
+      provider: "pi-advisor-budget-test",
+    });
+    await withAgentDir(
+      {
+        advisor: "pi-advisor-budget-test/advisor",
+        advisorMaxCallsPerSession: 3,
+        executor: "pi-advisor-budget-test/advisor",
+        simpleMode: false,
+      },
+      async (agentDir) => {
+        const events = new Map<string, DualHostEventHandler>();
+        const tools = new Map<string, RegisteredTool>();
+        const pi = mockPi({
+          activeTools: ["ask_advisor", "record_advisor_outcome"],
+          events,
+          tools,
+        });
+        const session = new AdvisorSessionState();
+        registerAdvisorTool(pi, session);
+        const ctx = fauxContext(agentDir, faux, [], true);
+        const toolCtx = asExtensionToolContext(ctx);
+
+        const helpCall = await events.get("tool_call")?.(
+          {
+            input: { content: "?", path: "xd://ask_advisor" },
+            toolCallId: "call-help",
+            toolName: "write",
+          },
+          ctx
+        );
+        expect(helpCall).toBeUndefined();
+        expect(session.remainingCalls(3)).toBe(3);
+
+        const tool = tools.get("ask_advisor");
+        expect(tool).toBeDefined();
+        if (tool) {
+          await expect(
+            tool.execute(
+              "bad-exec",
+              { followUpTo: "nonexistent-id", question: "help" },
+              undefined,
+              undefined,
+              toolCtx
+            )
+          ).rejects.toThrow("Follow-up unavailable");
+          expect(session.remainingCalls(3)).toBe(3);
+
+          faux.setResponses([
+            () => {
+              throw new Error("Provider network drop");
+            },
+          ]);
+          await expect(
+            tool.execute(
+              "post-call",
+              { question: "will fail at provider" },
+              undefined,
+              undefined,
+              toolCtx
+            )
+          ).rejects.toThrow("Provider network drop");
+          expect(session.remainingCalls(3)).toBe(2);
+        }
+      }
+    );
+  });
+
+  test("agent_end continuing preserves active/queued reservations; final settlement clears abandoned reservations and dedupes summary (D5)", async () => {
+    await withAgentDir(
+      {
+        advisor: "provider/advisor",
+        advisorMaxCallsPerSession: 5,
+        advisorSessionSummary: true,
+        executor: "provider/executor",
+        simpleMode: false,
+      },
+      async (agentDir) => {
+        const events = new Map<string, DualHostEventHandler>();
+        const notifications: string[] = [];
+        const pi = mockPi({
+          activeTools: ["ask_advisor"],
+          events,
+        });
+        const session = new AdvisorSessionState();
+        registerAdvisorTool(pi, session);
+        const ompCtx = {
+          ...activationContext(agentDir, notifications),
+          agent: { id: "TaskWorker", kind: "sub" as const },
+        };
+        session.recordInvocation({
+          executionEffect: "continued",
+          kind: "markdown",
+          model: "provider/advisor",
+          trigger: "executor-requested",
+        });
+
+        await events.get("tool_call")?.(
+          { toolCallId: "abandoned-1", toolName: "ask_advisor" },
+          ompCtx
+        );
+        expect(session.remainingCalls(5)).toBe(4);
+
+        await events.get("agent_end")?.(
+          { type: "agent_end", willContinue: true },
+          ompCtx
+        );
+        expect(session.remainingCalls(5)).toBe(4);
+        expect(notifications).toEqual([]);
+
+        await events.get("agent_end")?.(
+          { type: "agent_end", willContinue: false },
+          ompCtx
+        );
+        expect(session.remainingCalls(5)).toBe(5);
+        expect(notifications).toHaveLength(1);
+
+        await events.get("agent_settled")?.({ type: "agent_settled" }, ompCtx);
+        expect(notifications).toHaveLength(1);
+      }
+    );
+  });
+
+  test("native OMP host advisor events are ignored across lifecycle and turn gate (D6)", async () => {
+    await withAgentDir(
+      {
+        advisor: "provider/advisor",
+        advisorMaxCallsPerSession: 5,
+        executor: "provider/executor",
+      },
+      async () => {
+        const events = new Map<string, DualHostEventHandler>();
+        const pi = mockPi({
+          activeTools: ["ask_advisor", "record_advisor_outcome"],
+          events,
+        });
+        const session = new AdvisorSessionState();
+        registerAdvisorTool(pi, session);
+        const nativeAdvisorCtx = asExtensionContext({
+          agent: { id: "advisor", kind: "sub" as const },
+          cwd: tmpdir(),
+        });
+
+        // Seed a reservation that must survive native-advisor lifecycle events
+        session.reserveCall("seeded-reservation", 5);
+        expect(session.remainingCalls(5)).toBe(4);
+
+        const beforeStartHandler = events.get("before_agent_start");
+        expect(beforeStartHandler).toBeDefined();
+        const startOutcome = await beforeStartHandler?.(
+          { systemPrompt: ["base"] },
+          nativeAdvisorCtx
+        );
+        expect(startOutcome).toBeUndefined();
+
+        const toolCallHandler = events.get("tool_call");
+        expect(toolCallHandler).toBeDefined();
+        const callOutcome = await toolCallHandler?.(
+          { input: {}, toolCallId: "nat-1", toolName: "read" },
+          nativeAdvisorCtx
+        );
+        expect(callOutcome).toBeUndefined();
+
+        // Capture a follow-up that should survive 3 tool results under native advisor
+        session.captureFollowUp("adv-native", {
+          depth: 1,
+          messages: [],
+          model: "provider/advisor",
+          privacyKey: "key",
+          redacted: false,
+          systemPrompt: "prompt",
+        });
+        const toolResultHandler = events.get("tool_result");
+        expect(toolResultHandler).toBeDefined();
+        for (let i = 0; i < 3; i += 1) {
+          await toolResultHandler?.({ toolName: "read" }, nativeAdvisorCtx);
+        }
+        expect(session.followUpFor("adv-native").payload).toBeDefined();
+
+        const agentEndHandler = events.get("agent_end");
+        expect(agentEndHandler).toBeDefined();
+        await agentEndHandler?.(
+          { type: "agent_end", willContinue: false },
+          nativeAdvisorCtx
+        );
+        expect(session.remainingCalls(5)).toBe(4);
+
+        const agentSettledHandler = events.get("agent_settled");
+        expect(agentSettledHandler).toBeDefined();
+        await agentSettledHandler?.(
+          { type: "agent_settled" },
+          nativeAdvisorCtx
+        );
+        expect(session.remainingCalls(5)).toBe(4);
+
+        const turnSession = new AdvisorSessionState();
+        await handleJevTurnEnd(
+          {
+            activeTools: () => ["ask_advisor"],
+            consult: consultAdvisor,
+            send: () => undefined,
+            session: turnSession,
+          },
+          nativeAdvisorCtx
+        );
+        expect(turnSession.turnsSinceConsultation).toBe(0);
+      }
+    );
   });
 });

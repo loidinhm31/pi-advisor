@@ -520,6 +520,70 @@ describe("Advisor activation flow", () => {
     }
   });
 
+  test("preserves child agent model and thinking level for in-process subagents without writing advisor.json (D6)", async () => {
+    await withAgentDir(
+      {
+        advisor: "provider/advisor",
+        alwaysOn: true,
+        executor: "provider/executor",
+        executorEffort: "high",
+      },
+      async (agentDir) => {
+        const { events, pi, selectedModels, thinkingLevels, setActiveTools } =
+          activationHarness();
+        registerCommands(pi);
+        setActiveTools([]);
+        const childCtx = {
+          ...activationContext(agentDir),
+          agent: { id: "Task1", kind: "sub" as const },
+          model: { id: "child-model", provider: "child-provider" },
+          thinkingLevel: "low" as const,
+        };
+        await events.get("session_start")?.({ reason: "startup" }, childCtx);
+        expect(pi.getActiveTools()).toContain("ask_advisor");
+        expect(selectedModels).toEqual([]);
+        expect(thinkingLevels).toEqual([]);
+
+        await events.get("model_select")?.(
+          {
+            model: { id: "new-child-model", provider: "provider" },
+            source: "set",
+          },
+          childCtx
+        );
+        expect(savedConfig(agentDir).executor).toBe("provider/executor");
+      }
+    );
+  });
+
+  test("awaits setActiveTools in /advisor activation and /advisor-off deactivation", async () => {
+    await withAgentDir(
+      {
+        advisor: "provider/advisor",
+        executor: "provider/executor",
+      },
+      async (agentDir) => {
+        const commands = new Map<string, any>();
+        const activeTools: string[] = [];
+        const pi = mockPi(
+          { activeTools, commands, deferSetActiveTools: true },
+          {
+            setModel: () => Promise.resolve(true),
+            setThinkingLevel: () => undefined,
+          }
+        );
+        registerCommands(pi);
+        const ctx = activationContext(agentDir);
+
+        await commands.get("advisor").handler("", ctx);
+        expect(activeTools).toContain("ask_advisor");
+
+        await commands.get("advisor-off").handler("", ctx);
+        expect(activeTools).not.toContain("ask_advisor");
+      }
+    );
+  });
+
   test("hides usage details from automatic gate results when disabled", () => {
     setShowUsageDetailsRef(true);
     const { pi, renderers } = activationHarness();

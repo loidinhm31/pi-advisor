@@ -49,7 +49,7 @@ export const registerCommandLifecycle = (
     if (
       event.source !== "set" ||
       runtime.suppressModelSelectionSync ||
-      isMarkedSubagent()
+      isMarkedSubagent(ctx)
     ) {
       return;
     }

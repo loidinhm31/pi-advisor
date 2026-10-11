@@ -63,6 +63,8 @@ The same tool disclosure policies, tool-result limits, and optional secret redac
 
 Scout does not receive the deterministic Git context, Executor draft, project preferences, or explicitly attached tracked and untracked files. These regions bypass Scout and retain their existing disclosure, redaction, escaping, and cap rules when the final Advisor request is assembled.
 
+When pending tool invocations appear in the conversation manifest, `pendingInvocationDisclosure` protects sensitive parameters. For pending `write xd://ask_advisor` invocations, arguments are sanitized so that Scout receives only `path`, `gitContext`, and `question`. Sensitive fields—including `draft`, `includeTrackedFiles`, and `includeUntracked`—are stripped. If the `content` argument is missing, not a string, or contains malformed JSON, it fails closed to `arguments: { path: part.arguments.path, content: "{}" }` rather than leaking raw unparsed content into the manifest. Explicit `<executor_draft>` content and consented file attachments bypass Scout entirely and are disclosed only to the final Advisor model request.
+
 Scout returns selected opaque group IDs and a bounded synthesis. The Advisor receives the selected verbatim groups plus a label that identifies the synthesis as untrusted, non-authoritative inference. Scout free-form text never replaces the evidence.
 
 The Scout call creates separate provider usage and cost. Its metrics are local and ephemeral. pi-advisor does not persist a Scout trajectory, add Scout data to Session Advisor Summary, send it to Herdr, or charge it against the Advisor-call budget. An ordinary Scout failure uses the original conversation; parent cancellation stops the complete operation.
@@ -98,5 +100,14 @@ The optional Session Advisor Summary defaults to off. When enabled, it is local 
 It distinguishes regular Markdown advice from gate decisions and records the trigger, model, usage and cost when available, failures, budget, and execution effect.
 
 [Herdr](https://github.com/herdrdev/herdr) integration is enabled by default. It reports Advisor activity and a bounded, redacted blocked-state summary through Herdr's metadata paths. Disable it with `advisorHerdrIntegration`. Previously reported state is still cleared when integration is disabled.
+
+## Subagent and multi-agent safety
+
+In multi-agent environments (such as OMP `task` subagents or child processes flagged with `PI_SUBAGENT_CHILD=1`), pi-advisor enforces strict privacy and configuration boundaries:
+
+- **Global configuration protection**: Subagent sessions cannot mutate or persist changes to the user's global `advisor.json`. Child `model_select` and `session_start` events do not overwrite `pendingExecutorModelRef` or modify global model preferences.
+- **Child model preservation**: Persistent activation (`alwaysOn`) respects host-assigned subagent models and reasoning levels, preventing parent executor models from unintentionally overriding subagent configurations.
+- **Native host advisor isolation**: Events emitted by host-native advisor subagents (`ctx.agent.kind === "sub" && ctx.agent.id === "advisor"`) are ignored by lifecycle hooks (`before_agent_start`, `tool_call`, `tool_result`, `handleJevTurnEnd`), preventing host-internal reasoning turns from leaking into plugin counters, turn gates, or loop-gate repetition metrics.
+- **Session summary ephemerality**: Settlement summaries generated on `agent_end` or `agent_settled` remain strictly local and in-memory; they are never persisted across sessions or emitted during intermediate continuing turns (`willContinue: true`).
 
 See [Configuration](configuration.md) for all settings and defaults.

@@ -31,14 +31,22 @@ export const hasOmpAgentIdentity = (
   return (kind === "main" || kind === "sub") && isString(id) && id.length > 0;
 };
 
-export const isMarkedSubagent = () => process.env.PI_SUBAGENT_CHILD === "1";
+export const isMarkedSubagent = (ctx?: AgentAwareContext | null): boolean =>
+  process.env.PI_SUBAGENT_CHILD === "1" ||
+  (isRecord(ctx) && isRecord(ctx.agent) && ctx.agent.kind === "sub");
+
+export const isNativeHostAdvisor = (ctx?: AgentAwareContext | null): boolean =>
+  isRecord(ctx) &&
+  isRecord(ctx.agent) &&
+  ctx.agent.kind === "sub" &&
+  ctx.agent.id === "advisor";
 
 export const effectiveExecutorRef = (ctx: ExtensionContext) => {
-  if (isMarkedSubagent() && ctx.model) {
+  if (isMarkedSubagent(ctx) && ctx.model) {
     return `${ctx.model.provider}/${ctx.model.id}`;
   }
   return executorRef;
 };
 
 export const effectiveExecutorEffort = (ctx: ExtensionContext) =>
-  isMarkedSubagent() ? ctx.thinkingLevel : executorEffortRef;
+  isMarkedSubagent(ctx) ? ctx.thinkingLevel : executorEffortRef;

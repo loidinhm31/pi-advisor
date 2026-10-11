@@ -34,7 +34,7 @@ created: 2026-10-11
 | [01 — Host contracts](phase-01-host-contracts.md) | Frozen baseline, capability interfaces, host harness | None | DONE (2026-10-11) / 100% |
 | [02 — TUI compatibility](phase-02-tui-compatibility.md) | Manual overlay, settings navigation, masked input | 01 | DONE (2026-10-11) / 100% |
 | [03 — Prompt injection](phase-03-prompt-injection.md) | Preserved prompt + correct advisor route and rules | 01 | DONE (2026-10-11) / 100% |
-| [04 — Device lifecycle safety](phase-04-device-lifecycle-safety.md) | Accounting, disclosure, settlement, child isolation | 03 | Pending / 0% |
+| [04 — Device lifecycle safety](phase-04-device-lifecycle-safety.md) | Accounting, disclosure, settlement, child isolation | 03 | DONE (2026-10-11) / 100% |
 | [05 — Full-gate settings](phase-05-full-gate-settings.md) | Existing settings effective and documented | 02, 04 | Pending / 0% |
 | [06 — Integration and installation](phase-06-integration-and-installation.md) | Dual-host proof, package/link/restart, docs, rollback | 05 | Pending / 0% |
 

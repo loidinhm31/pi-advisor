@@ -11,6 +11,7 @@ import type {
   HostAgentEndEvent,
 } from "../../src/tools/types.ts";
 import { asExtensionContext } from "./extension-context.ts";
+import type { JsonValue } from "./extension-context.ts";
 import { mockPi } from "./mock-pi.ts";
 import type { MockHandlerOutcome } from "./mock-pi.ts";
 
@@ -177,6 +178,12 @@ export const activationContext = (
 export type DualHostLifecycleEvent =
   | DualHostBeforeAgentStartEvent
   | HostAgentEndEvent
+  | {
+      details?: Record<string, JsonValue>;
+      input?: Record<string, JsonValue>;
+      toolCallId?: string;
+      toolName?: string;
+    }
   | { reason?: string; type?: string };
 
 export type DualHostEventHandler =

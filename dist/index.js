@@ -332,16 +332,49 @@ var capUtf8Bytes = (value, maxBytes) => {
   }
   return result;
 };
+var advisorDeviceTarget = (toolName, inputOrArgs, details) => {
+  if (toolName !== "write") {
+    return;
+  }
+  if (isRecordOf(details) && isRecordOf(details.xdev)) {
+    const target = details.xdev.tool;
+    if (target === "ask_advisor" || target === "record_advisor_outcome") {
+      return target;
+    }
+  }
+  if (isRecordOf(inputOrArgs) && isString(inputOrArgs.path)) {
+    const trimmed = inputOrArgs.path.trim();
+    if (trimmed.slice(0, 5).toLowerCase() === "xd://") {
+      const target = trimmed.slice(5);
+      if (target === "ask_advisor" || target === "record_advisor_outcome") {
+        return target;
+      }
+    }
+  }
+  return;
+};
 
 // src/child-session.ts
-var isMarkedSubagent = () => process.env.PI_SUBAGENT_CHILD === "1";
+var hasOmpAgentIdentity = (ctx) => {
+  if (!isRecord(ctx)) {
+    return false;
+  }
+  const { agent } = ctx;
+  if (!isRecord(agent)) {
+    return false;
+  }
+  const { id, kind } = agent;
+  return (kind === "main" || kind === "sub") && isString(id) && id.length > 0;
+};
+var isMarkedSubagent = (ctx) => process.env.PI_SUBAGENT_CHILD === "1" || isRecord(ctx) && isRecord(ctx.agent) && ctx.agent.kind === "sub";
+var isNativeHostAdvisor = (ctx) => isRecord(ctx) && isRecord(ctx.agent) && ctx.agent.kind === "sub" && ctx.agent.id === "advisor";
 var effectiveExecutorRef = (ctx) => {
-  if (isMarkedSubagent() && ctx.model) {
+  if (isMarkedSubagent(ctx) && ctx.model) {
     return `${ctx.model.provider}/${ctx.model.id}`;
   }
   return executorRef;
 };
-var effectiveExecutorEffort = (ctx) => isMarkedSubagent() ? ctx.thinkingLevel : executorEffortRef;
+var effectiveExecutorEffort = (ctx) => isMarkedSubagent(ctx) ? ctx.thinkingLevel : executorEffortRef;
 
 // src/git.ts
 import { execFileSync } from "node:child_process";
@@ -3140,16 +3173,46 @@ var pendingAdvisorArguments = (part) => {
   }
   return allowed;
 };
+var pendingWriteAdvisorArguments = (args) => {
+  const { content: rawContent, path } = args;
+  if (!isString(rawContent)) {
+    return { content: "{}", path };
+  }
+  try {
+    const parsed = JSON.parse(rawContent);
+    if (!isRecord(parsed)) {
+      return { content: "{}", path };
+    }
+    const allowed = {};
+    for (const key of ["gitContext", "question"]) {
+      if (key in parsed) {
+        allowed[key] = parsed[key];
+      }
+    }
+    return { content: JSON.stringify(allowed), path };
+  } catch {
+    return { content: "{}", path };
+  }
+};
 var pendingInvocationDisclosure = (entry, invocationId, toolResultMaxLines, toolResultMaxBytes, policies, redact, imageNonce, disclosed) => {
   if (!isRecord(entry.message)) {
     return disclosed;
   }
   const message = entry.message;
   const content = contentParts(message.content).map((part) => {
-    if (!isRecord(part) || part.type !== "toolCall" || toolCallId(part) !== invocationId || part.name !== "ask_advisor") {
+    if (!isRecord(part) || part.type !== "toolCall" || toolCallId(part) !== invocationId) {
       return part;
     }
-    return { ...part, arguments: pendingAdvisorArguments(part) };
+    if (part.name === "ask_advisor") {
+      return { ...part, arguments: pendingAdvisorArguments(part) };
+    }
+    if (isString(part.name) && advisorDeviceTarget(part.name, part.arguments) === "ask_advisor" && isRecord(part.arguments)) {
+      return {
+        ...part,
+        arguments: pendingWriteAdvisorArguments(part.arguments)
+      };
+    }
+    return part;
   });
   return conversationEntry({ ...entry, message: { ...message, content } }, toolResultMaxLines, toolResultMaxBytes, policies, redact, true, imageNonce);
 };
@@ -5396,7 +5459,7 @@ var prepareActivationModels = async (runtime, ctx, announce, executorOverride, a
     notify(ctx, explicitError, "error");
     return;
   }
-  const plan = planActivationModels(ctx, executorRef, advisorRef, runtime.pendingExecutorModelRef, persisted, executorOverride, advisorOverride, availableRefSet);
+  const plan = planActivationModels(ctx, executorRef, advisorRef, isMarkedSubagent(ctx) ? undefined : runtime.pendingExecutorModelRef, persisted, executorOverride, advisorOverride, availableRefSet);
   setExecutorRef(plan.pendingExecutor ?? executorRef);
   if (!(plan.selectExecutor || plan.selectAdvisor)) {
     return { pendingExecutor: plan.pendingExecutor, pickedModels: false };
@@ -5443,7 +5506,7 @@ var resolveActivationModels = async (runtime, ctx) => {
   if (!(advisorAuth.ok && advisorAuth.apiKey)) {
     return { error: `No API key for Advisor ${advisorRef}` };
   }
-  if (!isMarkedSubagent() && !await runtime.setExecutorModel(executor)) {
+  if (!isMarkedSubagent(ctx) && !await runtime.setExecutorModel(executor)) {
     return { error: `No API key for Executor ${executorRef}` };
   }
   return {};
@@ -5485,21 +5548,21 @@ var activateAdvisor = async (runtime, args, ctx, announce = true) => {
     notify(ctx, error, "error");
     return;
   }
-  if (args.trim() || prepared.pickedModels || prepared.pendingExecutor) {
+  if (!isMarkedSubagent(ctx) && (args.trim() || prepared.pickedModels || prepared.pendingExecutor)) {
     saveConfig(ctx, { persistAdvisor: true, persistExecutor: true });
   }
   runtime.pendingExecutorModelRef = undefined;
-  if (executorEffortRef && !isMarkedSubagent()) {
+  if (executorEffortRef && !isMarkedSubagent(ctx)) {
     runtime.pi.setThinkingLevel(executorEffortRef);
   }
   if (!runtime.flowEnabled()) {
-    runtime.pi.setActiveTools([
+    await runtime.pi.setActiveTools([
       ...runtime.pi.getActiveTools(),
       "ask_advisor",
       "record_advisor_outcome"
     ]);
   }
-  const activeModel = isMarkedSubagent() ? ctx.model : findConfiguredModel(ctx, executorRef);
+  const activeModel = isMarkedSubagent(ctx) ? ctx.model : findConfiguredModel(ctx, executorRef);
   runtime.updateSameModelNotice(ctx, activeModel);
   if (announce) {
     const activeExecutorRef = effectiveExecutorRef(ctx);
@@ -5531,7 +5594,7 @@ var registerCommandLifecycle = (runtime, activateAdvisor2) => {
     if (!runtime.suppressModelSelectionSync) {
       runtime.updateSameModelNotice(ctx, event.model);
     }
-    if (event.source !== "set" || runtime.suppressModelSelectionSync || isMarkedSubagent()) {
+    if (event.source !== "set" || runtime.suppressModelSelectionSync || isMarkedSubagent(ctx)) {
       return;
     }
     const selected = `${event.model.provider}/${event.model.id}`;
@@ -9708,8 +9771,8 @@ var registerSettingsCommands = (runtime) => {
   });
   runtime.pi.registerCommand("advisor-off", {
     description: "Disable on-demand Advisor calls; keep the current model",
-    handler: (_args, ctx) => {
-      runtime.pi.setActiveTools(runtime.pi.getActiveTools().filter((name) => name !== "ask_advisor" && name !== "record_advisor_outcome"));
+    handler: async (_args, ctx) => {
+      await runtime.pi.setActiveTools(runtime.pi.getActiveTools().filter((name) => name !== "ask_advisor" && name !== "record_advisor_outcome"));
       runtime.resetSameModelNotice();
       const wasAlwaysOn = alwaysOnRef;
       if (wasAlwaysOn) {
@@ -9721,7 +9784,6 @@ var registerSettingsCommands = (runtime) => {
         });
       }
       notify(ctx, `Advisor flow disabled. Current model unchanged.${wasAlwaysOn ? " Always on turned off." : ""}`, "info");
-      return Promise.resolve();
     }
   });
 };
@@ -9835,6 +9897,9 @@ var consumeTurnGateBudget = (session, shouldConsult) => {
 };
 var resetJevTurnGateNotification = outageNotifier2.reset;
 var handleJevTurnEnd = async (registration, ctx) => {
+  if (isNativeHostAdvisor(ctx)) {
+    return;
+  }
   const { session } = registration;
   session.recordCompletedTurn();
   if (!shouldRunTurnGate(registration, ctx, session)) {
@@ -10132,6 +10197,7 @@ var claimTrackedHandoff = (session, includeTrackedFiles) => {
   }
 };
 var registerAskAdvisorTool = ({
+  activeExecutions,
   consult: requestAdvisor,
   herdrActivity,
   pi,
@@ -10142,193 +10208,198 @@ var registerAskAdvisorTool = ({
   pi.registerTool({
     description: "Consult the on-demand Advisor model for strategic guidance. Call with an empty object for a contextual review; attach an optional draft for concrete plan or completion review. Use followUpTo with a new question to continue one cached consultation without rebuilding its redacted context. If the Advisor explicitly names a missing file, you may make a sequential fresh consultation with includeTrackedFiles when enabled and relevant. In Pi Codemode, gather and filter deterministic tool results first, then call tools.ask_advisor. Nested results are not automatically reconstructed: pass only permitted, concise summaries in draft (untrusted, capped at 8 KiB, not independently verified). Draft does not inherit source-tool disclosure policies; use gitContext for patches within the user's allowance.",
     async execute(_id, params, signal, onUpdate, ctx) {
-      let followUp;
+      activeExecutions?.add(_id);
       try {
-        loadConfig(ctx);
-        followUp = resolveFollowUp(params, session);
-        if (followUp) {
-          assertAdvisorFollowUpPrivacy(followUp.payload, ctx);
-        }
-        const modelRef = followUp?.payload.model;
-        if (sameModelAdvisorDisabled(ctx, ctx.model, modelRef)) {
-          return skippedSameModelResult(_id, sameModelNoticeFor(modelRef), reservedCalls, session);
-        }
-        assertAdvisorModelAccess(ctx);
-      } catch (error) {
-        session.releaseCall(_id);
-        reservedCalls.delete(_id);
-        throw error;
-      }
-      const simpleMode = isSimpleMode();
-      if (!simpleMode && !session.reserveCall(_id, getAdvisorMaxCallsPerSession())) {
-        throw new Error("Advisor call budget exhausted for this session.");
-      }
-      if (simpleMode) {
-        session.releaseCall(_id);
-        reservedCalls.delete(_id);
-      } else {
-        reservedCalls.add(_id);
-      }
-      let normalizedQuestion;
-      try {
-        if (!simpleMode && !session.canConsult(getAdvisorMaxCallsPerSession(), _id)) {
-          throw new Error("Advisor call budget exhausted for this session.");
-        }
-        normalizedQuestion = normalizeScreeningQuestion(resolveAdvisorRequest(params.question));
-        const screening = await screen(ctx, session, {
-          draft: params.draft,
-          force: params.force,
-          question: resolveAdvisorRequest(params.question),
-          signal
-        });
-        if (screening.decision === "skip") {
-          const skipText = screeningSkipText(screening);
+        let followUp;
+        try {
+          loadConfig(ctx);
+          followUp = resolveFollowUp(params, session);
+          if (followUp) {
+            assertAdvisorFollowUpPrivacy(followUp.payload, ctx);
+          }
+          const modelRef = followUp?.payload.model;
+          if (sameModelAdvisorDisabled(ctx, ctx.model, modelRef)) {
+            return skippedSameModelResult(_id, sameModelNoticeFor(modelRef), reservedCalls, session);
+          }
+          assertAdvisorModelAccess(ctx);
+        } catch (error) {
           session.releaseCall(_id);
           reservedCalls.delete(_id);
-          const skipped = {
-            jev: {
-              kind: screening.kind,
-              reason: screening.reason,
-              skipped: true
-            },
-            text: skipText
-          };
-          return {
-            content: [{ text: skipText, type: "text" }],
-            details: skipped,
-            structuredContent: skipped
-          };
+          throw error;
         }
-        if (sameModelAdvisorDisabled(ctx, ctx.model, followUp?.payload.model)) {
-          return skippedSameModelResult(_id, sameModelNoticeFor(followUp?.payload.model), reservedCalls, session);
-        }
-        if (!simpleMode && !session.canConsult(getAdvisorMaxCallsPerSession(), _id)) {
+        const simpleMode = isSimpleMode();
+        if (!simpleMode && !session.reserveCall(_id, getAdvisorMaxCallsPerSession())) {
           throw new Error("Advisor call budget exhausted for this session.");
         }
-        claimTrackedHandoff(session, params.includeTrackedFiles);
-        if (!simpleMode) {
-          session.consumeCall(_id);
+        if (simpleMode) {
+          session.releaseCall(_id);
           reservedCalls.delete(_id);
-          session.resetTurnsSinceConsultation();
+        } else {
+          reservedCalls.add(_id);
         }
-      } catch (error) {
-        session.releaseCall(_id);
-        reservedCalls.delete(_id);
-        throw error;
-      }
-      const runConsultation = async () => {
-        let scoutDetails;
-        const coalescedUpdate = createCoalescedUpdate((update) => onUpdate?.(update), ADVISOR_STREAM_UPDATE_INTERVAL_MS);
-        const flushUpdate = () => {
-          const result = coalescedUpdate.flush();
-          if (result.failed) {
-            throw result.error;
-          }
-        };
-        const finishHerdrActivity = herdrActivity.start();
+        let normalizedQuestion;
         try {
-          const result = await requestAdvisor(ctx, resolveAdvisorRequest(params.question), signal, (t, tx) => coalescedUpdate.update({
-            content: [{ text: tx, type: "text" }],
-            details: {
-              advisor: followUp?.payload.model ?? advisorRef,
-              followUp: Boolean(followUp),
-              question: resolveAdvisorRequest(params.question),
-              scout: scoutDetails,
-              text: tx,
-              thinking: t
+          if (!simpleMode && !session.canConsult(getAdvisorMaxCallsPerSession(), _id)) {
+            throw new Error("Advisor call budget exhausted for this session.");
+          }
+          normalizedQuestion = normalizeScreeningQuestion(resolveAdvisorRequest(params.question));
+          const screening = await screen(ctx, session, {
+            draft: params.draft,
+            force: params.force,
+            question: resolveAdvisorRequest(params.question),
+            signal
+          });
+          if (screening.decision === "skip") {
+            const skipText = screeningSkipText(screening);
+            session.releaseCall(_id);
+            reservedCalls.delete(_id);
+            const skipped = {
+              jev: {
+                kind: screening.kind,
+                reason: screening.reason,
+                skipped: true
+              },
+              text: skipText
+            };
+            return {
+              content: [{ text: skipText, type: "text" }],
+              details: skipped,
+              structuredContent: skipped
+            };
+          }
+          if (sameModelAdvisorDisabled(ctx, ctx.model, followUp?.payload.model)) {
+            return skippedSameModelResult(_id, sameModelNoticeFor(followUp?.payload.model), reservedCalls, session);
+          }
+          if (!simpleMode && !session.canConsult(getAdvisorMaxCallsPerSession(), _id)) {
+            throw new Error("Advisor call budget exhausted for this session.");
+          }
+          claimTrackedHandoff(session, params.includeTrackedFiles);
+          if (!simpleMode) {
+            session.consumeCall(_id);
+            reservedCalls.delete(_id);
+            session.resetTurnsSinceConsultation();
+          }
+        } catch (error) {
+          session.releaseCall(_id);
+          reservedCalls.delete(_id);
+          throw error;
+        }
+        const runConsultation = async () => {
+          let scoutDetails;
+          const coalescedUpdate = createCoalescedUpdate((update) => onUpdate?.(update), ADVISOR_STREAM_UPDATE_INTERVAL_MS);
+          const flushUpdate = () => {
+            const result = coalescedUpdate.flush();
+            if (result.failed) {
+              throw result.error;
             }
-          }), "executor-requested", params.gitContext === "none" ? "off" : params.gitContext, params.draft, params.includeUntracked, params.includeTrackedFiles, (event) => {
-            scoutDetails = scoutDetailsFromEvent(event, scoutDetails);
-            coalescedUpdate.update({
-              content: [{ text: scoutDetails.text ?? "", type: "text" }],
+          };
+          const finishHerdrActivity = herdrActivity.start();
+          try {
+            const result = await requestAdvisor(ctx, resolveAdvisorRequest(params.question), signal, (t, tx) => coalescedUpdate.update({
+              content: [{ text: tx, type: "text" }],
               details: {
                 advisor: followUp?.payload.model ?? advisorRef,
                 followUp: Boolean(followUp),
                 question: resolveAdvisorRequest(params.question),
-                scout: scoutDetails
+                scout: scoutDetails,
+                text: tx,
+                thinking: t
               }
+            }), "executor-requested", params.gitContext === "none" ? "off" : params.gitContext, params.draft, params.includeUntracked, params.includeTrackedFiles, (event) => {
+              scoutDetails = scoutDetailsFromEvent(event, scoutDetails);
+              coalescedUpdate.update({
+                content: [{ text: scoutDetails.text ?? "", type: "text" }],
+                details: {
+                  advisor: followUp?.payload.model ?? advisorRef,
+                  followUp: Boolean(followUp),
+                  question: resolveAdvisorRequest(params.question),
+                  scout: scoutDetails
+                }
+              });
+            }, _id, followUp, (adviceId, payload, replacesAdviceId) => session.captureFollowUp(adviceId, payload, replacesAdviceId));
+            flushUpdate();
+            session.issueAdvice(result.adviceId, result.markdown, result.trigger, Boolean(result.draftBytes), normalizedQuestion);
+            session.recordInvocation({
+              cost: advisorUsageCost(result.usage),
+              executionEffect: "continued",
+              followUp: result.followUp,
+              kind: "markdown",
+              model: result.model,
+              trigger: "executor-requested",
+              usage: result.usage
             });
-          }, _id, followUp, (adviceId, payload, replacesAdviceId) => session.captureFollowUp(adviceId, payload, replacesAdviceId));
-          flushUpdate();
-          session.issueAdvice(result.adviceId, result.markdown, result.trigger, Boolean(result.draftBytes), normalizedQuestion);
-          session.recordInvocation({
-            cost: advisorUsageCost(result.usage),
-            executionEffect: "continued",
-            followUp: result.followUp,
-            kind: "markdown",
-            model: result.model,
-            trigger: "executor-requested",
-            usage: result.usage
-          });
-          const usage = snapshotAdvisorUsage(result.usage);
-          const piUsage = advisorUsageForPi(result.usage);
-          updateAdvisorUsageStatus(ctx, session);
-          const details = {
-            adviceId: result.adviceId,
-            advisor: result.model,
-            agentRulesBytes: result.agentRulesBytes,
-            draftBytes: result.draftBytes,
-            followUp: result.followUp,
-            imageBytes: result.imageBytes,
-            imageCount: result.imageCount,
-            imageOmissions: result.imageOmissions,
-            imagePartsSeen: result.imagePartsSeen,
-            preferenceBytes: result.preferenceBytes,
-            question: resolveAdvisorRequest(params.question),
-            scout: scoutDetails,
-            text: result.markdown,
-            thinking: result.thinkingText,
-            trackedBytes: result.trackedBytes,
-            untrackedBytes: result.untrackedBytes
-          };
-          if (usage) {
-            details.usage = usage;
-          }
-          const structuredContent = {
-            adviceId: result.adviceId,
-            advisor: result.model,
-            followUp: Boolean(result.followUp),
-            text: result.markdown
-          };
-          if (usage) {
-            structuredContent.usage = usage;
-          }
-          const response = {
-            content: [
-              {
-                text: `${result.followUp ? "Advisor follow-up" : "Advisor"} (${result.model})
+            const usage = snapshotAdvisorUsage(result.usage);
+            const piUsage = advisorUsageForPi(result.usage);
+            updateAdvisorUsageStatus(ctx, session);
+            const details = {
+              adviceId: result.adviceId,
+              advisor: result.model,
+              agentRulesBytes: result.agentRulesBytes,
+              draftBytes: result.draftBytes,
+              followUp: result.followUp,
+              imageBytes: result.imageBytes,
+              imageCount: result.imageCount,
+              imageOmissions: result.imageOmissions,
+              imagePartsSeen: result.imagePartsSeen,
+              preferenceBytes: result.preferenceBytes,
+              question: resolveAdvisorRequest(params.question),
+              scout: scoutDetails,
+              text: result.markdown,
+              thinking: result.thinkingText,
+              trackedBytes: result.trackedBytes,
+              untrackedBytes: result.untrackedBytes
+            };
+            if (usage) {
+              details.usage = usage;
+            }
+            const structuredContent = {
+              adviceId: result.adviceId,
+              advisor: result.model,
+              followUp: Boolean(result.followUp),
+              text: result.markdown
+            };
+            if (usage) {
+              structuredContent.usage = usage;
+            }
+            const response = {
+              content: [
+                {
+                  text: `${result.followUp ? "Advisor follow-up" : "Advisor"} (${result.model})
 
 ${result.markdown}`,
-                type: "text"
-              }
-            ],
-            details,
-            structuredContent
-          };
-          if (piUsage) {
-            response.usage = piUsage;
+                  type: "text"
+                }
+              ],
+              details,
+              structuredContent
+            };
+            if (piUsage) {
+              response.usage = piUsage;
+            }
+            return response;
+          } catch (error) {
+            coalescedUpdate.flush();
+            const message = error instanceof Error ? error.message : String(error);
+            session.recordInvocation({
+              executionEffect: "continued",
+              failure: "provider-error",
+              kind: "markdown",
+              model: followUp?.payload.model ?? advisorRef,
+              trigger: "executor-requested"
+            });
+            updateAdvisorUsageStatus(ctx, session);
+            notifyLocalFailure(ctx, message);
+            notifyHerdrAdvisorFailure("Advisor consultation failed", message);
+            throw error;
+          } finally {
+            finishHerdrActivity();
+            coalescedUpdate.cancel();
           }
-          return response;
-        } catch (error) {
-          coalescedUpdate.flush();
-          const message = error instanceof Error ? error.message : String(error);
-          session.recordInvocation({
-            executionEffect: "continued",
-            failure: "provider-error",
-            kind: "markdown",
-            model: followUp?.payload.model ?? advisorRef,
-            trigger: "executor-requested"
-          });
-          updateAdvisorUsageStatus(ctx, session);
-          notifyLocalFailure(ctx, message);
-          notifyHerdrAdvisorFailure("Advisor consultation failed", message);
-          throw error;
-        } finally {
-          finishHerdrActivity();
-          coalescedUpdate.cancel();
-        }
-      };
-      return runConsultation();
+        };
+        return await runConsultation();
+      } finally {
+        activeExecutions?.delete(_id);
+      }
     },
     label: "Ask Advisor",
     name: "ask_advisor",
@@ -10512,6 +10583,7 @@ var modelAccessBlock = (toolName, ctx) => {
   };
 };
 var registerToolLifecycle = ({
+  activeExecutions,
   herdrActivity,
   herdrBlock,
   pi,
@@ -10521,6 +10593,7 @@ var registerToolLifecycle = ({
   session
 }) => {
   let lastConfigErrorNotified;
+  let cycleSettled = false;
   let unsupportedPromptEventNotified = false;
   const loadConfigOrSkipGating = (ctx) => {
     try {
@@ -10539,8 +10612,10 @@ var registerToolLifecycle = ({
     }
   };
   pi.on("session_start", (_event, ctx) => {
+    cycleSettled = false;
     session.resetTask();
     reservedCalls.clear();
+    activeExecutions?.clear();
     herdrBlock.clear();
     if (ctx?.hasUI) {
       ctx.ui.setStatus("advisor-usage", undefined);
@@ -10568,6 +10643,10 @@ ${guidelines.map((rule) => `- ${rule}`).join(`
   };
   const dualHostPi = pi;
   dualHostPi.on("before_agent_start", (event, ctx) => {
+    cycleSettled = false;
+    if (isNativeHostAdvisor(ctx)) {
+      return;
+    }
     const rawSections = event?.systemPromptOptions?.sections;
     if (isRecordOf(rawSections)) {
       delete rawSections.advisor_invocation_settings;
@@ -10600,12 +10679,21 @@ ${ADVISOR_PROMPT_BLOCK_END}`;
   pi.on("input", () => {
     session.clearFollowUps();
   });
-  pi.on("tool_result", (event) => {
-    if (event.toolName !== "ask_advisor") {
+  pi.on("tool_result", (event, ctx) => {
+    if (isNativeHostAdvisor(ctx)) {
+      return;
+    }
+    const input = "input" in event ? event.input : undefined;
+    const isAdvisorDevice = event.toolName === "ask_advisor" || advisorDeviceTarget(event.toolName, input, event.details) !== undefined;
+    if (!isAdvisorDevice) {
       session.advanceFollowUpToolCall();
     }
   });
   pi.on("tool_call", (event, ctx) => {
+    cycleSettled = false;
+    if (isNativeHostAdvisor(ctx)) {
+      return;
+    }
     if (session.blocked) {
       return {
         block: true,
@@ -10621,6 +10709,9 @@ ${ADVISOR_PROMPT_BLOCK_END}`;
     if (sameModelAdvisorDisabled(ctx)) {
       return;
     }
+    if (advisorDeviceTarget(event.toolName, event.input)) {
+      return;
+    }
     const accessBlock = modelAccessBlock(event.toolName, ctx);
     if (accessBlock) {
       return accessBlock;
@@ -10631,9 +10722,20 @@ ${ADVISOR_PROMPT_BLOCK_END}`;
     }
     return handleAutomaticGate(pi, event, ctx, session, runGate, scoutStatus, herdrActivity, herdrBlock);
   });
-  pi.on("agent_settled", (_event, ctx) => {
-    reservedCalls.clear();
-    session.clearCallReservations();
+  const clearAbandonedReservations = () => {
+    for (const id of reservedCalls) {
+      if (!activeExecutions?.has(id)) {
+        reservedCalls.delete(id);
+        session.releaseCall(id);
+      }
+    }
+  };
+  const handleFinalSettlement = (ctx) => {
+    if (cycleSettled) {
+      return;
+    }
+    cycleSettled = true;
+    clearAbandonedReservations();
     if (isSimpleMode() || session.blocked || !advisorSessionSummaryRef) {
       return;
     }
@@ -10641,9 +10743,26 @@ ${ADVISOR_PROMPT_BLOCK_END}`;
     if (summary && ctx.hasUI) {
       ctx.ui.notify(summary, "info");
     }
+  };
+  dualHostPi.on("agent_end", (event, ctx) => {
+    if (!hasOmpAgentIdentity(ctx) || isNativeHostAdvisor(ctx)) {
+      return;
+    }
+    if (event?.willContinue === true) {
+      return;
+    }
+    handleFinalSettlement(ctx);
+  });
+  pi.on("agent_settled", (_event, ctx) => {
+    if (hasOmpAgentIdentity(ctx)) {
+      return;
+    }
+    handleFinalSettlement(ctx);
   });
   pi.on("session_shutdown", (_event, ctx) => {
+    cycleSettled = false;
     reservedCalls.clear();
+    activeExecutions?.clear();
     session.clearFollowUps();
     session.clearCallReservations();
     scoutStatus.clear(ctx);
@@ -10796,6 +10915,7 @@ var registerToolRenderers = (pi) => {
 // src/tools/registration.ts
 var registerAdvisorTool = (pi, session = sessionStateFor(pi), dependencies = {}) => {
   const registration = {
+    activeExecutions: new Set,
     appendOutcome: dependencies.appendOutcome ?? appendOutcome,
     consult: dependencies.consult ?? consultAdvisor,
     herdrActivity: dependencies.herdrActivity ?? herdrAdvisorActivity,

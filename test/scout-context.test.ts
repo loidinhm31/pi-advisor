@@ -424,6 +424,71 @@ describe("Scout context", () => {
     expect(pending?.content).not.toContain("scratch.txt");
   });
 
+  test("keeps current write xd://ask_advisor arguments within the Scout privacy allowlist and sanitizes malformed JSON (D4)", () => {
+    const built = buildScoutManifest(
+      context([
+        user("u1", "review this"),
+        assistant("a1", [
+          {
+            arguments: {
+              content: JSON.stringify({
+                draft: "private draft",
+                gitContext: "summary",
+                includeTrackedFiles: ["src/private.ts"],
+                includeUntracked: ["scratch.txt"],
+                question: "Should this ship?",
+              }),
+              path: "xd://ask_advisor",
+            },
+            id: "write-advisor-call",
+            name: "write",
+            type: "toolCall",
+          },
+        ]),
+      ]),
+      { currentInvocationId: "write-advisor-call" }
+    );
+    expect(built.ok).toBe(true);
+    if (!built.ok) {
+      return;
+    }
+    const pending = built.manifest.groups.at(-1);
+    expect(pending?.kind).toBe("pending-invocation");
+    expect(pending?.content).toContain('\\"gitContext\\":\\"summary\\"');
+    expect(pending?.content).toContain(
+      '\\"question\\":\\"Should this ship?\\"'
+    );
+    expect(pending?.content).not.toContain("private draft");
+    expect(pending?.content).not.toContain("src/private.ts");
+    expect(pending?.content).not.toContain("scratch.txt");
+
+    const malformed = buildScoutManifest(
+      context([
+        user("u1", "review this"),
+        assistant("a1", [
+          {
+            arguments: {
+              content: "{invalid json content",
+              path: "xd://ask_advisor",
+            },
+            id: "malformed-write-call",
+            name: "write",
+            type: "toolCall",
+          },
+        ]),
+      ]),
+      { currentInvocationId: "malformed-write-call" }
+    );
+    expect(malformed.ok).toBe(true);
+    if (!malformed.ok) {
+      return;
+    }
+    const malformedPending = malformed.manifest.groups.at(-1);
+    expect(malformedPending?.kind).toBe("pending-invocation");
+    expect(malformedPending?.content).toContain('"content":"{}"');
+    expect(malformedPending?.content).not.toContain("{invalid json content");
+  });
+
   test("keeps manifest transport and Advisor conversation budgets separate", () => {
     const entries = [
       user("u1", "current request ".repeat(40)),

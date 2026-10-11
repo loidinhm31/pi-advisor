@@ -1,12 +1,13 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+import { hasOmpAgentIdentity, isNativeHostAdvisor } from "../child-session.ts";
 import {
   advisorSessionSummaryRef,
   getAdvisorMaxCallsPerSession,
   isSimpleMode,
 } from "../config/state.ts";
 import { loadConfig } from "../config/storage.ts";
-import { isRecordOf, isString } from "../content-utils.ts";
+import { advisorDeviceTarget, isRecordOf, isString } from "../content-utils.ts";
 import { reserveAdvisorCall } from "./gate-policy.ts";
 import { handleAutomaticGate } from "./loop-gate.ts";
 import {
@@ -16,6 +17,7 @@ import {
 import { advisorInvocationGuidelines } from "./prompts.ts";
 import type {
   DualHostBeforeAgentStartEvent,
+  HostAgentEndEvent,
   ToolRegistrationContext,
 } from "./types.ts";
 
@@ -25,13 +27,20 @@ const ADVISOR_PROMPT_BLOCK_END =
   "<!-- pi-advisor-flow:invocation-settings:end -->";
 
 interface DualHostPromptEventTarget {
-  on: (
+  on: ((
     event: "before_agent_start",
     handler: (
       event: DualHostBeforeAgentStartEvent | undefined,
       ctx: Parameters<typeof loadConfig>[0]
     ) => { systemPrompt: string[] } | undefined
-  ) => void;
+  ) => void) &
+    ((
+      event: "agent_end",
+      handler: (
+        event: HostAgentEndEvent | undefined,
+        ctx: Parameters<typeof loadConfig>[0]
+      ) => void
+    ) => void);
 }
 
 const isOwnedAdvisorBlock = (block: unknown): block is string =>
@@ -65,6 +74,7 @@ const modelAccessBlock = (
 };
 
 export const registerToolLifecycle = ({
+  activeExecutions,
   herdrActivity,
   herdrBlock,
   pi,
@@ -75,6 +85,7 @@ export const registerToolLifecycle = ({
 }: ToolRegistrationContext): void => {
   // A throwing tool_call handler makes pi block that tool call (fail-safe); keep config errors local.
   let lastConfigErrorNotified: string | undefined;
+  let cycleSettled = false;
   let unsupportedPromptEventNotified = false;
   const loadConfigOrSkipGating = (ctx: Parameters<typeof loadConfig>[0]) => {
     try {
@@ -97,8 +108,10 @@ export const registerToolLifecycle = ({
   };
 
   pi.on("session_start", (_event, ctx) => {
+    cycleSettled = false;
     session.resetTask();
     reservedCalls.clear();
+    activeExecutions?.clear();
     herdrBlock.clear();
     if (ctx?.hasUI) {
       ctx.ui.setStatus("advisor-usage", undefined);
@@ -139,6 +152,10 @@ export const registerToolLifecycle = ({
       event: DualHostBeforeAgentStartEvent | undefined,
       ctx: Parameters<typeof loadConfig>[0]
     ) => {
+      cycleSettled = false;
+      if (isNativeHostAdvisor(ctx)) {
+        return undefined;
+      }
       const rawSections = event?.systemPromptOptions?.sections;
       if (isRecordOf(rawSections)) {
         delete rawSections.advisor_invocation_settings;
@@ -180,13 +197,24 @@ export const registerToolLifecycle = ({
     session.clearFollowUps();
   });
 
-  pi.on("tool_result", (event) => {
-    if (event.toolName !== "ask_advisor") {
+  pi.on("tool_result", (event, ctx) => {
+    if (isNativeHostAdvisor(ctx)) {
+      return;
+    }
+    const input = "input" in event ? event.input : undefined;
+    const isAdvisorDevice =
+      event.toolName === "ask_advisor" ||
+      advisorDeviceTarget(event.toolName, input, event.details) !== undefined;
+    if (!isAdvisorDevice) {
       session.advanceFollowUpToolCall();
     }
   });
 
   pi.on("tool_call", (event, ctx) => {
+    cycleSettled = false;
+    if (isNativeHostAdvisor(ctx)) {
+      return undefined;
+    }
     if (session.blocked) {
       return {
         block: true,
@@ -203,6 +231,9 @@ export const registerToolLifecycle = ({
     }
     if (sameModelAdvisorDisabled(ctx)) {
       return;
+    }
+    if (advisorDeviceTarget(event.toolName, event.input)) {
+      return undefined;
     }
     const accessBlock = modelAccessBlock(event.toolName, ctx);
     if (accessBlock) {
@@ -224,11 +255,21 @@ export const registerToolLifecycle = ({
     );
   });
 
-  pi.on("agent_settled", (_event, ctx) => {
-    // Any reservation still present never reached execute (for example because
-    // another handler blocked it or the turn was aborted).
-    reservedCalls.clear();
-    session.clearCallReservations();
+  const clearAbandonedReservations = () => {
+    for (const id of reservedCalls) {
+      if (!activeExecutions?.has(id)) {
+        reservedCalls.delete(id);
+        session.releaseCall(id);
+      }
+    }
+  };
+
+  const handleFinalSettlement = (ctx: Parameters<typeof loadConfig>[0]) => {
+    if (cycleSettled) {
+      return;
+    }
+    cycleSettled = true;
+    clearAbandonedReservations();
     if (isSimpleMode() || session.blocked || !advisorSessionSummaryRef) {
       return;
     }
@@ -236,10 +277,29 @@ export const registerToolLifecycle = ({
     if (summary && ctx.hasUI) {
       ctx.ui.notify(summary, "info");
     }
+  };
+
+  dualHostPi.on("agent_end", (event, ctx) => {
+    if (!hasOmpAgentIdentity(ctx) || isNativeHostAdvisor(ctx)) {
+      return;
+    }
+    if (event?.willContinue === true) {
+      return;
+    }
+    handleFinalSettlement(ctx);
+  });
+
+  pi.on("agent_settled", (_event, ctx) => {
+    if (hasOmpAgentIdentity(ctx)) {
+      return;
+    }
+    handleFinalSettlement(ctx);
   });
 
   pi.on("session_shutdown", (_event, ctx) => {
+    cycleSettled = false;
     reservedCalls.clear();
+    activeExecutions?.clear();
     session.clearFollowUps();
     session.clearCallReservations();
     scoutStatus.clear(ctx);
