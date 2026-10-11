@@ -28,7 +28,8 @@ Keep implementation on a fast model and borrow frontier reasoning only when deci
 - **Privacy controls** for conversation history, repository context, trusted `AGENTS.md` rules, explicit file and image handoff, tool results, secret redaction, and outcome logging.
 - **Visual Advisor reviews** for supported PNG, JPEG, GIF, and WebP images in selected conversation or tool results when the Advisor model accepts images.
 - **Optional persistent activation, Simple mode, session summaries, and Herdr integration.**
-- **Compact searchable `/advisor-settings`** that matches Pi's settings list and saves changes immediately.
+- **Dual-host support for Pi 1.x and Oh-My-Pi (OMP)** with conditional `xd://ask_advisor` device routing and review gates.
+- **Compact searchable `/advisor-settings`** that matches host settings lists and saves changes immediately.
 - **Experimental Advisor Scout** that uses the configured Executor model to curate conversation evidence before every Advisor call.
 - **Optional Jev/Decisions consultation filter and proactive turn gate**: typed screening can skip low-stakes, self-answerable consultations or proactively pull in the Advisor. The **Jev provider** row in `/advisor-settings` chooses TypeSafe, an existing OpenRouter login, OpenAI Decisions (`gpt-6-luna`; `advisorJevTransport: "openai-decisions"`), or any System One–compatible endpoint of your own (`advisorJevBaseUrl`) — a corporate gateway, a compatible third-party host, or a decision model on `localhost`. Every provider is live-verified before it is saved, and `auto` never picks the custom endpoint; OpenAI Decisions requires an OpenAI Platform API key, not ChatGPT subscription OAuth. Guided setup stores entered keys securely. Both features are off by default.
 
@@ -64,7 +65,34 @@ You can also install from GitHub:
 pi install git:github.com/philipbrembeck/pi-advisor.git
 ```
 
-Reload Pi after installing.
+### Oh-My-Pi (OMP)
+
+Install into OMP via the plugin manager:
+
+```bash
+omp plugin install pi-advisor-flow
+```
+
+To link a local repository during development:
+
+```bash
+omp plugin link /path/to/pi-advisor
+```
+
+To install directly from GitHub:
+
+```bash
+omp plugin install github:loidinhm31/pi-advisor#<branch-or-commit>
+```
+
+To roll back to the stable published release:
+
+```bash
+omp plugin uninstall pi-advisor-flow
+omp plugin install pi-advisor-flow@0.13.0
+```
+
+Start a fresh OMP process after installing or linking. Reload Pi after installing.
 
 ## Quick start
 

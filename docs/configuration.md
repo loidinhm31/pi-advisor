@@ -1,6 +1,6 @@
 # Configuration
 
-Use `/advisor-models` and `/advisor-settings` to configure pi-advisor. Both commands save to the global `advisor.json` in the Pi agent directory. `/advisor-settings` uses Pi's compact searchable settings list: type to fuzzy-search a control, press Enter or Space to change it, and every valid change is saved immediately. Across both Pi 1.x and OMP hosts, the settings list adapter supports Left/Right arrow cycling, search filtering, and submenu navigation.
+Use `/advisor-models` and `/advisor-settings` to configure pi-advisor. Both commands save to the global `advisor.json` in the Pi agent directory (`~/.pi/agent/advisor.json`) or Oh-My-Pi agent directory (`~/.omp/agent/advisor.json`). `/advisor-settings` uses Pi's compact searchable settings list: type to fuzzy-search a control, press Enter or Space to change it, and every valid change is saved immediately. Across both Pi 1.x and OMP hosts, the settings list adapter supports Left/Right arrow cycling, search filtering, and submenu navigation.
 
 Repository-controlled project `advisor.json` files are not applied. Models, prompts, gates, budgets, disclosure, redaction, integrations, and consent remain under the user's global configuration.
 

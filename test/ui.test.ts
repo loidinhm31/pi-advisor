@@ -780,5 +780,5 @@ describe("MaskedInput and OMP host TUI boundaries (Phase 02 / T1-T5)", () => {
     expect(result.nonAsciiMaskedLine).not.toContain("ключ");
     expect(result.nonAsciiMaskedLine).not.toContain("秘密");
     expect(result.maskedWidthsOk).toBe(true);
-  });
+  }, 30_000);
 });

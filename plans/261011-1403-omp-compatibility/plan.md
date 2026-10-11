@@ -1,7 +1,7 @@
 ---
 title: "pi-advisor fork: OMP compatibility and full review instructions"
 description: "Adapt the fork's TUI, prompt injection, device lifecycle, and existing gate settings to OMP while preserving Pi 1.x."
-status: in-progress
+status: completed
 priority: P2
 effort: "6 dependency-gated phases; duration estimated at implementation kickoff"
 branch: omp/compatibility
@@ -36,7 +36,7 @@ created: 2026-10-11
 | [03 — Prompt injection](phase-03-prompt-injection.md) | Preserved prompt + correct advisor route and rules | 01 | DONE (2026-10-11) / 100% |
 | [04 — Device lifecycle safety](phase-04-device-lifecycle-safety.md) | Accounting, disclosure, settlement, child isolation | 03 | DONE (2026-10-11) / 100% |
 | [05 — Full-gate settings](phase-05-full-gate-settings.md) | Existing settings effective and documented | 02, 04 | DONE (2026-10-11) / 100% |
-| [06 — Integration and installation](phase-06-integration-and-installation.md) | Dual-host proof, package/link/restart, docs, rollback | 05 | Pending / 0% |
+| [06 — Integration and installation](phase-06-integration-and-installation.md) | Dual-host proof, package/link/restart, docs, rollback | 05 | DONE (2026-10-11) / 100% |
 
 ## Execution ownership
 

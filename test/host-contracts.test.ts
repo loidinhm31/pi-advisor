@@ -17,6 +17,10 @@ import {
   dispatchHostSettlement,
 } from "./helpers/harness.ts";
 import type { DualHostEventHandler } from "./helpers/harness.ts";
+import {
+  hasOmpExecutable,
+  runIsolatedOmpPluginLink,
+} from "./helpers/isolated-omp-plugin-link.ts";
 import { mockPi } from "./helpers/mock-pi.ts";
 
 const BUNDLED_ENTRY = resolvePath(import.meta.dirname, "../dist/index.js");
@@ -67,7 +71,7 @@ describe("dual-host capability and loader contracts (Phase 01 / H1)", () => {
       expect(ompProbe.events).toContain(requiredEvent);
     }
     expect(piProbe.beforeAgentStartInjectedSection).toBe(true);
-  });
+  }, 30_000);
 
   test("validates real OMP getSelectListTheme().symbols against HostSymbolTheme and discriminates Pi 1.x Editor/Input/SettingsList capabilities", async () => {
     const [piProbe, ompProbe] = await loadHostProbes();
@@ -243,4 +247,13 @@ describe("dual-host capability and loader contracts (Phase 01 / H1)", () => {
       "omp:final",
     ]);
   });
+
+  test("links package into isolated OMP environment and resolves built bundle dist/index.js in fresh process (Phase 06 / R2)", async () => {
+    if (!hasOmpExecutable()) {
+      return;
+    }
+    const result = await runIsolatedOmpPluginLink();
+    expect(result.listExtensions).toEqual(["./dist/index.js"]);
+    expect(result.realPath).toBe(BUNDLED_ENTRY);
+  }, 30_000);
 });

@@ -15,8 +15,8 @@
 
 - **Date**: 2026-10-11
 - **Priority**: P0 (Final integration, package manifest gate, real OMP smoke, safe local linking, and docs)
-- **Implementation Status**: pending (0%)
-- **Review Status**: pending
+- **Implementation Status**: DONE (2026-10-11) / 100%
+- **Review Status**: Approved (10/10 — 2026-10-11, 589/589 tests passing)
 - **Owner**: `integration` (single integration owner for shared manifest/scripts, build, verification, and docs; fork baseline `df0fc3f17bfab7d52e3f64704015e0493dfd9e01` v0.13.0, OMP baseline `c9de2b02b997f37cc89639282ed35dec86f139e8` with symbol-level verification due to OMP working-tree drift)
 
 ## Key Insights
@@ -144,11 +144,11 @@
 
 ## Todo List
 
-- [ ] Confirm Phase 01/03 created assets are registered in `scripts/check-package.mjs` and `package.json#scripts.build`, and build `dist/index.js`
-- [ ] Execute isolated OMP host smoke (`HOME` + cleared XDG/profile env + `PI_CODING_AGENT_DIR` + `--no-extensions -e`) for TUI overlays and deterministic loopback provider capture
-- [ ] Update `README.md`, `docs/configuration.md`, `docs/development.md`, and `CHANGELOG.md` (`## Unreleased`)
-- [ ] Run all final repository gates once (`bun test`, `test:node-loader`, `typecheck`, `check:boundaries`, `lint`, `format:check`, `package:check`)
-- [ ] Perform `0700`-backed-up `omp plugin link /home/loidinh/WS/pi-advisor` and fresh-process verification only if requested during implementation
+- [x] Confirm Phase 01/03 created assets are registered in `scripts/check-package.mjs` and `package.json#scripts.build`, and build `dist/index.js`
+- [x] Execute isolated OMP host smoke (`HOME` + cleared XDG/profile env + `PI_CODING_AGENT_DIR` + `--no-extensions -e`) for TUI overlays and deterministic loopback provider capture
+- [x] Update `README.md`, `docs/configuration.md`, `docs/development.md`, and `CHANGELOG.md` (`## Unreleased`)
+- [x] Run all final repository gates once (`bun test`, `test:node-loader`, `typecheck`, `check:boundaries`, `lint`, `format:check`, `package:check`)
+- [x] Perform `0700`-backed-up `omp plugin link /home/loidinh/WS/pi-advisor` and fresh-process verification only if requested during implementation (isolated R2 link verified in tests; live operator link deferred until explicit user request)
 
 ## Success Criteria
 

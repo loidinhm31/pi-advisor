@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## Unreleased
 
+### Added
+
+- Added full Oh-My-Pi (OMP) host compatibility alongside Pi 1.x, supporting `package.json#pi.extensions` bundle loading, plugin linking (`omp plugin link`), and scoped isolated verification.
+- Injected delimited `<!-- pi-advisor-flow:invocation-settings:start -->`…`<!-- pi-advisor-flow:invocation-settings:end -->` invocation rules into OMP's `systemPrompt` `string[]` array on `before_agent_start`, preserving foreign prompt blocks and removing only the plugin-owned block on `/advisor-off`.
+- Added conditional `xd://ask_advisor` and `xd://record_advisor_outcome` routing instructions when the host advertises `xd://` devices.
+- Added dual-host subprocess verification harness and tests for host capability contracts, isolated plugin linking (`R2`), and TUI renderer compatibility.
+
+### Changed
+
+- Adapted `/advisor-manual` and `/advisor-settings` TUI overlays to real OMP `Editor` capabilities, `SymbolTheme` extracted from `getSelectListTheme()`, and public `SettingsList` methods with clamped `MaskedInput` cursor positioning.
+- Isolated OMP subagent sessions and native host advisor turns (`ctx.agent.id === "advisor"`), preserving host-selected models and thinking levels and preventing recursive parent counter corruption.
+- Normalized OMP `xd://` device envelope handling in tool execution, loop gates, and Scout privacy filters without double accounting or disclosure.
+- Reconciled dual-host settlement lifecycle: `agent_end` with `willContinue: true` preserves active and queued reservations, while final settlement clears abandoned reservations and deduplicates summary output.
+
 ## 0.13.0 - 2026-10-10
 
 ### Added

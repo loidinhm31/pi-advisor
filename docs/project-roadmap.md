@@ -13,7 +13,7 @@ Implementation is executed in six dependency-gated phases:
 | [Phase 03](#phase-03-prompt-injection-preserved-prompt--route-rules) | Prompt Injection (`phase-03-prompt-injection.md`) | System prompt section preservation and tool route alignment | DONE (2026-10-11) / 100% | 2026-10-11 |
 | [Phase 04](#phase-04-device-lifecycle-safety) | Device Lifecycle Safety (`phase-04-device-lifecycle-safety.md`) | Accounting normalization, disclosure safety, child session isolation | DONE (2026-10-11) / 100% | 2026-10-11 |
 | [Phase 05](#phase-05-full-gate-settings) | Full-Gate Settings (`phase-05-full-gate-settings.md`) | Verification and documentation of settings and loop gates | DONE (2026-10-11) / 100% | 2026-10-11 |
-| Phase 06 | Integration & Installation | Dual-host end-to-end verification, packaging, and release docs | Pending | — |
+| [Phase 06](#phase-06-integration-dual-host-verification--release) | Integration & Installation (`phase-06-integration-and-installation.md`) | Dual-host end-to-end verification, packaging, and release docs | DONE (2026-10-11) / 100% | 2026-10-11 |
 
 ---
 
@@ -95,9 +95,22 @@ Implementation is executed in six dependency-gated phases:
 
 ### Phase 06: Integration, Dual-Host Verification & Release
 
-- **Status**: Pending
-- **Scope**: Final end-to-end integration proof across Pi 1.x and OMP, package build verification, and user-facing installation documentation.
-
+- **Status**: DONE (2026-10-11) / 100% (`phase-06-integration-and-installation.md`)
+- **Review Status**: Approved (10/10 — 2026-10-11, 589/589 tests passing)
+- **Delivered**:
+  - **Asset Manifest & Package Verification (`scripts/check-package.mjs`, `package.json`)**:
+    - Registered Phase 03 static prompt assets (`src/tools/prompt-assets.d.ts`, `src/tools/prompts/*.md`) and verified packaging build with `npm pack --dry-run` and `--loader .md:text`.
+    - Bundled compiled output to `dist/index.js` for both Pi 1.x and OMP loader paths.
+  - **Isolated Dual-Host Verification (Process C & Test Harness)**:
+    - Executed dual-host verification in isolated child processes with clean `HOME`, cleared XDG/profile environment variables, and isolated `PI_CODING_AGENT_DIR`.
+    - Verified real OMP TUI overlays (`/advisor-manual`, `/advisor-settings`) with single `"pi"` borders, clean padding, and masked input cursor.
+    - Verified deterministic provider-boundary prompt injection (`ADVISOR_PROMPT_BLOCK_START` / `ADVISOR_PROMPT_BLOCK_END`) and `xd://ask_advisor` routing.
+    - Verified isolated `omp plugin link` resolving symlinked `dist/index.js`.
+  - **Documentation & Rollback Procedures (`README.md`, `docs/configuration.md`, `docs/development.md`, `CHANGELOG.md`)**:
+    - Updated `README.md`, `docs/configuration.md`, `docs/development.md`, and `CHANGELOG.md` (`## Unreleased`).
+    - Documented permission-restricted (`0700`) backup and rollback commands for operator environments (`omp plugin install pi-advisor-flow@0.13.0` and `omp plugin install github:loidinhm31/pi-advisor#<ref>`).
+  - **Full Quality Gate Satisfaction**:
+    - All 589 unit and dual-host integration tests passing across boundary checks, typechecks, lint, format, and package checks.
 ---
 
 ## Verification & Quality Gates

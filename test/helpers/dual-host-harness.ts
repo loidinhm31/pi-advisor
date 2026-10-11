@@ -123,7 +123,7 @@ export const hasSettingsListPublicContract = (
   );
 };
 
-const createIsolatedEnv = (prefix: string) => {
+export const createIsolatedEnv = (prefix: string) => {
   const root = mkdtempSync(join(tmpdir(), prefix));
   chmodSync(root, 0o700);
   const home = join(root, "home");
