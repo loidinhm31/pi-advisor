@@ -9073,14 +9073,14 @@ var createSettingsItems = ({
     },
     {
       currentValue: settingValue(settings.simpleMode, false),
-      description: "Keep the Advisor available on demand without automatic gates or blocks.",
+      description: "Keep the Advisor on demand only; turn off to enable Plan, Failure, Completion, and loop gates.",
       id: "simpleMode",
       label: "Simple mode",
       values: TOGGLE_VALUES
     },
     {
       currentValue: settingValue(settings.alwaysOn, false),
-      description: "Run the Advisor flow automatically for supported agent turns.",
+      description: "Restore the Advisor flow and configured Executor automatically at session startup.",
       id: "alwaysOn",
       label: "Always on",
       values: TOGGLE_VALUES
@@ -9097,9 +9097,9 @@ var createSettingsItems = ({
     id: "effort",
     label: "Advisor reasoning",
     values: withCurrentValue(currentEffort(settings.effort), effortLevels)
-  }, modelWhitelist, toggle("disableSameModel", "Disable same-model Advisor", "Skip advice when the active Executor and Advisor use the same provider/model; turn off to allow higher-effort same-model reviews.", settings.disableSameModel, true), toggle("scoutEnabled", "Experimental Advisor Scout", "Enable the experimental Scout before Advisor calls.", settings.scoutEnabled, false), scoutTimeoutItem(settings), toggle("showUsageDetails", "Show usage and cost details", "Show token usage and cost details in Advisor responses.", settings.showUsageDetails, true), toggle("showUsageFooter", "Show usage in footer", "Show the current Advisor usage summary in the footer.", settings.showUsageFooter, false), toggle("planGate", "Plan gate", "Ask the Advisor to review implementation plans.", settings.planGate, true), toggle("failureGate", "Failure gate", "Ask the Advisor to review repeated failures.", settings.failureGate, true), toggle("completionGate", "Completion gate", "Ask the Advisor to review work before declaring success.", settings.completionGate, true), toggle("collapseResponses", "Collapse long responses", "Collapse long Advisor responses in the transcript.", settings.collapseResponses, false), {
+  }, modelWhitelist, toggle("disableSameModel", "Disable same-model Advisor", "Skip advice when the active Executor and Advisor use the same provider/model; turn off to allow higher-effort same-model reviews.", settings.disableSameModel, true), toggle("scoutEnabled", "Experimental Advisor Scout", "Enable the experimental Scout before Advisor calls.", settings.scoutEnabled, false), scoutTimeoutItem(settings), toggle("showUsageDetails", "Show usage and cost details", "Show token usage and cost details in Advisor responses.", settings.showUsageDetails, true), toggle("showUsageFooter", "Show usage in footer", "Show the current Advisor usage summary in the footer.", settings.showUsageFooter, false), toggle("planGate", "Plan gate", "Add Executor system-prompt instructions to consult the Advisor before committing to a consequential plan.", settings.planGate, true), toggle("failureGate", "Failure gate", "Add Executor system-prompt instructions to consult the Advisor after repeated failed attempts.", settings.failureGate, true), toggle("completionGate", "Completion gate", "Add Executor system-prompt instructions to consult the Advisor before declaring non-trivial work complete.", settings.completionGate, true), toggle("collapseResponses", "Collapse long responses", "Collapse long Advisor responses in the transcript.", settings.collapseResponses, false), {
     currentValue: settings.customRule || "None",
-    description: "Add a rule that triggers Advisor involvement.",
+    description: "Add a custom Executor system-prompt instruction that triggers Advisor review.",
     id: "customRule",
     label: "Custom invocation",
     submenu: (_currentValue, done) => new TextSettingSubmenu({
@@ -9111,7 +9111,7 @@ var createSettingsItems = ({
       title: "Custom invocation",
       tui
     })
-  }, toggle("blockOnBlocked", "Block on critical advice", "Block the agent when the Advisor returns a critical decision.", settings.blockOnBlocked, true), toggle("autoLoopGate", "Automatic loop gate", "Ask the Advisor to review repeated equivalent attempts.", settings.autoLoopGate, true), {
+  }, toggle("blockOnBlocked", "Block on critical advice", "Block the agent when the Advisor returns a critical decision.", settings.blockOnBlocked, true), toggle("autoLoopGate", "Automatic loop gate", "Deterministically intercept repeated equivalent tool calls and ask the Advisor to review them.", settings.autoLoopGate, true), {
     currentValue: `After ${settings.loopThreshold ?? 3} repeats`,
     description: "Number of equivalent attempts before automatic review.",
     id: "loopThreshold",

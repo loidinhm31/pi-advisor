@@ -12,7 +12,7 @@ Implementation is executed in six dependency-gated phases:
 | [Phase 02](#phase-02-tui-compatibility-manual-dialog-settings-adapter--masked-input) | TUI Compatibility | Manual dialog overlay, settings adapter, masked input | DONE | 2026-10-11 |
 | [Phase 03](#phase-03-prompt-injection-preserved-prompt--route-rules) | Prompt Injection (`phase-03-prompt-injection.md`) | System prompt section preservation and tool route alignment | DONE (2026-10-11) / 100% | 2026-10-11 |
 | [Phase 04](#phase-04-device-lifecycle-safety) | Device Lifecycle Safety (`phase-04-device-lifecycle-safety.md`) | Accounting normalization, disclosure safety, child session isolation | DONE (2026-10-11) / 100% | 2026-10-11 |
-| Phase 05 | Full-Gate Settings | Verification and documentation of settings and loop gates | Pending | — |
+| [Phase 05](#phase-05-full-gate-settings) | Full-Gate Settings (`phase-05-full-gate-settings.md`) | Verification and documentation of settings and loop gates | DONE (2026-10-11) / 100% | 2026-10-11 |
 | Phase 06 | Integration & Installation | Dual-host end-to-end verification, packaging, and release docs | Pending | — |
 
 ---
@@ -82,8 +82,16 @@ Implementation is executed in six dependency-gated phases:
 
 ### Phase 05: Full-Gate Settings
 
-- **Status**: Pending
-- **Scope**: Verify that loop gates, failure modes, budgets, and settings work reliably across both hosts.
+- **Status**: DONE (2026-10-11) / 100% (`phase-05-full-gate-settings.md`)
+- **Delivered**:
+  - **Settings UI Semantic Clarity (`src/ui/settings-items.ts`)**:
+    - Refined descriptions for `simpleMode`, `alwaysOn`, `planGate`, `failureGate`, `completionGate`, `customRule`, and `autoLoopGate` to clearly distinguish session-startup restoration, cooperative Executor system-prompt review instructions, and deterministic `tool_call` loop interception without introducing new config schema keys or migrations.
+  - **Dual-Host Settings Selector & Prompt Roundtrip (`test/settings-selector.test.ts`)**:
+    - Added isolated `withAgentDir` behavioral tests verifying `/advisor-settings` hides advanced gate/loop/budget rows when `simpleMode: true`, rebuilds in place via `SettingsListAdapter` on Right/Left arrow and Space toggles across Pi 1.x and OMP `#private`-field `SettingsList`, updates `customRule` via `TextSettingSubmenu`, and injects only enabled gate rules and remaining call budget in `before_agent_start`.
+  - **Non-Destructive Global Config Persistence (`test/config-storage.test.ts`)**:
+    - Verified `loadConfig` reads only global `join(getAgentDir(), "advisor.json")` (ignoring repo-local `<repo>/.pi/advisor.json`), preserves explicit `false` gate overrides across `Simple mode` `On` ↔ `Off` cycles and cache reloads, retains untouched model/whitelist/Jev/privacy/unknown fields, and never writes credentials to disk (`CONFIG_SCHEMA` pinned at 49 keys, `SAVED_CONFIG_KEYS` at 48 keys).
+  - **Operator Opt-In JSON Merge Documentation (`docs/configuration.md`)**:
+    - Documented minimal 4-key full-gate `jq` preview snippet (`simpleMode`, `advisorPlanGate`, `advisorFailureGate`, `advisorCompletionGate`) and separate optional 3-key loop/budget tuning snippet (`advisorAutoLoopGate`, `advisorLoopThreshold`, `advisorMaxCallsPerSession`).
 
 ### Phase 06: Integration, Dual-Host Verification & Release
 

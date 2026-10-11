@@ -91,6 +91,33 @@ The `/advisor-settings` row opens a searchable multi-select menu containing the 
 - Activation and deactivation commands (`/advisor` and `/advisor-off`) asynchronously await host tool registry mutations (`pi.setActiveTools`) so prompt rebuilds and tool availability remain synchronized across both Pi 1.x and OMP hosts.
 - In Simple mode, settings keeps the Context window/history control alongside Simple mode and Always on. Advanced values remain saved and take effect when Simple mode is disabled.
 - Settings changes are applied and persisted as they happen; Escape closes the screen without a separate Save action.
+- `advisorPlanGate`, `advisorFailureGate`, and `advisorCompletionGate` default to `true` when omitted, so turning `Simple mode` `Off` (`"simpleMode": false`) activates all three cooperative Executor system-prompt review rules unless a gate key was explicitly saved as `false`. Unlike `advisorAutoLoopGate` (which deterministically intercepts repeated equivalent tool calls in `tool_call`), Plan, Failure, Completion, and `advisorCustomInvocation` rules are cooperative system-prompt instructions.
+- Extension tools start available unless disabled with `/advisor-off`; `alwaysOn` specifically restores the Advisor flow and configured Executor at session startup rather than forcing an automatic consultation on every turn.
+
+To preview enabling full review-gate instructions in `~/.omp/agent/advisor.json` without overwriting existing models, whitelist, Jev, privacy, loop-threshold, or session-budget fields:
+
+```bash
+# Preview the merged JSON; this command does not save it:
+jq '. + {
+  "simpleMode": false,
+  "advisorPlanGate": true,
+  "advisorFailureGate": true,
+  "advisorCompletionGate": true
+}' ~/.omp/agent/advisor.json
+```
+
+To separately preview optional deterministic loop-gate and session call-budget settings:
+
+```bash
+# Optional preview only; does not change the saved loop threshold or budget:
+jq '. + {
+  "advisorAutoLoopGate": true,
+  "advisorLoopThreshold": 3,
+  "advisorMaxCallsPerSession": 5
+}' ~/.omp/agent/advisor.json
+```
+
+These `jq` commands print previews only. Prefer `/advisor-settings` to persist changes; do not redirect `jq` output onto its input file. Retain existing model identifiers or use isolated loopback fixtures during verification; a documented identifier is not proof of host availability.
 
 ## Experimental Advisor Scout
 

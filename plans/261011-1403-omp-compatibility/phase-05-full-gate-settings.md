@@ -16,8 +16,8 @@
 
 - **Date**: 2026-10-11
 - **Priority**: P1 (Settings UX clarity, gate toggle roundtrip, and global config preservation)
-- **Implementation Status**: pending (0%)
-- **Review Status**: pending
+- **Implementation Status**: DONE (2026-10-11) / 100%
+- **Review Status**: Approved (10/10 — 2026-10-11, 589/589 tests passing)
 - **Owner**: `settings` / integration (starts after Phases 2, 3, and 4 complete; baseline fork `df0fc3f17bfab7d52e3f64704015e0493dfd9e01` v0.13.0)
 
 ## Key Insights
@@ -130,10 +130,10 @@
 
 ## Todo List
 
-- [ ] Update row descriptions in `src/ui/settings-items.ts` for `simpleMode`, `alwaysOn`, `planGate`, `failureGate`, `completionGate`, and `customRule`
-- [ ] Add behavioral `/advisor-settings` → `saveAdvisorSettings` → `before_agent_start` roundtrip tests using `withAgentDir` in `test/settings-selector.test.ts`
-- [ ] Add non-destructive JSON merge and explicit `false` persistence tests using `withAgentDir` in `test/config-storage.test.ts`
-- [ ] Prepare minimal full-gate JSON merge and separate optional loop/budget examples for `docs/configuration.md` (finalized with Phase 6 docs pass)
+- [x] Update row descriptions in `src/ui/settings-items.ts` for `simpleMode`, `alwaysOn`, `planGate`, `failureGate`, `completionGate`, and `customRule`
+- [x] Add behavioral `/advisor-settings` → `saveAdvisorSettings` → `before_agent_start` roundtrip tests using `withAgentDir` in `test/settings-selector.test.ts`
+- [x] Add non-destructive JSON merge and explicit `false` persistence tests using `withAgentDir` in `test/config-storage.test.ts`
+- [x] Prepare minimal full-gate JSON merge and separate optional loop/budget examples for `docs/configuration.md` (finalized with Phase 6 docs pass)
 
 ## Success Criteria
 
