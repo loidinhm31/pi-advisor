@@ -57,7 +57,7 @@ const resolveActivationModels = async (
   if (!(advisorAuth.ok && advisorAuth.apiKey)) {
     return { error: `No API key for Advisor ${advisorRef}` };
   }
-  if (!isMarkedSubagent() && !(await runtime.setExecutorModel(executor))) {
+  if (!isMarkedSubagent(ctx) && !(await runtime.setExecutorModel(executor))) {
     return { error: `No API key for Executor ${executorRef}` };
   }
   return {};
@@ -115,25 +115,28 @@ export const activateAdvisor = async (
   // parseArgs, model picking, and an inactive `/model` selection only mutate
   // in-memory refs. Persist them once both models are known and authenticated,
   // so an unusable model reference is never written to the configuration.
-  if (args.trim() || prepared.pickedModels || prepared.pendingExecutor) {
+  if (
+    !isMarkedSubagent(ctx) &&
+    (args.trim() || prepared.pickedModels || prepared.pendingExecutor)
+  ) {
     saveConfig(ctx, { persistAdvisor: true, persistExecutor: true });
   }
   // A successful activation has committed the effective Executor. Do not let
   // an older inactive selection override an explicit activation argument on a
   // later attempt.
   runtime.pendingExecutorModelRef = undefined;
-  if (executorEffortRef && !isMarkedSubagent()) {
+  if (executorEffortRef && !isMarkedSubagent(ctx)) {
     // SAFETY: executorEffortRef is operator-configured and trusted to name a ThinkingLevel.
     runtime.pi.setThinkingLevel(executorEffortRef as ThinkingLevel);
   }
   if (!runtime.flowEnabled()) {
-    runtime.pi.setActiveTools([
+    await runtime.pi.setActiveTools([
       ...runtime.pi.getActiveTools(),
       "ask_advisor",
       "record_advisor_outcome",
     ]);
   }
-  const activeModel = isMarkedSubagent()
+  const activeModel = isMarkedSubagent(ctx)
     ? ctx.model
     : findConfiguredModel(ctx, executorRef);
   runtime.updateSameModelNotice(ctx, activeModel);

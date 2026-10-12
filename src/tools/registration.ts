@@ -24,6 +24,7 @@ export const registerAdvisorTool = (
   dependencies: ToolRegistrationDependencies = {}
 ): void => {
   const registration: ToolRegistrationContext = {
+    activeExecutions: new Set<string>(),
     appendOutcome: dependencies.appendOutcome ?? appendOutcome,
     consult: dependencies.consult ?? consultAdvisor,
     herdrActivity: dependencies.herdrActivity ?? herdrAdvisorActivity,

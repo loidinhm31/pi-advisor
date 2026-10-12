@@ -1,6 +1,6 @@
 # Configuration
 
-Use `/advisor-models` and `/advisor-settings` to configure pi-advisor. Both commands save to the global `advisor.json` in the Pi agent directory. `/advisor-settings` uses Pi's compact searchable settings list: type to fuzzy-search a control, press Enter or Space to change it, and every valid change is saved immediately.
+Use `/advisor-models` and `/advisor-settings` to configure pi-advisor. Both commands save to the global `advisor.json` in the Pi agent directory (`~/.pi/agent/advisor.json`) or Oh-My-Pi agent directory (`~/.omp/agent/advisor.json`). `/advisor-settings` uses Pi's compact searchable settings list: type to fuzzy-search a control, press Enter or Space to change it, and every valid change is saved immediately. Across both Pi 1.x and OMP hosts, the settings list adapter supports Left/Right arrow cycling, search filtering, and submenu navigation.
 
 Repository-controlled project `advisor.json` files are not applied. Models, prompts, gates, budgets, disclosure, redaction, integrations, and consent remain under the user's global configuration.
 
@@ -84,11 +84,40 @@ The `/advisor-settings` row opens a searchable multi-select menu containing the 
 ## Simple mode and persistent activation
 
 - `simpleMode` defaults to `false`. When enabled, `ask_advisor` and `/advisor-manual` remain available for voluntary second opinions, while plan/failure/completion rules, loop gates, blocking, call budgets, and session summaries are disabled. Context limits, result caps, redaction, and tool disclosure policies still apply.
-- `alwaysOn` defaults to `false`. When enabled, Pi restores the configured Executor and activates `ask_advisor` for new, resumed, forked, and reloaded sessions. If model refs are missing or unavailable, startup reports the problem without activating; run `/advisor` to choose available models interactively. A native subagent launcher that sets `PI_SUBAGENT_CHILD=1` keeps its host-selected model and thinking level; Advisor tools still activate, but the child is not switched to the parent Executor.
+- Active invocation rules (`advisorPlanGate`, `advisorFailureGate`, `advisorCompletionGate`, `advisorCustomInvocation`, or `simpleMode`) are injected on `before_agent_start` into Pi 1.x `systemPromptOptions.sections.advisor_invocation_settings` or appended as a `<!-- pi-advisor-flow:invocation-settings:start -->`…`<!-- pi-advisor-flow:invocation-settings:end -->` block in OMP's `systemPrompt` array. The injected guidelines include conditional routing instructions: when the host advertises `xd://ask_advisor` (or `xd://record_advisor_outcome`), the Executor reads the device schema when needed and writes JSON content to the `xd://` URI; when `ask_advisor` (or `record_advisor_outcome`) is directly exposed as a tool, it calls the tool directly.
+- `alwaysOn` defaults to `false`. When enabled, Pi restores the configured Executor and activates `ask_advisor` for new, resumed, forked, and reloaded sessions. If model refs are missing or unavailable, startup reports the problem without activating; run `/advisor` to choose available models interactively. A native subagent launcher setting `PI_SUBAGENT_CHILD=1` or an in-process OMP subagent (`ctx.agent.kind === "sub"`) keeps its host-selected model and thinking level; Advisor tools still activate, but the child is not switched to the parent Executor. Child sessions never persist model selections or settings changes to `advisor.json` or update `pendingExecutorModelRef`. Native host advisor sessions (`ctx.agent.id === "advisor"`) are isolated so their turns never mutate plugin counters or gates.
 - An explicit `/model` selection made before `/advisor` is held for that session and adopted as the Executor on the next successful activation. While the Advisor flow is active, an explicit `/model` selection is persisted as the Executor immediately. A model restored with a session or selected by cycling does not change the saved Executor.
 - `/advisor-off` turns `alwaysOn` off so the flow stays disabled in later sessions.
+- Activation and deactivation commands (`/advisor` and `/advisor-off`) asynchronously await host tool registry mutations (`pi.setActiveTools`) so prompt rebuilds and tool availability remain synchronized across both Pi 1.x and OMP hosts.
 - In Simple mode, settings keeps the Context window/history control alongside Simple mode and Always on. Advanced values remain saved and take effect when Simple mode is disabled.
 - Settings changes are applied and persisted as they happen; Escape closes the screen without a separate Save action.
+- `advisorPlanGate`, `advisorFailureGate`, and `advisorCompletionGate` default to `true` when omitted, so turning `Simple mode` `Off` (`"simpleMode": false`) activates all three cooperative Executor system-prompt review rules unless a gate key was explicitly saved as `false`. Unlike `advisorAutoLoopGate` (which deterministically intercepts repeated equivalent tool calls in `tool_call`), Plan, Failure, Completion, and `advisorCustomInvocation` rules are cooperative system-prompt instructions.
+- Extension tools start available unless disabled with `/advisor-off`; `alwaysOn` specifically restores the Advisor flow and configured Executor at session startup rather than forcing an automatic consultation on every turn.
+
+To preview enabling full review-gate instructions in `~/.omp/agent/advisor.json` without overwriting existing models, whitelist, Jev, privacy, loop-threshold, or session-budget fields:
+
+```bash
+# Preview the merged JSON; this command does not save it:
+jq '. + {
+  "simpleMode": false,
+  "advisorPlanGate": true,
+  "advisorFailureGate": true,
+  "advisorCompletionGate": true
+}' ~/.omp/agent/advisor.json
+```
+
+To separately preview optional deterministic loop-gate and session call-budget settings:
+
+```bash
+# Optional preview only; does not change the saved loop threshold or budget:
+jq '. + {
+  "advisorAutoLoopGate": true,
+  "advisorLoopThreshold": 3,
+  "advisorMaxCallsPerSession": 5
+}' ~/.omp/agent/advisor.json
+```
+
+These `jq` commands print previews only. Prefer `/advisor-settings` to persist changes; do not redirect `jq` output onto its input file. Retain existing model identifiers or use isolated loopback fixtures during verification; a documented identifier is not proof of host availability.
 
 ## Experimental Advisor Scout
 
@@ -177,5 +206,18 @@ Malformed, missing, duplicate, or contradictory decisions are gate failures. The
 | `Decision: blocked` | Block session | Block tool action | Warn and continue |
 
 `advisorBlockOnBlocked` controls whether a session block immediately aborts the active run. It never turns a session block into a tool-only block. A recorded session block remains fail-safe after `/advisor-off`; start a new session to resume tool execution.
+
+## Device lifecycle and event dispatch
+
+In environments where Advisor tools are accessed via Oh-My-Pi device URIs (`xd://ask_advisor` and `xd://record_advisor_outcome`), invocations produce an outer filesystem `write` tool call/result envelope wrapping the inner canonical tool execution. pi-advisor normalizes event dispatch and lifecycle tracking across both hosts:
+
+- **Envelope normalization**: The shared `advisorDeviceTarget` helper recognizes outer `write` calls targeting canonical `xd://ask_advisor` or `xd://record_advisor_outcome` (and outer results marked with `details.xdev.tool`). Ordinary file `write` calls and other `xd://` devices (`xd://ast_edit`, `xd://tui`, etc.) remain completely untouched.
+- **Loop-gate streak protection**: Outer `write` device envelopes are bypassed in automatic gate evaluation. They do not trigger false loop gates, reset in-progress non-Advisor repetition streaks, or double-count calls. Direct and inner `record_advisor_outcome` calls preserve accurate 1-call non-Advisor counting.
+- **Follow-up cache lifetime**: Outer `write` device results skip follow-up tool-call advancement, preserving the 2-result survival / 3rd-result expiry window (`toolCallsSince + 1 >= 3`).
+- **Inner execution authority**: Inner `ask_advisor` and `record_advisor_outcome` executions remain authoritative for model whitelist checks, consultation budget consumption, Jev screening, tracked-file handoff, follow-up caching, and provider calls.
+- **Consultation budget semantics**: Pre-execution validation (such as help queries `""`, `"?"`, or `"help"`, malformed JSON payloads, schema validation failures, or pre-`consumeCall` aborts) consumes 0 budget slots and leaves 0 leaked reservations. Once canonical execution reaches `session.consumeCall` and the provider request starts, budget consumption is preserved across subsequent provider errors, timeouts, or aborts.
+- **Dual-host settlement reconciliation**: Settlement is handled across Pi 1.x `agent_settled` (when no host agent identity is present) and OMP `agent_end` events. When OMP emits an intermediate turn settlement with `willContinue: true`, active executions and queued reservations are retained without clearing state or emitting summaries. On final settlement (`willContinue: false` or `agent_settled`), abandoned reservations (unstarted reservations not actively executing) are released while active executions are preserved, and at most one ephemeral session summary is emitted per settled cycle without resetting committed usage.
+- **Subagent and native host isolation**: In-process subagents (`ctx.agent.kind === "sub"` or `PI_SUBAGENT_CHILD=1`) retain their host-assigned model and thinking level without being overwritten by `alwaysOn` `executorRef`. Child subagents cannot mutate or persist changes to global `advisor.json`. Native host advisor sessions (`ctx.agent.kind === "sub" && ctx.agent.id === "advisor"`) are isolated; lifecycle hooks (`before_agent_start`, `tool_call`, `tool_result`, `handleJevTurnEnd`) ignore native advisor events to prevent counter contamination.
+- **Tool registry synchronization**: `/advisor` and `/advisor-off` asynchronously await host tool registry mutations (`pi.setActiveTools`), ensuring prompt rebuilds and tool availability remain synchronized across both Pi 1.x and OMP.
 
 See [Privacy and data handling](privacy.md) for repository context, disclosure, redaction, and integrations.

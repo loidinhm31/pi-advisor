@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve as resolvePath } from "node:path";
 
 import {
   getAdvisorSettings,
@@ -11,6 +11,7 @@ import { clampGitContextLevel } from "../src/git.ts";
 import type { GitContextLevel } from "../src/git.ts";
 import { AdvisorSessionState } from "../src/session-state.ts";
 import { withAgentDir } from "./helpers/config-fixture.ts";
+import { runOmpScript } from "./helpers/dual-host-harness.ts";
 import { modalHarness, modalTheme } from "./helpers/harness.ts";
 
 describe("Manual Advisor TUI modal", () => {
@@ -431,5 +432,163 @@ describe("Manual Advisor TUI modal", () => {
         expect(state.consumedCalls).toBe(1);
       }
     );
+  });
+
+  test("opens /advisor-manual overlay, cancels cleanly, submits edited focus, and renders call/stream/result/error/blocked states in OMP (T1/T2/T3)", async () => {
+    const packageRoot = resolvePath(import.meta.dirname, "..");
+    const bundledEntry = resolvePath(packageRoot, "dist/index.js");
+    const script = `
+      import { loadExtensions } from "./packages/coding-agent/src/extensibility/extensions/loader.ts";
+      import { loadLegacyPiModule } from "./packages/coding-agent/src/extensibility/plugins/legacy-pi-compat.ts";
+      import { initTheme } from "./packages/coding-agent/src/extensibility/legacy-pi-coding-agent-shim.ts";
+      import { getKeybindings, stripTerminalSequences, visibleWidth } from "./packages/coding-agent/src/extensibility/legacy-pi-tui-shim.ts";
+
+      await initTheme("dark");
+      const loaded = await loadExtensions([${JSON.stringify(bundledEntry)}], process.cwd());
+      if (loaded.errors.length > 0) {
+        throw new Error(loaded.errors.map((e) => e.error).join("; "));
+      }
+      const { ManualAdvisorProgressComponent } = await loadLegacyPiModule(${JSON.stringify(join(packageRoot, "src/commands/manual-progress.ts"))});
+      const ext = loaded.extensions[0];
+      const entries = [];
+      loaded.runtime.appendEntry = (type, data) => {
+        entries.push({ type, data });
+      };
+      loaded.runtime.sendMessage = () => {};
+      loaded.runtime.getActiveTools = () => ["ask_advisor"];
+
+      const plainTheme = {
+        bg: (_c, text) => text,
+        bold: (text) => text,
+        fg: (_c, text) => text,
+        italic: (text) => text,
+      };
+      const modalOptions = [];
+      let runIndex = 0;
+      const ctx = {
+        cwd: process.cwd(),
+        hasUI: true,
+        isProjectTrusted: () => false,
+        mode: "tui",
+        model: { id: "executor", provider: "provider" },
+        modelRegistry: {
+          find: () => undefined,
+          getApiKeyAndHeaders: async () => ({ ok: false, error: "offline test" }),
+          getAvailable: () => [],
+        },
+        sessionManager: {
+          getBranch: () => [],
+          getEntries: () => [],
+          getSessionId: () => "omp-manual-test",
+        },
+        ui: {
+          custom: async (factory, options) => {
+            modalOptions.push(options);
+            runIndex += 1;
+            let resolved;
+            const dialog = factory(
+              { requestRender: () => {}, terminal: { rows: 24 } },
+              plainTheme,
+              getKeybindings(),
+              (value) => { resolved = value; }
+            );
+            dialog.focused = true;
+            const lines = dialog.render(76);
+            if (!lines.every((line) => visibleWidth(line) <= 76)) {
+              throw new Error("Dialog exceeded width 76 in OMP");
+            }
+            if (runIndex === 1) {
+              dialog.handleInput("\\u001b");
+              return resolved;
+            }
+            for (const ch of " migration") {
+              dialog.handleInput(ch);
+            }
+            dialog.handleInput("\\t");
+            dialog.handleInput("\\u001b[B");
+            dialog.handleInput("\\t");
+            dialog.handleInput("\\r");
+            return resolved;
+          },
+          notify: () => {},
+          setStatus: () => {},
+        },
+      };
+
+      const manualCmd = ext.commands.get("advisor-manual");
+      await manualCmd.handler("Check", ctx);
+      const entriesAfterCancel = entries.length;
+      await manualCmd.handler("Check", ctx);
+
+      const callRenderer = ext.messageRenderers.get("advisor-loop-call");
+      const manualResultRenderer = ext.messageRenderers.get("advisor-manual-result");
+      const loopResultRenderer = ext.messageRenderers.get("advisor-loop-result");
+      const callScreen = callRenderer({ details: { question: "Check migration" } }, { expanded: false }, plainTheme)
+        .render(80).map((l) => stripTerminalSequences(l)).join("\\n");
+      const streamScreen = new ManualAdvisorProgressComponent(
+        "Check migration",
+        { phase: "streaming", text: "Streaming advice", thinking: "Checking edge cases" },
+        false,
+        plainTheme
+      ).render(80).map((l) => stripTerminalSequences(l)).join("\\n");
+      const okScreen = manualResultRenderer(
+        { details: { advisor: "provider/advisor", text: "Verdict: sound\\n\\nProceed." } },
+        { expanded: true },
+        plainTheme
+      ).render(80).map((l) => stripTerminalSequences(l)).join("\\n");
+      const errScreen = loopResultRenderer(
+        { content: "Provider authentication failed", details: {} },
+        { expanded: true },
+        plainTheme
+      ).render(80).map((l) => stripTerminalSequences(l)).join("\\n");
+      const blockedScreen = loopResultRenderer(
+        { details: { advisor: "provider/advisor", decision: "blocked", text: "Decision: blocked\\n\\nStop loop." } },
+        { expanded: true },
+        plainTheme
+      ).render(80).map((l) => stripTerminalSequences(l)).join("\\n");
+
+      console.log(JSON.stringify({
+        blockedHasHeader: blockedScreen.includes("◆ ADVISOR GATE: blocked"),
+        callHasHeader: callScreen.includes("[advisor] Executor → Advisor") && callScreen.includes("Check migration"),
+        entriesAfterCancel,
+        entriesAfterSubmit: entries.length,
+        errHasMessage: errScreen.includes("Provider authentication failed"),
+        firstOptionAnchor: modalOptions[0]?.overlayOptions?.anchor ?? null,
+        okHasHeader: okScreen.includes("◆ ADVISOR · SOUND") && okScreen.includes("Proceed."),
+        streamHasState: streamScreen.includes("◆ ADVISOR") && streamScreen.includes("Responding…") && streamScreen.includes("Streaming advice"),
+        submittedQuestion: entries[0]?.data?.question ?? null,
+        submittedType: entries[0]?.type ?? null,
+      }));
+    `;
+
+    const result = await runOmpScript(
+      "omp-manual-cmd-",
+      script,
+      (line) => JSON.parse(line),
+      ({ agentDir }) => {
+        writeFileSync(
+          join(agentDir, "advisor.json"),
+          JSON.stringify({
+            advisor: "provider/advisor",
+            advisorGitContext: "full",
+            advisorHerdrIntegration: false,
+            executor: "provider/executor",
+            simpleMode: false,
+          })
+        );
+      }
+    );
+    expect(result).toEqual({
+      blockedHasHeader: true,
+      callHasHeader: true,
+      entriesAfterCancel: 0,
+      entriesAfterSubmit: 1,
+      errHasMessage: true,
+      firstOptionAnchor: "center",
+      okHasHeader: true,
+      streamHasState: true,
+      submittedQuestion: "Check migration",
+      submittedType: "advisor-manual-call",
+    });
   });
 });

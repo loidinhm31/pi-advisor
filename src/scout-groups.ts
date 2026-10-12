@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import type { AdvisorToolPolicies } from "./config/types.ts";
 import {
+  advisorDeviceTarget,
   byteLength,
   contentParts,
   isRecord,
@@ -95,6 +96,28 @@ const pendingAdvisorArguments = (part: RecordValue): RecordValue => {
   return allowed;
 };
 
+const pendingWriteAdvisorArguments = (args: RecordValue): RecordValue => {
+  const { content: rawContent, path } = args;
+  if (!isString(rawContent)) {
+    return { content: "{}", path };
+  }
+  try {
+    const parsed = JSON.parse(rawContent);
+    if (!isRecord(parsed)) {
+      return { content: "{}", path };
+    }
+    const allowed: RecordValue = {};
+    for (const key of ["gitContext", "question"]) {
+      if (key in parsed) {
+        allowed[key] = parsed[key];
+      }
+    }
+    return { content: JSON.stringify(allowed), path };
+  } catch {
+    return { content: "{}", path };
+  }
+};
+
 const pendingInvocationDisclosure = (
   entry: RecordValue,
   invocationId: string,
@@ -113,12 +136,24 @@ const pendingInvocationDisclosure = (
     if (
       !isRecord(part) ||
       part.type !== "toolCall" ||
-      toolCallId(part) !== invocationId ||
-      part.name !== "ask_advisor"
+      toolCallId(part) !== invocationId
     ) {
       return part;
     }
-    return { ...part, arguments: pendingAdvisorArguments(part) };
+    if (part.name === "ask_advisor") {
+      return { ...part, arguments: pendingAdvisorArguments(part) };
+    }
+    if (
+      isString(part.name) &&
+      advisorDeviceTarget(part.name, part.arguments) === "ask_advisor" &&
+      isRecord(part.arguments)
+    ) {
+      return {
+        ...part,
+        arguments: pendingWriteAdvisorArguments(part.arguments),
+      };
+    }
+    return part;
   });
   return conversationEntry(
     { ...entry, message: { ...message, content } },

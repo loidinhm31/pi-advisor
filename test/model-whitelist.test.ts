@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+  BeforeAgentStartEvent,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 
 import {
   setAdvisorJevTurnGateEveryTurnsRef,
@@ -17,6 +20,8 @@ import {
 } from "../src/tools/model-access.ts";
 import { withAgentDir } from "./helpers/config-fixture.ts";
 import { asExtensionContext } from "./helpers/extension-context.ts";
+import { dispatchBeforeAgentStart } from "./helpers/harness.ts";
+import type { DualHostEventHandler } from "./helpers/harness.ts";
 import { mockPi } from "./helpers/mock-pi.ts";
 
 const contextFor = (
@@ -218,6 +223,100 @@ describe("Advisor model whitelist", () => {
         );
         expect(gateCalls).toBe(1);
         expect(session.consumedCalls).toBe(1);
+      }
+    );
+  });
+
+  test("strips only the delimited owned prompt block for disallowed or same-model Executors and returns undefined when already clean (P2, P4)", async () => {
+    const basePrompt = [
+      "System header",
+      "Advisor invocation settings:\n- Foreign extension rule",
+    ];
+
+    await withAgentDir(
+      {
+        advisor: "provider/advisor",
+        advisorDisableSameModel: true,
+        advisorModelWhitelist: ["provider/allowed", "provider/advisor"],
+        simpleMode: false,
+      },
+      async (agentDir) => {
+        const events = new Map<string, DualHostEventHandler>();
+        registerAdvisorTool(
+          mockPi(
+            { activeTools: ["ask_advisor"], events },
+            { registerTool: () => undefined }
+          ),
+          new AdvisorSessionState()
+        );
+        const allowedCtx = asExtensionContext({
+          cwd: agentDir,
+          hasUI: false,
+          isProjectTrusted: () => false,
+          model: { id: "allowed", provider: "provider" },
+        });
+        const disallowedCtx = asExtensionContext({
+          cwd: agentDir,
+          hasUI: false,
+          isProjectTrusted: () => false,
+          model: { id: "other", provider: "provider" },
+        });
+        const sameModelCtx = asExtensionContext({
+          cwd: agentDir,
+          hasUI: false,
+          isProjectTrusted: () => false,
+          model: { id: "advisor", provider: "provider" },
+        });
+
+        const cleanDenied = await dispatchBeforeAgentStart(
+          events,
+          { systemPrompt: [...basePrompt] },
+          disallowedCtx
+        );
+        expect(cleanDenied.result).toBeUndefined();
+
+        const seeded = await dispatchBeforeAgentStart(
+          events,
+          { systemPrompt: [...basePrompt] },
+          allowedCtx
+        );
+        const seededPrompt = Array.isArray(seeded.result?.systemPrompt)
+          ? seeded.result.systemPrompt
+          : [];
+        expect(seededPrompt).toHaveLength(3);
+
+        const strippedDenied = await dispatchBeforeAgentStart(
+          events,
+          { systemPrompt: seededPrompt },
+          disallowedCtx
+        );
+        expect(strippedDenied.result).toEqual({ systemPrompt: basePrompt });
+
+        const strippedSameModel = await dispatchBeforeAgentStart(
+          events,
+          { systemPrompt: seededPrompt },
+          sameModelCtx
+        );
+        expect(strippedSameModel.result).toEqual({ systemPrompt: basePrompt });
+
+        const cleanSameModel = await dispatchBeforeAgentStart(
+          events,
+          { systemPrompt: [...basePrompt] },
+          sameModelCtx
+        );
+        expect(cleanSameModel.result).toBeUndefined();
+
+        const sections: BeforeAgentStartEvent["systemPromptOptions"]["sections"] =
+          {
+            advisor_invocation_settings: "stale",
+            mcp_servers: "servers",
+          };
+        await dispatchBeforeAgentStart(
+          events,
+          { systemPromptOptions: { sections } },
+          sameModelCtx
+        );
+        expect(sections).toEqual({ mcp_servers: "servers" });
       }
     );
   });

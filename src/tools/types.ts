@@ -125,6 +125,7 @@ export interface AdvisorToolContext {
 }
 
 export interface ToolRegistrationContext {
+  activeExecutions?: Set<string>;
   appendOutcome: typeof appendOutcome;
   consult: typeof consultAdvisor;
   herdrActivity: HerdrAdvisorActivityScope;
@@ -146,4 +147,18 @@ export interface ToolRegistrationDependencies {
   screen?: typeof screenConsultation;
   statusManager?: ScoutStatusManager;
   turnGateDeps?: JevTurnGateDeps;
+}
+
+export interface DualHostBeforeAgentStartEvent {
+  prompt?: string;
+  systemPrompt?: unknown;
+  systemPromptOptions?: {
+    sections?: Record<string, string | undefined>;
+  } | null;
+}
+
+export interface HostAgentEndEvent {
+  messages?: unknown[];
+  type?: "agent_end";
+  willContinue?: boolean;
 }

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve as resolvePath } from "node:path";
 
 import { initTheme } from "@earendil-works/pi-coding-agent";
 
@@ -14,6 +14,7 @@ import {
 } from "../src/tools.ts";
 import { AdvisorSettingsSelector } from "../src/ui.ts";
 import { withAgentDir } from "./helpers/config-fixture.ts";
+import { runOmpScript } from "./helpers/dual-host-harness.ts";
 import { asExtensionContext } from "./helpers/extension-context.ts";
 import { mockPi } from "./helpers/mock-pi.ts";
 import {
@@ -320,5 +321,103 @@ describe("Advisor settings navigation and gate parsing regressions", () => {
       resetConfigCache();
       rmSync(projectDir, { force: true, recursive: true });
     }
+  });
+
+  test("navigates AdvisorSettingsSelector with arrows, preserves Simple mode selection across rebuilds, and guards search/submenus in OMP (T4)", async () => {
+    const packageRoot = resolvePath(import.meta.dirname, "..");
+    const script = `
+      import { installLegacyPiSpecifierShim, loadLegacyPiModule } from "./packages/coding-agent/src/extensibility/plugins/legacy-pi-compat.ts";
+      import { initTheme } from "./packages/coding-agent/src/extensibility/legacy-pi-coding-agent-shim.ts";
+      import { stripTerminalSequences } from "./packages/coding-agent/src/extensibility/legacy-pi-tui-shim.ts";
+
+      installLegacyPiSpecifierShim();
+      await initTheme("dark");
+
+      const { AdvisorSettingsSelector } = await loadLegacyPiModule(${JSON.stringify(join(packageRoot, "src/ui/settings-selector.ts"))});
+
+      const saved = [];
+      const selector = new AdvisorSettingsSelector({
+        effortLevels: ["Default (Model Default)", "low", "high"],
+        initial: {
+          collapseResponses: false,
+          completionGate: true,
+          contextMaxChars: 10000,
+          effort: "Default (Model Default)",
+          failureGate: true,
+          maxCallsPerSession: 7,
+          planGate: true,
+          simpleMode: false,
+        },
+        onCancel: () => {},
+        onChange: (val) => { saved.push({ ...val }); },
+        presets: [
+          { description: "none", label: "0", value: 0 },
+          { description: "10k", label: "10k", value: 10000 },
+          { description: "15k", label: "15k", value: 15000 },
+        ],
+        theme: {
+          bold: (t) => t,
+          fg: (_c, t) => t,
+        },
+        tui: { requestRender: () => {} },
+      });
+
+      const screenText = () =>
+        selector.render(110).map((line) => stripTerminalSequences(line)).join("\\n");
+
+      // First row is Context window (10k -> 15k on Right arrow).
+      selector.handleInput("\\u001b[C");
+      const contextAfterArrow = saved.at(-1)?.contextMaxChars ?? null;
+
+      // Move Down to Simple mode and toggle Off -> On -> Off with Right arrow.
+      for (let i = 0; i < 30; i += 1) {
+        if (/Simple mode\\s+Off/u.test(screenText()) && /[→❯▸]\\s*Simple mode/u.test(screenText())) {
+          break;
+        }
+        selector.handleInput("\\u001b[B");
+      }
+      selector.handleInput("\\u001b[C");
+      const simpleModeTurnedOn = saved.at(-1)?.simpleMode === true;
+      const planGateHiddenWhenSimple = !screenText().includes("Plan gate");
+
+      // Pressing Right arrow again without moving selection proves Simple mode stayed selected across rebuild.
+      selector.handleInput("\\u001b[C");
+      const simpleModeTurnedOffAgain = saved.at(-1)?.simpleMode === false;
+      for (let i = 0; i < 30; i += 1) {
+        if (screenText().includes("Plan gate")) {
+          break;
+        }
+        selector.handleInput("\\u001b[B");
+      }
+      const planGateRestoredWhenFull = screenText().includes("Plan gate");
+      const saveCountBeforeSearch = saved.length;
+      selector.handleInput("p");
+      selector.handleInput("l");
+      selector.handleInput("a");
+      selector.handleInput("n");
+      selector.handleInput("\\u001b[C");
+      const saveCountAfterSearchArrow = saved.length;
+
+      selector.dispose();
+      console.log(JSON.stringify({
+        contextAfterArrow,
+        planGateHiddenWhenSimple,
+        planGateRestoredWhenFull,
+        saveCountAfterSearchArrow,
+        saveCountBeforeSearch,
+        simpleModeTurnedOffAgain,
+        simpleModeTurnedOn,
+      }));
+    `;
+
+    const result = await runOmpScript("omp-settings-nav-", script, (line) =>
+      JSON.parse(line)
+    );
+    expect(result.contextAfterArrow).toBe(15_000);
+    expect(result.simpleModeTurnedOn).toBe(true);
+    expect(result.planGateHiddenWhenSimple).toBe(true);
+    expect(result.simpleModeTurnedOffAgain).toBe(true);
+    expect(result.planGateRestoredWhenFull).toBe(true);
+    expect(result.saveCountAfterSearchArrow).toBe(result.saveCountBeforeSearch);
   });
 });

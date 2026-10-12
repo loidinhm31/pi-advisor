@@ -48,3 +48,29 @@ export const capUtf8Bytes = (value: string, maxBytes: number): string => {
   }
   return result;
 };
+
+export const advisorDeviceTarget = <Input, Details>(
+  toolName?: string | null,
+  inputOrArgs?: Input,
+  details?: Details
+): "ask_advisor" | "record_advisor_outcome" | undefined => {
+  if (toolName !== "write") {
+    return undefined;
+  }
+  if (isRecordOf(details) && isRecordOf(details.xdev)) {
+    const target = details.xdev.tool;
+    if (target === "ask_advisor" || target === "record_advisor_outcome") {
+      return target;
+    }
+  }
+  if (isRecordOf(inputOrArgs) && isString(inputOrArgs.path)) {
+    const trimmed = inputOrArgs.path.trim();
+    if (trimmed.slice(0, 5).toLowerCase() === "xd://") {
+      const target = trimmed.slice(5);
+      if (target === "ask_advisor" || target === "record_advisor_outcome") {
+        return target;
+      }
+    }
+  }
+  return undefined;
+};

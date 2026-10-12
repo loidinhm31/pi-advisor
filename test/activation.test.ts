@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve as resolvePath } from "node:path";
 
 import { initTheme } from "@earendil-works/pi-coding-agent";
 
@@ -13,10 +13,12 @@ import {
 } from "../src/config.ts";
 import { registerAdvisorTool } from "../src/tools.ts";
 import { savedConfig, withAgentDir } from "./helpers/config-fixture.ts";
+import { runOmpScript } from "./helpers/dual-host-harness.ts";
 import { asExtensionContext } from "./helpers/extension-context.ts";
 import {
   activationContext,
   activationHarness,
+  dispatchBeforeAgentStart,
   plainTheme,
 } from "./helpers/harness.ts";
 import { mockPi } from "./helpers/mock-pi.ts";
@@ -26,6 +28,14 @@ initTheme();
 interface RegistryModel {
   id: string;
   provider: string;
+}
+
+interface OmpPromptProbeOutput {
+  afterCleanSystemPrompt: string[] | null;
+  afterOffSystemPrompt: string[] | null;
+  retryLength: number;
+  retryOwnedBlock: string;
+  retryPrefix: string[];
 }
 
 interface SelectorTheme {
@@ -510,6 +520,70 @@ describe("Advisor activation flow", () => {
     }
   });
 
+  test("preserves child agent model and thinking level for in-process subagents without writing advisor.json (D6)", async () => {
+    await withAgentDir(
+      {
+        advisor: "provider/advisor",
+        alwaysOn: true,
+        executor: "provider/executor",
+        executorEffort: "high",
+      },
+      async (agentDir) => {
+        const { events, pi, selectedModels, thinkingLevels, setActiveTools } =
+          activationHarness();
+        registerCommands(pi);
+        setActiveTools([]);
+        const childCtx = {
+          ...activationContext(agentDir),
+          agent: { id: "Task1", kind: "sub" as const },
+          model: { id: "child-model", provider: "child-provider" },
+          thinkingLevel: "low" as const,
+        };
+        await events.get("session_start")?.({ reason: "startup" }, childCtx);
+        expect(pi.getActiveTools()).toContain("ask_advisor");
+        expect(selectedModels).toEqual([]);
+        expect(thinkingLevels).toEqual([]);
+
+        await events.get("model_select")?.(
+          {
+            model: { id: "new-child-model", provider: "provider" },
+            source: "set",
+          },
+          childCtx
+        );
+        expect(savedConfig(agentDir).executor).toBe("provider/executor");
+      }
+    );
+  });
+
+  test("awaits setActiveTools in /advisor activation and /advisor-off deactivation", async () => {
+    await withAgentDir(
+      {
+        advisor: "provider/advisor",
+        executor: "provider/executor",
+      },
+      async (agentDir) => {
+        const commands = new Map<string, any>();
+        const activeTools: string[] = [];
+        const pi = mockPi(
+          { activeTools, commands, deferSetActiveTools: true },
+          {
+            setModel: () => Promise.resolve(true),
+            setThinkingLevel: () => undefined,
+          }
+        );
+        registerCommands(pi);
+        const ctx = activationContext(agentDir);
+
+        await commands.get("advisor").handler("", ctx);
+        expect(activeTools).toContain("ask_advisor");
+
+        await commands.get("advisor-off").handler("", ctx);
+        expect(activeTools).not.toContain("ask_advisor");
+      }
+    );
+  });
+
   test("hides usage details from automatic gate results when disabled", () => {
     setShowUsageDetailsRef(true);
     const { pi, renderers } = activationHarness();
@@ -621,5 +695,147 @@ describe("Advisor activation flow", () => {
         "◆ ADVISOR RESPONSE"
       );
     });
+  });
+
+  test("deduplicates delimited prompt blocks across OMP retries, preserves foreign headings, and strips only owned block on /advisor-off in real OMP ExtensionRunner (P1, P2, P3)", async () => {
+    await withAgentDir(
+      {
+        advisor: "provider/advisor",
+        alwaysOn: true,
+        executor: "provider/executor",
+        simpleMode: false,
+      },
+      async (agentDir) => {
+        const { commands, events, pi } = activationHarness();
+        registerCommands(pi);
+        registerAdvisorTool(pi);
+        const ctx = activationContext(agentDir);
+        await events.get("session_start")?.({ reason: "startup" }, ctx);
+
+        const baseBlocks = [
+          "System header",
+          "Advisor invocation settings:\n- Foreign extension rule",
+          "## Devices\n- xd://ask_advisor",
+        ];
+        let currentPrompt = [...baseBlocks];
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          const outcome = await dispatchBeforeAgentStart(
+            events,
+            { systemPrompt: currentPrompt },
+            ctx
+          );
+          currentPrompt = Array.isArray(outcome.systemPrompt)
+            ? outcome.systemPrompt
+            : [];
+        }
+        expect(currentPrompt).toHaveLength(4);
+        expect(currentPrompt.slice(0, 3)).toEqual(baseBlocks);
+        expect(currentPrompt[3]).toStartWith(
+          "<!-- pi-advisor-flow:invocation-settings:start -->\nAdvisor invocation settings:\n"
+        );
+        expect(currentPrompt[3]).toEndWith(
+          "\n<!-- pi-advisor-flow:invocation-settings:end -->"
+        );
+
+        await commands.get("advisor-off").handler("", ctx);
+        const removedOutcome = await dispatchBeforeAgentStart(
+          events,
+          { systemPrompt: currentPrompt },
+          ctx
+        );
+        expect(removedOutcome.result).toEqual({ systemPrompt: baseBlocks });
+
+        const alreadyCleanOutcome = await dispatchBeforeAgentStart(
+          events,
+          { systemPrompt: baseBlocks },
+          ctx
+        );
+        expect(alreadyCleanOutcome.result).toBeUndefined();
+      }
+    );
+
+    const bundledEntry = resolvePath(import.meta.dirname, "../dist/index.js");
+    const script = `
+      import { writeFileSync } from "node:fs";
+      import { join } from "node:path";
+      import { loadExtensions } from "./packages/coding-agent/src/extensibility/extensions/loader.ts";
+      import { ExtensionRunner, TOP_LEVEL_AGENT } from "./packages/coding-agent/src/extensibility/extensions/runner.ts";
+      import { SessionManager } from "./packages/coding-agent/src/session/session-manager.ts";
+
+      const agentDir = process.env.PI_CODING_AGENT_DIR;
+      writeFileSync(
+        join(agentDir, "advisor.json"),
+        JSON.stringify({
+          advisor: "provider/advisor",
+          advisorCompletionGate: true,
+          advisorFailureGate: true,
+          advisorPlanGate: true,
+          executor: "provider/executor",
+          simpleMode: false,
+        })
+      );
+      const loaded = await loadExtensions([${JSON.stringify(bundledEntry)}], process.cwd());
+      if (loaded.errors.length > 0) {
+        throw new Error(loaded.errors.map((e) => e.error).join("; "));
+      }
+      let activeTools = ["ask_advisor", "record_advisor_outcome"];
+      loaded.runtime.getActiveTools = () => activeTools;
+      loaded.runtime.setActiveTools = async (names) => {
+        activeTools = [...names];
+      };
+      const sessionManager = SessionManager.inMemory(process.cwd());
+      const runner = new ExtensionRunner(
+        loaded.extensions,
+        loaded.runtime,
+        process.cwd(),
+        sessionManager,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        TOP_LEVEL_AGENT
+      );
+      const baseBlocks = [
+        "System header",
+        "Advisor invocation settings:\\n- Foreign extension rule",
+        "## Devices\\n- xd://ask_advisor",
+      ];
+      let current = [...baseBlocks];
+      for (let i = 0; i < 3; i += 1) {
+        const res = await runner.emitBeforeAgentStart("Plan task", undefined, current);
+        if (Array.isArray(res?.systemPrompt)) {
+          current = res.systemPrompt;
+        }
+      }
+      activeTools = [];
+      const afterOff = await runner.emitBeforeAgentStart("Plan task", undefined, current);
+      const afterClean = await runner.emitBeforeAgentStart("Plan task", undefined, baseBlocks);
+      console.log(JSON.stringify({
+        afterCleanSystemPrompt: afterClean?.systemPrompt ?? null,
+        afterOffSystemPrompt: afterOff?.systemPrompt ?? null,
+        retryLength: current.length,
+        retryOwnedBlock: current[3] ?? "",
+        retryPrefix: current.slice(0, 3),
+      }));
+    `;
+    const ompResult = await runOmpScript(
+      "omp-before-agent-start-",
+      script,
+      // SAFETY: The isolated OMP subprocess writes a single JSON summary line matching OmpPromptProbeOutput.
+      (line) => JSON.parse(line) as OmpPromptProbeOutput
+    );
+    expect(ompResult.retryLength).toBe(4);
+    expect(ompResult.retryPrefix).toEqual([
+      "System header",
+      "Advisor invocation settings:\n- Foreign extension rule",
+      "## Devices\n- xd://ask_advisor",
+    ]);
+    expect(ompResult.retryOwnedBlock).toContain(
+      "<!-- pi-advisor-flow:invocation-settings:start -->"
+    );
+    expect(ompResult.retryOwnedBlock).toContain("xd://ask_advisor");
+    expect(ompResult.afterOffSystemPrompt).toEqual(ompResult.retryPrefix);
+    expect(ompResult.afterCleanSystemPrompt).toBeNull();
   });
 });

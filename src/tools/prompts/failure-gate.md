@@ -1,0 +1,1 @@
+Consult the Advisor (via xd://ask_advisor or ask_advisor) after two consecutive materially equivalent failed attempts, when a fix recreates an earlier failure, or after two actions produce no measurable progress. Do not make another materially equivalent attempt before consulting.

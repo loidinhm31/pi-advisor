@@ -351,7 +351,7 @@ export const createSettingsItems = ({
     {
       currentValue: settingValue(settings.simpleMode, false),
       description:
-        "Keep the Advisor available on demand without automatic gates or blocks.",
+        "Keep the Advisor on demand only; turn off to enable Plan, Failure, Completion, and loop gates.",
       id: "simpleMode",
       label: "Simple mode",
       values: TOGGLE_VALUES,
@@ -359,7 +359,7 @@ export const createSettingsItems = ({
     {
       currentValue: settingValue(settings.alwaysOn, false),
       description:
-        "Run the Advisor flow automatically for supported agent turns.",
+        "Restore the Advisor flow and configured Executor automatically at session startup.",
       id: "alwaysOn",
       label: "Always on",
       values: TOGGLE_VALUES,
@@ -421,21 +421,21 @@ export const createSettingsItems = ({
     toggle(
       "planGate",
       "Plan gate",
-      "Ask the Advisor to review implementation plans.",
+      "Add Executor system-prompt instructions to consult the Advisor before committing to a consequential plan.",
       settings.planGate,
       true
     ),
     toggle(
       "failureGate",
       "Failure gate",
-      "Ask the Advisor to review repeated failures.",
+      "Add Executor system-prompt instructions to consult the Advisor after repeated failed attempts.",
       settings.failureGate,
       true
     ),
     toggle(
       "completionGate",
       "Completion gate",
-      "Ask the Advisor to review work before declaring success.",
+      "Add Executor system-prompt instructions to consult the Advisor before declaring non-trivial work complete.",
       settings.completionGate,
       true
     ),
@@ -448,7 +448,8 @@ export const createSettingsItems = ({
     ),
     {
       currentValue: settings.customRule || "None",
-      description: "Add a rule that triggers Advisor involvement.",
+      description:
+        "Add a custom Executor system-prompt instruction that triggers Advisor review.",
       id: "customRule",
       label: "Custom invocation",
       submenu: (_currentValue, done) =>
@@ -472,7 +473,7 @@ export const createSettingsItems = ({
     toggle(
       "autoLoopGate",
       "Automatic loop gate",
-      "Ask the Advisor to review repeated equivalent attempts.",
+      "Deterministically intercept repeated equivalent tool calls and ask the Advisor to review them.",
       settings.autoLoopGate,
       true
     ),

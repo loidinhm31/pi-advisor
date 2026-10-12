@@ -2,10 +2,18 @@ import { initTheme } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getKeybindings } from "@earendil-works/pi-tui";
 
+import type { AgentAwareContext } from "../../src/child-session.ts";
 import { registerCommands } from "../../src/commands.ts";
+import { isRecordOf } from "../../src/content-utils.ts";
 import type { AdvisorSessionState } from "../../src/session-state.ts";
+import type {
+  DualHostBeforeAgentStartEvent,
+  HostAgentEndEvent,
+} from "../../src/tools/types.ts";
 import { asExtensionContext } from "./extension-context.ts";
+import type { JsonValue } from "./extension-context.ts";
 import { mockPi } from "./mock-pi.ts";
+import type { MockHandlerOutcome } from "./mock-pi.ts";
 
 initTheme();
 
@@ -160,6 +168,74 @@ export const activationContext = (
     hasUI: true,
     isProjectTrusted: () => false,
     modelRegistry: registry,
-    ui: { notify: (message: string) => notes.push(message) },
+    ui: {
+      notify: (message: string) => notes.push(message),
+      setStatus: () => undefined,
+    },
   });
+};
+
+export type DualHostLifecycleEvent =
+  | DualHostBeforeAgentStartEvent
+  | HostAgentEndEvent
+  | {
+      details?: Record<string, JsonValue>;
+      input?: Record<string, JsonValue>;
+      toolCallId?: string;
+      toolName?: string;
+    }
+  | { reason?: string; type?: string };
+
+export type DualHostEventHandler =
+  | ((event: DualHostLifecycleEvent, ctx: AgentAwareContext) => void)
+  | ((event: DualHostLifecycleEvent, ctx: AgentAwareContext) => Promise<void>)
+  | ((
+      event: DualHostLifecycleEvent,
+      ctx: AgentAwareContext
+    ) => MockHandlerOutcome | Promise<MockHandlerOutcome>);
+
+export const dispatchBeforeAgentStart = async <
+  TContext extends AgentAwareContext,
+>(
+  events: ReadonlyMap<string, DualHostEventHandler>,
+  event: DualHostBeforeAgentStartEvent,
+  ctx: TContext
+) => {
+  const handler = events.get("before_agent_start");
+  const rawResult = await handler?.(event, ctx);
+  // SAFETY: before_agent_start handlers return undefined or an object carrying an optional systemPrompt override.
+  const result = isRecordOf(rawResult)
+    ? (rawResult as { systemPrompt?: string | string[] })
+    : undefined;
+  let nextPrompt = event.systemPrompt;
+  if (result?.systemPrompt !== undefined) {
+    nextPrompt = Array.isArray(result.systemPrompt)
+      ? result.systemPrompt
+      : [result.systemPrompt];
+  }
+  return {
+    result,
+    sections: event.systemPromptOptions?.sections,
+    systemPrompt: nextPrompt,
+  };
+};
+
+export const dispatchHostSettlement = async <
+  TContext extends AgentAwareContext,
+>(
+  events: ReadonlyMap<string, DualHostEventHandler>,
+  host: "pi" | "omp",
+  ctx: TContext,
+  options: { messages?: unknown[]; willContinue?: boolean } = {}
+) => {
+  if (host === "pi") {
+    await events.get("agent_settled")?.({ type: "agent_settled" }, ctx);
+    return;
+  }
+  const payload: HostAgentEndEvent = {
+    messages: options.messages ?? [],
+    type: "agent_end",
+    willContinue: options.willContinue,
+  };
+  await events.get("agent_end")?.(payload, ctx);
 };

@@ -132,6 +132,7 @@ const claimTrackedHandoff = (
 };
 
 export const registerAskAdvisorTool = ({
+  activeExecutions,
   consult: requestAdvisor,
   herdrActivity,
   pi,
@@ -143,247 +144,254 @@ export const registerAskAdvisorTool = ({
     description:
       "Consult the on-demand Advisor model for strategic guidance. Call with an empty object for a contextual review; attach an optional draft for concrete plan or completion review. Use followUpTo with a new question to continue one cached consultation without rebuilding its redacted context. If the Advisor explicitly names a missing file, you may make a sequential fresh consultation with includeTrackedFiles when enabled and relevant. In Pi Codemode, gather and filter deterministic tool results first, then call tools.ask_advisor. Nested results are not automatically reconstructed: pass only permitted, concise summaries in draft (untrusted, capped at 8 KiB, not independently verified). Draft does not inherit source-tool disclosure policies; use gitContext for patches within the user's allowance.",
     async execute(_id, params, signal, onUpdate, ctx) {
-      let followUp:
-        | { adviceId: string; payload: AdvisorFollowUpPayload }
-        | undefined;
+      activeExecutions?.add(_id);
       try {
-        loadConfig(ctx);
-        followUp = resolveFollowUp(params, session);
-        if (followUp) {
-          assertAdvisorFollowUpPrivacy(followUp.payload, ctx);
-        }
-        const modelRef = followUp?.payload.model;
-        if (sameModelAdvisorDisabled(ctx, ctx.model, modelRef)) {
-          return skippedSameModelResult(
-            _id,
-            sameModelNoticeFor(modelRef),
-            reservedCalls,
-            session
-          );
-        }
-        assertAdvisorModelAccess(ctx);
-      } catch (error) {
-        session.releaseCall(_id);
-        reservedCalls.delete(_id);
-        throw error;
-      }
-      const simpleMode = isSimpleMode();
-      if (
-        !simpleMode &&
-        !session.reserveCall(_id, getAdvisorMaxCallsPerSession())
-      ) {
-        throw new Error("Advisor call budget exhausted for this session.");
-      }
-      if (simpleMode) {
-        session.releaseCall(_id);
-        reservedCalls.delete(_id);
-      } else {
-        reservedCalls.add(_id);
-      }
-      let normalizedQuestion: string | undefined;
-      try {
-        if (
-          !simpleMode &&
-          !session.canConsult(getAdvisorMaxCallsPerSession(), _id)
-        ) {
-          throw new Error("Advisor call budget exhausted for this session.");
-        }
-        // The Jev screening seam sits before the handoff claim: a skipped call
-        // consumes neither the one-shot handoff nor the budget.
-        normalizedQuestion = normalizeScreeningQuestion(
-          resolveAdvisorRequest(params.question)
-        );
-        const screening = await screen(ctx, session, {
-          draft: params.draft,
-          force: params.force,
-          question: resolveAdvisorRequest(params.question),
-          signal,
-        });
-        if (screening.decision === "skip") {
-          const skipText = screeningSkipText(screening);
+        let followUp:
+          | { adviceId: string; payload: AdvisorFollowUpPayload }
+          | undefined;
+        try {
+          loadConfig(ctx);
+          followUp = resolveFollowUp(params, session);
+          if (followUp) {
+            assertAdvisorFollowUpPrivacy(followUp.payload, ctx);
+          }
+          const modelRef = followUp?.payload.model;
+          if (sameModelAdvisorDisabled(ctx, ctx.model, modelRef)) {
+            return skippedSameModelResult(
+              _id,
+              sameModelNoticeFor(modelRef),
+              reservedCalls,
+              session
+            );
+          }
+          assertAdvisorModelAccess(ctx);
+        } catch (error) {
           session.releaseCall(_id);
           reservedCalls.delete(_id);
-          const skipped = {
-            jev: {
-              kind: screening.kind,
-              reason: screening.reason,
-              skipped: true,
-            },
-            text: skipText,
-          };
-          return {
-            content: [{ text: skipText, type: "text" }],
-            details: skipped,
-            structuredContent: skipped,
-          };
+          throw error;
         }
-        if (sameModelAdvisorDisabled(ctx, ctx.model, followUp?.payload.model)) {
-          return skippedSameModelResult(
-            _id,
-            sameModelNoticeFor(followUp?.payload.model),
-            reservedCalls,
-            session
-          );
-        }
+        const simpleMode = isSimpleMode();
         if (
           !simpleMode &&
-          !session.canConsult(getAdvisorMaxCallsPerSession(), _id)
+          !session.reserveCall(_id, getAdvisorMaxCallsPerSession())
         ) {
           throw new Error("Advisor call budget exhausted for this session.");
         }
-        claimTrackedHandoff(session, params.includeTrackedFiles);
-        if (!simpleMode) {
-          session.consumeCall(_id);
+        if (simpleMode) {
+          session.releaseCall(_id);
           reservedCalls.delete(_id);
-          session.resetTurnsSinceConsultation();
+        } else {
+          reservedCalls.add(_id);
         }
-      } catch (error) {
-        session.releaseCall(_id);
-        reservedCalls.delete(_id);
-        throw error;
-      }
-      const runConsultation = async () => {
-        let scoutDetails: AdvisorToolDetails["scout"];
-        const coalescedUpdate = createCoalescedUpdate(
-          (update: Parameters<NonNullable<typeof onUpdate>>[0]) =>
-            onUpdate?.(update),
-          ADVISOR_STREAM_UPDATE_INTERVAL_MS
-        );
-        const flushUpdate = () => {
-          const result = coalescedUpdate.flush();
-          if (result.failed) {
-            throw result.error;
+        let normalizedQuestion: string | undefined;
+        try {
+          if (
+            !simpleMode &&
+            !session.canConsult(getAdvisorMaxCallsPerSession(), _id)
+          ) {
+            throw new Error("Advisor call budget exhausted for this session.");
+          }
+          // The Jev screening seam sits before the handoff claim: a skipped call
+          // consumes neither the one-shot handoff nor the budget.
+          normalizedQuestion = normalizeScreeningQuestion(
+            resolveAdvisorRequest(params.question)
+          );
+          const screening = await screen(ctx, session, {
+            draft: params.draft,
+            force: params.force,
+            question: resolveAdvisorRequest(params.question),
+            signal,
+          });
+          if (screening.decision === "skip") {
+            const skipText = screeningSkipText(screening);
+            session.releaseCall(_id);
+            reservedCalls.delete(_id);
+            const skipped = {
+              jev: {
+                kind: screening.kind,
+                reason: screening.reason,
+                skipped: true,
+              },
+              text: skipText,
+            };
+            return {
+              content: [{ text: skipText, type: "text" }],
+              details: skipped,
+              structuredContent: skipped,
+            };
+          }
+          if (
+            sameModelAdvisorDisabled(ctx, ctx.model, followUp?.payload.model)
+          ) {
+            return skippedSameModelResult(
+              _id,
+              sameModelNoticeFor(followUp?.payload.model),
+              reservedCalls,
+              session
+            );
+          }
+          if (
+            !simpleMode &&
+            !session.canConsult(getAdvisorMaxCallsPerSession(), _id)
+          ) {
+            throw new Error("Advisor call budget exhausted for this session.");
+          }
+          claimTrackedHandoff(session, params.includeTrackedFiles);
+          if (!simpleMode) {
+            session.consumeCall(_id);
+            reservedCalls.delete(_id);
+            session.resetTurnsSinceConsultation();
+          }
+        } catch (error) {
+          session.releaseCall(_id);
+          reservedCalls.delete(_id);
+          throw error;
+        }
+        const runConsultation = async () => {
+          let scoutDetails: AdvisorToolDetails["scout"];
+          const coalescedUpdate = createCoalescedUpdate(
+            (update: Parameters<NonNullable<typeof onUpdate>>[0]) =>
+              onUpdate?.(update),
+            ADVISOR_STREAM_UPDATE_INTERVAL_MS
+          );
+          const flushUpdate = () => {
+            const result = coalescedUpdate.flush();
+            if (result.failed) {
+              throw result.error;
+            }
+          };
+          const finishHerdrActivity = herdrActivity.start();
+          try {
+            const result = await requestAdvisor(
+              ctx,
+              resolveAdvisorRequest(params.question),
+              signal,
+              (t, tx) =>
+                coalescedUpdate.update({
+                  content: [{ text: tx, type: "text" }],
+                  details: {
+                    advisor: followUp?.payload.model ?? advisorRef,
+                    followUp: Boolean(followUp),
+                    question: resolveAdvisorRequest(params.question),
+                    scout: scoutDetails,
+                    text: tx,
+                    thinking: t,
+                  },
+                }),
+              "executor-requested",
+              // "none" is the model declining repository context for this call.
+              params.gitContext === "none" ? "off" : params.gitContext,
+              params.draft,
+              params.includeUntracked,
+              params.includeTrackedFiles,
+              (event) => {
+                scoutDetails = scoutDetailsFromEvent(event, scoutDetails);
+                coalescedUpdate.update({
+                  content: [{ text: scoutDetails.text ?? "", type: "text" }],
+                  details: {
+                    advisor: followUp?.payload.model ?? advisorRef,
+                    followUp: Boolean(followUp),
+                    question: resolveAdvisorRequest(params.question),
+                    scout: scoutDetails,
+                  },
+                });
+              },
+              _id,
+              followUp,
+              (adviceId, payload, replacesAdviceId) =>
+                session.captureFollowUp(adviceId, payload, replacesAdviceId)
+            );
+            flushUpdate();
+            session.issueAdvice(
+              result.adviceId,
+              result.markdown,
+              result.trigger,
+              Boolean(result.draftBytes),
+              normalizedQuestion
+            );
+            session.recordInvocation({
+              cost: advisorUsageCost(result.usage),
+              executionEffect: "continued",
+              followUp: result.followUp,
+              kind: "markdown",
+              model: result.model,
+              trigger: "executor-requested",
+              usage: result.usage,
+            });
+            const usage = snapshotAdvisorUsage(result.usage);
+            const piUsage = advisorUsageForPi(result.usage);
+            updateAdvisorUsageStatus(ctx, session);
+            const details: AdvisorToolDetails = {
+              adviceId: result.adviceId,
+              advisor: result.model,
+              agentRulesBytes: result.agentRulesBytes,
+              draftBytes: result.draftBytes,
+              followUp: result.followUp,
+              imageBytes: result.imageBytes,
+              imageCount: result.imageCount,
+              imageOmissions: result.imageOmissions,
+              imagePartsSeen: result.imagePartsSeen,
+              preferenceBytes: result.preferenceBytes,
+              question: resolveAdvisorRequest(params.question),
+              scout: scoutDetails,
+              text: result.markdown,
+              thinking: result.thinkingText,
+              trackedBytes: result.trackedBytes,
+              untrackedBytes: result.untrackedBytes,
+            };
+            if (usage) {
+              details.usage = usage;
+            }
+            const structuredContent: Static<typeof advisorOutputSchema> = {
+              adviceId: result.adviceId,
+              advisor: result.model,
+              followUp: Boolean(result.followUp),
+              text: result.markdown,
+            };
+            if (usage) {
+              structuredContent.usage = usage;
+            }
+            const response: AgentToolResult<AdvisorToolDetails> = {
+              content: [
+                {
+                  text: `${result.followUp ? "Advisor follow-up" : "Advisor"} (${result.model})\n\n${result.markdown}`,
+                  type: "text",
+                },
+              ],
+              details,
+              structuredContent,
+            };
+            if (piUsage) {
+              response.usage = piUsage;
+            }
+            return response;
+          } catch (error) {
+            // Publish the latest partial state before surfacing a provider or
+            // execution error. A failure from the UI sink must not replace the
+            // original error because this path is also used for provider failures.
+            coalescedUpdate.flush();
+            const message =
+              error instanceof Error ? error.message : String(error);
+            session.recordInvocation({
+              executionEffect: "continued",
+              failure: "provider-error",
+              kind: "markdown",
+              model: followUp?.payload.model ?? advisorRef,
+              trigger: "executor-requested",
+            });
+            updateAdvisorUsageStatus(ctx, session);
+            notifyLocalFailure(ctx, message);
+            notifyHerdrAdvisorFailure("Advisor consultation failed", message);
+            throw error;
+          } finally {
+            finishHerdrActivity();
+            coalescedUpdate.cancel();
           }
         };
-        const finishHerdrActivity = herdrActivity.start();
-        try {
-          const result = await requestAdvisor(
-            ctx,
-            resolveAdvisorRequest(params.question),
-            signal,
-            (t, tx) =>
-              coalescedUpdate.update({
-                content: [{ text: tx, type: "text" }],
-                details: {
-                  advisor: followUp?.payload.model ?? advisorRef,
-                  followUp: Boolean(followUp),
-                  question: resolveAdvisorRequest(params.question),
-                  scout: scoutDetails,
-                  text: tx,
-                  thinking: t,
-                },
-              }),
-            "executor-requested",
-            // "none" is the model declining repository context for this call.
-            params.gitContext === "none" ? "off" : params.gitContext,
-            params.draft,
-            params.includeUntracked,
-            params.includeTrackedFiles,
-            (event) => {
-              scoutDetails = scoutDetailsFromEvent(event, scoutDetails);
-              coalescedUpdate.update({
-                content: [{ text: scoutDetails.text ?? "", type: "text" }],
-                details: {
-                  advisor: followUp?.payload.model ?? advisorRef,
-                  followUp: Boolean(followUp),
-                  question: resolveAdvisorRequest(params.question),
-                  scout: scoutDetails,
-                },
-              });
-            },
-            _id,
-            followUp,
-            (adviceId, payload, replacesAdviceId) =>
-              session.captureFollowUp(adviceId, payload, replacesAdviceId)
-          );
-          flushUpdate();
-          session.issueAdvice(
-            result.adviceId,
-            result.markdown,
-            result.trigger,
-            Boolean(result.draftBytes),
-            normalizedQuestion
-          );
-          session.recordInvocation({
-            cost: advisorUsageCost(result.usage),
-            executionEffect: "continued",
-            followUp: result.followUp,
-            kind: "markdown",
-            model: result.model,
-            trigger: "executor-requested",
-            usage: result.usage,
-          });
-          const usage = snapshotAdvisorUsage(result.usage);
-          const piUsage = advisorUsageForPi(result.usage);
-          updateAdvisorUsageStatus(ctx, session);
-          const details: AdvisorToolDetails = {
-            adviceId: result.adviceId,
-            advisor: result.model,
-            agentRulesBytes: result.agentRulesBytes,
-            draftBytes: result.draftBytes,
-            followUp: result.followUp,
-            imageBytes: result.imageBytes,
-            imageCount: result.imageCount,
-            imageOmissions: result.imageOmissions,
-            imagePartsSeen: result.imagePartsSeen,
-            preferenceBytes: result.preferenceBytes,
-            question: resolveAdvisorRequest(params.question),
-            scout: scoutDetails,
-            text: result.markdown,
-            thinking: result.thinkingText,
-            trackedBytes: result.trackedBytes,
-            untrackedBytes: result.untrackedBytes,
-          };
-          if (usage) {
-            details.usage = usage;
-          }
-          const structuredContent: Static<typeof advisorOutputSchema> = {
-            adviceId: result.adviceId,
-            advisor: result.model,
-            followUp: Boolean(result.followUp),
-            text: result.markdown,
-          };
-          if (usage) {
-            structuredContent.usage = usage;
-          }
-          const response: AgentToolResult<AdvisorToolDetails> = {
-            content: [
-              {
-                text: `${result.followUp ? "Advisor follow-up" : "Advisor"} (${result.model})\n\n${result.markdown}`,
-                type: "text",
-              },
-            ],
-            details,
-            structuredContent,
-          };
-          if (piUsage) {
-            response.usage = piUsage;
-          }
-          return response;
-        } catch (error) {
-          // Publish the latest partial state before surfacing a provider or
-          // execution error. A failure from the UI sink must not replace the
-          // original error because this path is also used for provider failures.
-          coalescedUpdate.flush();
-          const message =
-            error instanceof Error ? error.message : String(error);
-          session.recordInvocation({
-            executionEffect: "continued",
-            failure: "provider-error",
-            kind: "markdown",
-            model: followUp?.payload.model ?? advisorRef,
-            trigger: "executor-requested",
-          });
-          updateAdvisorUsageStatus(ctx, session);
-          notifyLocalFailure(ctx, message);
-          notifyHerdrAdvisorFailure("Advisor consultation failed", message);
-          throw error;
-        } finally {
-          finishHerdrActivity();
-          coalescedUpdate.cancel();
-        }
-      };
-      return runConsultation();
+        return await runConsultation();
+      } finally {
+        activeExecutions?.delete(_id);
+      }
     },
     label: "Ask Advisor",
     name: "ask_advisor",

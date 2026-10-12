@@ -2,12 +2,13 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 const packageJson = JSON.parse(readFileSync("package.json", "utf-8"));
-const [result] = JSON.parse(
+const parsed = JSON.parse(
   execFileSync("npm", ["pack", "--dry-run", "--json"], {
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "inherit"],
   })
 );
+const [result] = Array.isArray(parsed) ? parsed : Object.values(parsed);
 const actualFiles = result.files.map(({ path }) => path).toSorted();
 const expectedFiles = [
   "CHANGELOG.md",
@@ -93,7 +94,13 @@ const expectedFiles = [
   "src/tools/loop-gate.ts",
   "src/tools/model-access.ts",
   "src/tools/outage-notifier.ts",
+  "src/tools/prompt-assets.d.ts",
   "src/tools/prompts.ts",
+  "src/tools/prompts/completion-gate.md",
+  "src/tools/prompts/failure-gate.md",
+  "src/tools/prompts/invocation-routing.md",
+  "src/tools/prompts/plan-gate.md",
+  "src/tools/prompts/simple-mode.md",
   "src/tools/register-ask-advisor.ts",
   "src/tools/register-lifecycle.ts",
   "src/tools/register-outcome.ts",

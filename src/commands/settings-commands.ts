@@ -102,8 +102,8 @@ export const registerSettingsCommands = (runtime: CommandRuntime) => {
 
   runtime.pi.registerCommand("advisor-off", {
     description: "Disable on-demand Advisor calls; keep the current model",
-    handler: (_args, ctx) => {
-      runtime.pi.setActiveTools(
+    handler: async (_args, ctx) => {
+      await runtime.pi.setActiveTools(
         runtime.pi
           .getActiveTools()
           .filter(
@@ -127,7 +127,6 @@ export const registerSettingsCommands = (runtime: CommandRuntime) => {
         `Advisor flow disabled. Current model unchanged.${wasAlwaysOn ? " Always on turned off." : ""}`,
         "info"
       );
-      return Promise.resolve();
     },
   });
 };

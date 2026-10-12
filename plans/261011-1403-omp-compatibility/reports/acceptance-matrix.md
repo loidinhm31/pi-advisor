@@ -1,0 +1,64 @@
+# Requirement and verification matrix
+
+Status: future implementation acceptance; no runtime fix is claimed. Reference [plan](../plan.md) and [design decisions](../research/design-decisions.md).
+
+## User scope traceability
+
+| Requested item | Source evidence | Plan coverage | Required proof |
+| --- | --- | --- | --- |
+| Rescan merged fork for OMP compatibility | Recorded fork HEAD; package build/peers; loader alias and actual OMP event/TUI contracts | 01 and research reports | Record exact host versions and working source; run dual-host boundary scenarios against built artifact during implementation |
+| Fix manual TUI call | `manual-dialog.ts` passes `(tui, theme)`; OMP Editor accepts theme only; SettingsList adapter reads hidden fields | 02 | Actual OMP overlay opens, input/caret works, narrow render stays bounded, Escape sends nothing, submit sends edited focus and bounded Git level once |
+| System prompt injection invoking `xd://ask_advisor` | `register-lifecycle.ts` returns when sections absent; OMP runner consumes returned arrays | 03, 04 | Captured outbound executor request preserves existing blocks, has one owned policy block; registered device execution reaches Advisor once |
+| Full Plan/Failure/Completion settings | Existing schema/defaults/state/UI/persistence plus simple-mode short circuit | 05, supported by 02–04 | UI/global JSON roundtrip; independent toggles alter next request's effective policies; restart retains choices without changing model/privacy settings |
+
+## Behavioral scenarios
+
+| ID | Setup / action | Observable acceptance | Primary phase |
+| --- | --- | --- | --- |
+| H1 | Built plugin in Pi 1.1.0 and recorded OMP host | Real host APIs resolve; Pi remains supported; bundle identity recorded | 01, 06 |
+| T1 | Open `/advisor-manual focus` on OMP | Overlay renders and edits focus without Editor theme error | 02 |
+| T2 | Edit multiline input, move cursor, change focus/Git level, resize, cancel | Width bounds and focus behavior hold; cancellation emits no request/outcome and consumes no budget | 02 |
+| T3 | Submit once, then cancel during streaming | Selected allowed Git level and focus reach consultation once; abort stops further delivery | 02, 06 |
+| T4 | `/advisor-settings`: arrows, search, submenu, Simple mode toggle | Correct row changes once; search/submenus do not accidentally toggle another row; focus survives list rebuild | 02, 05 |
+| T5 | Masked key entry with cursor moves/paste at narrow width | Secret never rendered; caret/masking stays valid using public cursor API where available | 02 |
+| P1 | Pi sections and OMP array events with other extension content | Correct host contract; original prompt content/order preserved, no replacement of unrelated sections | 03 |
+| P2 | Retry composition, new turn, toggle gate, flow off/on, whitelist deny, same-model | At most one plugin-owned policy block; only that block removed/updated; no stale full-gate instructions | 03 |
+| P3 | Advisor exposed via device, direct tool, or restricted tool set | Instructions match available route; no invented top-level tool or attempt to bypass restricted transport | 03 |
+| P4 | Configuration invalid or unsupported event shape | Useful non-repeating diagnostic, no corrupt prompt or fabricated active state | 03 |
+| D1 | Advisor device/direct calls, help, malformed JSON, pre-execution abort, provider failure, ordinary file write | One canonical consultation/budget operation; help/dispatch errors before consumption use zero budget; provider failure after consumption retains existing accounting; ordinary writes keep policy behavior | 04 |
+| D2 | Advisor answer, then unrelated tools, then follow-up | Transport envelope itself does not consume the unrelated-tool expiry allowance; existing true expiry still applies | 04 |
+| D3 | Repeated advisor-device calls versus genuinely repeated non-advisor tools | No false recursive advisor loop; actual loop threshold still routes through its configured gate | 04 |
+| D4 | Pending device draft/attachments with Scout enabled and restrictive tool policies | Pending Scout manifest excludes forbidden content; explicit final Advisor draft follows existing consent/redaction policy; malformed content not disclosed raw | 04 |
+| D5 | Pi settled event; OMP final/continuing agent_end; queued/active/abandoned reservations | Continuing events preserve queued and active reservations; final settlement releases only abandoned reservations; no duplicate summary or reset of committed usage | 04 |
+| D6 | OMP in-process child and native advisor-origin events | Child model/effort and global config unchanged; advisor-origin events cannot recurse or corrupt parent counters | 04 |
+| S1 | Simple mode on, all full gate flags true | Only simple voluntary guidance; no advanced loop/plan/failure/completion promise | 05 |
+| S2 | Simple mode off, three full gate flags true | Plan draft, repeated-failure and completion draft instructions present in actual outbound request | 05 |
+| S3 | Disable each gate independently; all false; optional custom rule | Explicit false wins, unrelated flags retain effect, no hidden default re-enable | 05 |
+| S4 | Save, close, restart; repo-local adversarial advisor.json | Global choices roundtrip; project config cannot change access/prompt/disclosure; no credentials written to JSON | 05 |
+| R1 | Primary fails; fallback succeeds/fails; same-model fallback; abort | Existing one-fallback semantics and attribution preserved; cannot bypass access/cancellation | 06 |
+| R2 | Fresh process after build/link | Correct fork `dist/index.js` loads once; no stale npm copy or duplicate registrations | 06 |
+| R3 | Non-trivial plan / two materially equivalent failures / completion scenario | Observe actual executor call order and Advisor result; record failure if model skips advice, never equate injected text with enforced consultation | 06 |
+
+## Evidence tiers
+
+1. Structural/type gates: source compiles and declared host interfaces align. Not proof of UI or provider behavior.
+2. Deterministic integration: real host loader/events/UI with isolated provider capture. Proves outgoing request and lifecycle, not a live model opinion.
+3. Actual TUI smoke: operator or headless real-PTY interaction; retain sanitized visual/state evidence of open/edit/cancel/submit/settings.
+4. Optional authorized live model run: proves a specific execution consulted successfully. Record actual executor/provider identity, request/result and skip/failure reasons, not inferred identity from saved config.
+
+Do not add tests asserting prompt boilerplate or package implementation source text. Privacy/negative contracts may inspect emitted wire payloads with unique canaries. Do not deliberately spend money or modify a real project to trigger failure scenarios; use a disposable workspace and bounded fixtures.
+
+## Planning validation checklist
+
+- [x] All six phase files exist and contain prescribed sections, exact targets and dependencies.
+- [x] Relative local links resolve; existing target-table paths exist; proposed/generated paths labelled create/generate.
+- [x] Overview stays under 80 lines; implementation statuses pending/0%; no completed implementation boxes.
+- [x] Settled phase contracts preserve xd routing, checked TUI capabilities, guarded settlement, and cooperative review semantics; research candidates do not override these choices.
+- [x] Directory-link installation, built bundle requirement, isolated smoke, and rollback are documented.
+- [x] No implementation/config/install steps executed during planning.
+
+Validation: in-memory document checker inspected 6 phase files, 74 local Markdown links, and 66 target-table rows; zero errors. Each phase contains all 13 required sections and stays below 250 lines; overview is 58 lines. Manual contract review reconciled settlement, child identity, host isolation, package-build lifecycle, and configuration preview semantics. This validates the plan, not the future implementation; no product build, tests, install, or live-provider verification ran in this planning pass.
+
+## Unresolved questions
+
+No blocking product decision. Live credentials and eventual host/dependency versions are implementation-time prerequisites; capture them then. OMP working-tree drift means line numbers are not a frozen API contract.

@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { join, resolve as resolvePath } from "node:path";
 
 import { initTheme } from "@earendil-works/pi-coding-agent";
 import {
+  Editor,
   getKeybindings,
+  Input,
   Key,
   matchesKey,
   stripTerminalSequences,
@@ -16,7 +19,14 @@ import {
   SearchableModelSelector,
 } from "../src/ui.ts";
 import type { ManualAdvisorRequest } from "../src/ui.ts";
+import { MaskedInput } from "../src/ui/masked-input.ts";
 import { TextSettingSubmenu } from "../src/ui/text-setting-submenu.ts";
+import {
+  hasSettingsListPublicContract,
+  isHostSymbolTheme,
+  runOmpHostProbe,
+  runOmpScript,
+} from "./helpers/dual-host-harness.ts";
 import { plainThemeMock } from "./helpers/theme.ts";
 
 initTheme();
@@ -484,4 +494,291 @@ describe("AdvisorSettingsSelector simple mode label", () => {
       selector.dispose();
     }
   });
+});
+
+describe("MaskedInput and OMP host TUI boundaries (Phase 02 / T1-T5)", () => {
+  test("masks secret input, tracks cursor moves and paste, and bounds width in Pi 1.x (T5)", () => {
+    const submitted: string[] = [];
+    let escaped = 0;
+    const masked = new MaskedInput({
+      onEscape: () => {
+        escaped += 1;
+      },
+      onSubmit: (value) => {
+        submitted.push(value);
+      },
+      placeholder: "Paste API key",
+    });
+
+    expect(masked.render(30)[0]).toContain("Paste API key");
+
+    for (const ch of "sk-live") {
+      masked.handleInput(ch);
+    }
+    masked.handleInput("\u001B[D");
+    masked.handleInput("\u001B[D");
+    const midCaret = stripTerminalSequences(masked.render(30)[0] ?? "");
+    expect(midCaret).toBe("•••••█••");
+    expect(midCaret).not.toContain("sk");
+
+    masked.setValue("sk-live-secret-token");
+    for (const width of [1, 2, 4, 8, 16, 40]) {
+      const [line = ""] = masked.render(width);
+      expect(visibleWidth(line)).toBeLessThanOrEqual(Math.max(1, width));
+      expect(stripTerminalSequences(line)).not.toContain("sk");
+      expect(stripTerminalSequences(line)).not.toContain("secret");
+    }
+
+    const nonAscii = new MaskedInput();
+    for (const ch of "ключ-秘密") {
+      nonAscii.handleInput(ch);
+    }
+    nonAscii.handleInput("\u001B[D");
+    const nonAsciiLine = stripTerminalSequences(nonAscii.render(30)[0] ?? "");
+    expect(nonAsciiLine).toBe("••••••█•");
+    expect(nonAsciiLine).not.toContain("ключ");
+    expect(nonAsciiLine).not.toContain("秘密");
+
+    let forcedCursor = Number.NaN;
+    Object.defineProperty(Input.prototype, "getCursor", {
+      configurable: true,
+      value: () => forcedCursor,
+    });
+    try {
+      expect(stripTerminalSequences(nonAscii.render(30)[0] ?? "")).toBe(
+        "•••••••█"
+      );
+      forcedCursor = -5;
+      expect(stripTerminalSequences(nonAscii.render(30)[0] ?? "")).toBe(
+        "█•••••••"
+      );
+      forcedCursor = 999;
+      expect(stripTerminalSequences(nonAscii.render(30)[0] ?? "")).toBe(
+        "•••••••█"
+      );
+      forcedCursor = 2.9;
+      expect(stripTerminalSequences(nonAscii.render(30)[0] ?? "")).toBe(
+        "••█•••••"
+      );
+    } finally {
+      Reflect.deleteProperty(Input.prototype, "getCursor");
+    }
+    masked.handleInput("\r");
+    masked.handleInput("\u001B");
+    expect(submitted).toEqual(["sk-live-secret-token"]);
+    expect(escaped).toBe(1);
+  });
+
+  test("throws diagnostic error before constructing overlay when Editor has setTheme without complete HostSymbolTheme (T1 diagnostic)", () => {
+    Object.defineProperty(Editor.prototype, "setTheme", {
+      configurable: true,
+      value: () => {},
+    });
+    try {
+      expect(() => makeDialog({ initialMessage: "Check" })).toThrow(
+        "Incompatible host Editor capability: OMP Editor requires a complete SymbolTheme from getSelectListTheme()."
+      );
+    } finally {
+      Reflect.deleteProperty(Editor.prototype, "setTheme");
+    }
+  });
+
+  test("exercises real OMP Editor, SettingsListAdapter, and MaskedInput in an isolated OMP subprocess (T1-T5)", async () => {
+    const probe = await runOmpHostProbe();
+    expect(probe.editorHasSetTheme).toBe(true);
+    expect(isHostSymbolTheme(probe.selectListSymbols)).toBe(true);
+    expect(hasSettingsListPublicContract(probe.settingsListContract)).toBe(
+      false
+    );
+    expect(probe.settingsListContract.hasContract).toBe(true);
+
+    const packageRoot = resolvePath(import.meta.dirname, "..");
+    const script = `
+      import { installLegacyPiSpecifierShim, loadLegacyPiModule } from "./packages/coding-agent/src/extensibility/plugins/legacy-pi-compat.ts";
+      import { getSelectListTheme, getSettingsListTheme, initTheme } from "./packages/coding-agent/src/extensibility/legacy-pi-coding-agent-shim.ts";
+      import { theme } from "./packages/tui/src/theme/theme.ts";
+      import { Editor, Input, SettingsList, getKeybindings, stripTerminalSequences, visibleWidth } from "./packages/coding-agent/src/extensibility/legacy-pi-tui-shim.ts";
+
+      installLegacyPiSpecifierShim();
+      await initTheme("dark");
+
+      const { ManualAdvisorDialog } = await loadLegacyPiModule(${JSON.stringify(join(packageRoot, "src/ui/manual-dialog.ts"))});
+      const { SettingsListAdapter } = await loadLegacyPiModule(${JSON.stringify(join(packageRoot, "src/ui/settings-list-adapter.ts"))});
+      const { MaskedInput } = await loadLegacyPiModule(${JSON.stringify(join(packageRoot, "src/ui/masked-input.ts"))});
+
+      const plainTheme = {
+        bg: (_c, text) => text,
+        bold: (text) => text,
+        fg: (_c, text) => text,
+      };
+      const submitted = [];
+      let cancelled = 0;
+      const dialog = new ManualAdvisorDialog({
+        gitContext: "full",
+        initialMessage: "Check",
+        keybindings: getKeybindings(),
+        onCancel: () => { cancelled += 1; },
+        onSubmit: (req) => { submitted.push(req); },
+        theme: plainTheme,
+        tui: { requestRender: () => {}, terminal: { rows: 24 } },
+      });
+      dialog.focused = true;
+
+      const widths = [1, 2, 4, 12, 24, 76, 90];
+      const widthBoundsOk = widths.every((w) =>
+        dialog.render(w).every((line) => visibleWidth(line) <= w)
+      );
+
+      for (const ch of " migration") {
+        dialog.handleInput(ch);
+      }
+      dialog.handleInput("\\n");
+      for (const ch of "Second") {
+        dialog.handleInput(ch);
+      }
+      dialog.handleInput("\\t");
+      dialog.handleInput("\\u001b[B");
+      dialog.handleInput("\\t");
+      dialog.handleInput("\\r");
+
+      const cancelDialog = new ManualAdvisorDialog({
+        gitContext: "summary",
+        initialMessage: "Abort me",
+        keybindings: getKeybindings(),
+        onCancel: () => { cancelled += 1; },
+        onSubmit: (req) => { submitted.push(req); },
+        theme: plainTheme,
+        tui: { requestRender: () => {}, terminal: { rows: 24 } },
+      });
+      cancelDialog.focused = true;
+      cancelDialog.handleInput("\\u001b");
+
+      let diagnosticError = "";
+      Object.defineProperty(theme, "boxSharp", {
+        configurable: true,
+        value: { topLeft: "" },
+      });
+      try {
+        new ManualAdvisorDialog({
+          gitContext: "summary",
+          keybindings: getKeybindings(),
+          onCancel: () => {},
+          onSubmit: () => {},
+          theme: plainTheme,
+          tui: { requestRender: () => {}, terminal: { rows: 24 } },
+        });
+      } catch (err) {
+        diagnosticError = err instanceof Error ? err.message : String(err);
+      } finally {
+        Reflect.deleteProperty(theme, "boxSharp");
+      }
+
+      const items = [
+        { id: "mode", label: "Simple mode", currentValue: "Off", values: ["On", "Off"] },
+        { id: "gate", label: "Plan gate", currentValue: "On", values: ["On", "Off"] },
+        {
+          id: "sub",
+          label: "Submenu row",
+          currentValue: "auto",
+          submenu: (_val, done) => ({
+            focused: false,
+            handleInput: (key) => { if (key === "\\u001b") done(undefined); },
+            invalidate: () => {},
+            render: () => ["submenu"],
+          }),
+        },
+      ];
+      const list = new SettingsList(
+        items,
+        10,
+        getSettingsListTheme(),
+        () => {},
+        () => {}
+      );
+      const adapter = new SettingsListAdapter(list);
+      adapter.privateFields = () => {
+        throw new Error("privateFields fallback must not run on OMP SettingsList");
+      };
+      const changes = [];
+      const cycledRight = adapter.changeWithArrow("\\u001b[C", (id, val) => changes.push([id, val]));
+      const afterCycleValue = list.getSelectedItem()?.currentValue ?? null;
+      adapter.setSelectedId(items, "gate");
+      const afterSelectId = list.getSelectedItem()?.id ?? null;
+
+      list.handleInput("gate");
+      const searchActive = list.hasSearchQuery();
+      const blockedDuringSearch = adapter.changeWithArrow("\\u001b[C", (id, val) => changes.push([id, val]));
+      list.clearSearch();
+
+      adapter.setSelectedId(items, "sub");
+      list.handleInput("\\r");
+      const submenuOpen = list.hasOpenSubmenu();
+      adapter.setFocused(true);
+      const submenuFocused = Boolean(adapter.submenuComponent && adapter.submenuComponent.focused);
+      const blockedDuringSubmenu = adapter.changeWithArrow("\\u001b[C", (id, val) => changes.push([id, val]));
+
+      const masked = new MaskedInput({ placeholder: "Key" });
+      for (const ch of "secret-token") {
+        masked.handleInput(ch);
+      }
+      for (let i = 0; i < 5; i += 1) {
+        masked.handleInput("\\u001b[D");
+      }
+      const maskedLine = stripTerminalSequences(masked.render(40)[0] ?? "");
+      masked.setValue("ключ-秘密");
+      masked.handleInput("\\u001b[D");
+      const nonAsciiMaskedLine = stripTerminalSequences(masked.render(40)[0] ?? "");
+      const maskedWidthsOk = [1, 4, 10, 40].every((w) =>
+        masked.render(w).every((line) => visibleWidth(line) <= Math.max(1, w))
+      );
+
+      console.log(JSON.stringify({
+        afterCycleValue,
+        afterSelectId,
+        blockedDuringSearch,
+        blockedDuringSubmenu,
+        cancelled,
+        changes,
+        cycledRight,
+        diagnosticError,
+        maskedLine,
+        maskedValue: masked.getValue(),
+        maskedWidthsOk,
+        nonAsciiMaskedLine,
+        searchActive,
+        submenuFocused,
+        submenuOpen,
+        submitted,
+        widthBoundsOk,
+      }));
+    `;
+
+    const result = await runOmpScript("omp-tui-boundary-", script, (line) =>
+      JSON.parse(line)
+    );
+    expect(result.widthBoundsOk).toBe(true);
+    expect(result.submitted).toEqual([
+      { gitContext: "summary", message: "Check migration\nSecond" },
+    ]);
+    expect(result.cancelled).toBe(1);
+    expect(result.diagnosticError).toBe(
+      "Incompatible host Editor capability: OMP Editor requires a complete SymbolTheme from getSelectListTheme()."
+    );
+    expect(result.cycledRight).toBe(true);
+    expect(result.afterCycleValue).toBe("On");
+    expect(result.changes).toEqual([["mode", "On"]]);
+    expect(result.afterSelectId).toBe("gate");
+    expect(result.searchActive).toBe(true);
+    expect(result.blockedDuringSearch).toBe(false);
+    expect(result.submenuOpen).toBe(true);
+    expect(result.submenuFocused).toBe(true);
+    expect(result.blockedDuringSubmenu).toBe(false);
+    expect(result.maskedValue).toBe("ключ-秘密");
+    expect(result.maskedLine).toBe("•••••••█•••••");
+    expect(result.maskedLine).not.toContain("secret");
+    expect(result.nonAsciiMaskedLine).toBe("••••••█•");
+    expect(result.nonAsciiMaskedLine).not.toContain("ключ");
+    expect(result.nonAsciiMaskedLine).not.toContain("秘密");
+    expect(result.maskedWidthsOk).toBe(true);
+  }, 30_000);
 });

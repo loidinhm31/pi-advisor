@@ -4,6 +4,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { Fetch } from "@typesafe-ai/sdk";
 
+import { isNativeHostAdvisor } from "../child-session.ts";
 import {
   advisorJevTurnGateEveryTurnsRef,
   advisorJevTurnGateNoulThresholdRef,
@@ -116,6 +117,9 @@ export const handleJevTurnEnd = async (
   registration: JevTurnGateRegistration,
   ctx: ExtensionContext
 ): Promise<void> => {
+  if (isNativeHostAdvisor(ctx)) {
+    return;
+  }
   const { session } = registration;
   session.recordCompletedTurn();
   if (!shouldRunTurnGate(registration, ctx, session)) {

@@ -1,5 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
+import { isMarkedSubagent } from "../child-session.ts";
 import {
   advisorEffortRef,
   advisorFallbackModelRef,
@@ -77,7 +78,7 @@ export const prepareActivationModels = async (
     ctx,
     executorRef,
     advisorRef,
-    runtime.pendingExecutorModelRef,
+    isMarkedSubagent(ctx) ? undefined : runtime.pendingExecutorModelRef,
     persisted,
     executorOverride,
     advisorOverride,

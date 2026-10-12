@@ -7,6 +7,8 @@ import type {
   SettingsList,
 } from "@earendil-works/pi-tui";
 
+import type { SettingsListPublicAdapterContract } from "./types.ts";
+
 interface SettingsListPrivateFields {
   filteredItems: SettingItem[];
   searchInput?: Input;
@@ -15,6 +17,38 @@ interface SettingsListPrivateFields {
 }
 
 type SettingsListWithPrivateFields = SettingsList & SettingsListPrivateFields;
+
+const hasSettingsListPublicContract = (
+  list: SettingsList
+): list is SettingsList & SettingsListPublicAdapterContract => {
+  // SAFETY: SettingsList is a non-null object; narrowing checks whether OMP's public methods exist.
+  const candidate = list as SettingsList &
+    Partial<SettingsListPublicAdapterContract>;
+  return (
+    typeof candidate.getSelectedItem === "function" &&
+    typeof candidate.hasOpenSubmenu === "function" &&
+    typeof candidate.hasSearchQuery === "function" &&
+    typeof candidate.selectItem === "function" &&
+    typeof candidate.updateValue === "function"
+  );
+};
+const nextSettingValue = (
+  item: SettingItem | undefined,
+  direction: number
+): string | undefined => {
+  if (!item?.values?.length) {
+    return undefined;
+  }
+  const currentIndex = item.values.indexOf(item.currentValue);
+  let nextIndex: number;
+  if (currentIndex === -1) {
+    nextIndex = direction > 0 ? 0 : item.values.length - 1;
+  } else {
+    nextIndex =
+      (currentIndex + direction + item.values.length) % item.values.length;
+  }
+  return item.values[nextIndex];
+};
 
 /**
  * Contains the narrow compatibility access needed for pi-tui's SettingsList.
@@ -41,10 +75,21 @@ export class SettingsListAdapter {
 
   /** Compatibility-only view for existing component integration seams. */
   get submenuComponent(): Component | null | undefined {
+    if (hasSettingsListPublicContract(this.list)) {
+      return this.list.openSubmenu?.component ?? null;
+    }
     return this.privateFields().submenuComponent;
   }
 
   setFocused(value: boolean): void {
+    if (hasSettingsListPublicContract(this.list)) {
+      // SAFETY: a SettingsList submenu component is registered only when focusable.
+      const submenu = this.list.openSubmenu?.component as Focusable | undefined;
+      if (submenu) {
+        submenu.focused = value;
+      }
+      return;
+    }
     const fields = this.privateFields();
     // SAFETY: a SettingsList submenu component is registered only when focusable.
     const submenu = fields.submenuComponent as Focusable | undefined;
@@ -54,6 +99,10 @@ export class SettingsListAdapter {
   }
 
   setSelectedId(items: SettingItem[], selectedId: string): void {
+    if (hasSettingsListPublicContract(this.list)) {
+      this.list.selectItem(selectedId);
+      return;
+    }
     const selectedIndex = items.findIndex((item) => item.id === selectedId);
     if (selectedIndex !== -1) {
       this.privateFields().selectedIndex = selectedIndex;
@@ -74,24 +123,28 @@ export class SettingsListAdapter {
       return false;
     }
 
+    if (hasSettingsListPublicContract(this.list)) {
+      if (this.list.hasOpenSubmenu() || this.list.hasSearchQuery()) {
+        return false;
+      }
+      const item = this.list.getSelectedItem();
+      const nextValue = nextSettingValue(item, direction);
+      if (!item || nextValue === undefined) {
+        return false;
+      }
+      this.list.updateValue(item.id, nextValue);
+      item.currentValue = nextValue;
+      onChange(item.id, nextValue);
+      return true;
+    }
+
     const fields = this.privateFields();
     if (fields.submenuComponent || fields.searchInput?.getValue()) {
       return false;
     }
     const item = fields.filteredItems[fields.selectedIndex];
-    if (!item?.values?.length) {
-      return false;
-    }
-    const currentIndex = item.values.indexOf(item.currentValue);
-    let nextIndex: number;
-    if (currentIndex === -1) {
-      nextIndex = direction > 0 ? 0 : item.values.length - 1;
-    } else {
-      nextIndex =
-        (currentIndex + direction + item.values.length) % item.values.length;
-    }
-    const nextValue = item.values[nextIndex];
-    if (nextValue === undefined) {
+    const nextValue = nextSettingValue(item, direction);
+    if (!item || nextValue === undefined) {
       return false;
     }
     item.currentValue = nextValue;

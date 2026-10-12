@@ -1,13 +1,28 @@
 import { Input, truncateToWidth } from "@earendil-works/pi-tui";
 import type { Component, Focusable } from "@earendil-works/pi-tui";
 
+import { isNumber } from "../content-utils.ts";
+
 export interface MaskedInputOptions {
   onEscape?: () => void;
   onSubmit?: (value: string) => void;
   placeholder?: string;
 }
 
-type InputWithCursor = Input & { cursor: number };
+interface InputCursorAdapterContract {
+  cursor?: number;
+  getCursor?: () => number;
+}
+
+const resolveInputCursor = (
+  input: InputCursorAdapterContract,
+  valueLength: number
+): number => {
+  const rawCursor = input.getCursor ? input.getCursor() : input.cursor;
+  return isNumber(rawCursor) && Number.isFinite(rawCursor)
+    ? Math.max(0, Math.min(Math.trunc(rawCursor), valueLength))
+    : valueLength;
+};
 
 /** Single-line secret input rendering bullets; the value never reaches the screen. */
 export class MaskedInput implements Component, Focusable {
@@ -50,9 +65,13 @@ export class MaskedInput implements Component, Focusable {
 
   render(width: number): string[] {
     const value = this.input.getValue();
-    // SAFETY: compatibility-only read of Input's private cursor; Input does not expose it.
-    const { cursor } = this.input as InputWithCursor;
-    const masked = `${"•".repeat(Math.min(cursor, value.length))}█${"•".repeat(Math.max(0, value.length - cursor))}`;
+    const hostInput: Component = this.input;
+    // SAFETY: Input exposes public getCursor() on OMP and private cursor on Pi 1.x.
+    const cursor = resolveInputCursor(
+      hostInput as InputCursorAdapterContract,
+      value.length
+    );
+    const masked = `${"•".repeat(cursor)}█${"•".repeat(Math.max(0, value.length - cursor))}`;
     const placeholder =
       value.length === 0 && this.options.placeholder
         ? this.options.placeholder

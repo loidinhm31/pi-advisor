@@ -1,5 +1,10 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import type { KeybindingsManager, TUI } from "@earendil-works/pi-tui";
+import type {
+  Component,
+  KeybindingsManager,
+  SettingItem,
+  TUI,
+} from "@earendil-works/pi-tui";
 
 import type { GateFailureMode, JevTransport } from "../config/types.ts";
 import type { GitContextLevel } from "../git.ts";
@@ -199,3 +204,41 @@ export interface TextSettingSubmenuOptions {
 }
 
 export type SettingValue = string | undefined;
+
+export interface HostRoundedBoxSymbols {
+  bottomLeft: string;
+  bottomRight: string;
+  horizontal: string;
+  topLeft: string;
+  topRight: string;
+  vertical: string;
+}
+
+export interface HostBoxSymbols extends HostRoundedBoxSymbols {
+  cross: string;
+  teeDown: string;
+  teeLeft: string;
+  teeRight: string;
+  teeUp: string;
+}
+
+export interface HostSymbolTheme {
+  boxRound: HostRoundedBoxSymbols;
+  boxSharp: HostBoxSymbols;
+  colorSwatch?: string;
+  cursor: string;
+  hrChar: string;
+  inputCursor: string;
+  quoteBorder: string;
+  spinnerFrames: string[];
+  table: HostBoxSymbols;
+}
+
+export interface SettingsListPublicAdapterContract {
+  getSelectedItem: () => SettingItem | undefined;
+  hasOpenSubmenu: () => boolean;
+  hasSearchQuery: () => boolean;
+  openSubmenu: { component: Component; id: string } | undefined;
+  selectItem: (id: string) => boolean;
+  updateValue: (id: string, newValue: string) => void;
+}
