@@ -60,9 +60,7 @@ export const ADVISOR_TOOL_POLICIES: AdvisorToolPolicy[] = [
 ];
 
 export type GateFailureMode =
-  | "block-session"
-  | "block-tool"
-  | "warn-and-continue";
+  "block-session" | "block-tool" | "warn-and-continue";
 
 export const GATE_FAILURE_MODES: GateFailureMode[] = [
   "block-session",

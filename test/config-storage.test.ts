@@ -30,12 +30,7 @@ import { savedConfig, withAgentDir } from "./helpers/config-fixture.ts";
 import { mockPi } from "./helpers/mock-pi.ts";
 
 type JsonValue =
-  | boolean
-  | null
-  | number
-  | string
-  | JsonValue[]
-  | { [key: string]: JsonValue };
+  boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 // SAFETY: mock context exercises only hasUI-aware paths in this suite.
 const context = { hasUI: false } as any;

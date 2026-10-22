@@ -171,12 +171,12 @@ Malformed, missing, duplicate, or contradictory decisions are gate failures. The
 | `block-tool`              | Block only the current tool action. |
 | `warn-and-continue`       | Show a warning and continue.        |
 
-| Condition | `block-session` | `block-tool` | `warn-and-continue` |
-| --- | --- | --- | --- |
-| Advisor unavailable or timed out | Block session | Block tool action | Warn and continue |
-| Missing, malformed, duplicate, or contradictory decision | Block session | Block tool action | Warn and continue |
-| Shared budget exhausted | Block session | Block tool action | Warn and continue |
-| `Decision: blocked` | Block session | Block tool action | Warn and continue |
+| Condition                                                | `block-session` | `block-tool`      | `warn-and-continue` |
+| -------------------------------------------------------- | --------------- | ----------------- | ------------------- |
+| Advisor unavailable or timed out                         | Block session   | Block tool action | Warn and continue   |
+| Missing, malformed, duplicate, or contradictory decision | Block session   | Block tool action | Warn and continue   |
+| Shared budget exhausted                                  | Block session   | Block tool action | Warn and continue   |
+| `Decision: blocked`                                      | Block session   | Block tool action | Warn and continue   |
 
 `advisorBlockOnBlocked` controls whether a session block immediately aborts the active run. It never turns a session block into a tool-only block. A recorded session block remains fail-safe after `/advisor-off`; start a new session to resume tool execution.
 

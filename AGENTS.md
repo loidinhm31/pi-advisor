@@ -12,6 +12,8 @@ Pi extension providing an Executor/Advisor flow and optional Herdr integration.
 | Tests         | `bun test`                             |
 | Release       | GitHub Actions manages tags/publishing |
 
+Use Bun 1.4.4 or newer. Format with `bun fmt` (`bun run format` / `bun run format:check`); lint with Oxlint.
+
 ## Rules
 
 - Keep source files under roughly 300 lines where practical; split responsibilities into cohesive modules. Soft guidance, not a gate.
@@ -35,8 +37,8 @@ Pi extension providing an Executor/Advisor flow and optional Herdr integration.
 
 ## Load when needed
 
-| What | Where | When |
-| --- | --- | --- |
-| Pi extension API | [Pi extension docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md) | Hooks, tools, UI, sessions, messages |
-| Herdr protocol | [project guide](docs/herdr.md), [`src/herdr.ts`](src/herdr.ts), and [upstream stable API](https://herdr.dev/docs/socket-api/) | Herdr state/reporting changes |
-| Release workflow | [`.github/workflows/publish.yml`](.github/workflows/publish.yml) | Versioning, publishing, tags |
+| What             | Where                                                                                                                         | When                                 |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Pi extension API | [Pi extension docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md)                  | Hooks, tools, UI, sessions, messages |
+| Herdr protocol   | [project guide](docs/herdr.md), [`src/herdr.ts`](src/herdr.ts), and [upstream stable API](https://herdr.dev/docs/socket-api/) | Herdr state/reporting changes        |
+| Release workflow | [`.github/workflows/publish.yml`](.github/workflows/publish.yml)                                                              | Versioning, publishing, tags         |
