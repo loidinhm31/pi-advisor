@@ -18,8 +18,10 @@ const waitFor = async (condition: () => boolean) => {
     if (condition()) {
       return;
     }
+
     await delay(10);
   }
+
   throw new Error("Timed out waiting for Herdr request");
 };
 
@@ -50,10 +52,15 @@ const withHerdrSocket = async (
   ) => void,
   run: (received: HerdrRequest[], connections: () => number) => Promise<void>
 ) => {
-  const socketPath = `/tmp/pi-advisor-herdr-${randomUUID()}.sock`;
+  const socketName = `pi-advisor-herdr-${randomUUID()}`;
+  const socketPath =
+    process.platform === "win32" ? socketName : `/tmp/${socketName}.sock`;
+  const listenPath =
+    process.platform === "win32" ? `\\\\.\\pipe\\${socketName}` : socketPath;
   const received: HerdrRequest[] = [];
   const sockets = new Set<net.Socket>();
   let connectionCount = 0;
+
   const server = net.createServer((socket) => {
     sockets.add(socket);
     socket.once("close", () => sockets.delete(socket));
@@ -63,6 +70,7 @@ const withHerdrSocket = async (
     socket.on("data", (chunk) => {
       buffer += chunk.toString();
       let newline = buffer.indexOf("\n");
+
       while (newline >= 0) {
         const line = buffer.slice(0, newline);
         buffer = buffer.slice(newline + 1);
@@ -73,9 +81,10 @@ const withHerdrSocket = async (
       }
     });
   });
+
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(socketPath, () => resolve());
+    server.listen(listenPath, () => resolve());
   });
 
   const previousEnvironment = {
@@ -83,6 +92,7 @@ const withHerdrSocket = async (
     paneId: process.env.HERDR_PANE_ID,
     socketPath: process.env.HERDR_SOCKET_PATH,
   };
+
   process.env.HERDR_ENV = "1";
   process.env.HERDR_PANE_ID = "w1:p1";
   process.env.HERDR_SOCKET_PATH = socketPath;
@@ -91,21 +101,28 @@ const withHerdrSocket = async (
     await run(received, () => connectionCount);
   } finally {
     await delay(50);
+
     for (const socket of sockets) {
       socket.destroy();
     }
+
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    await unlink(socketPath).catch(() => {});
+    if (process.platform !== "win32") {
+      await unlink(socketPath).catch(() => {});
+    }
+
     if (previousEnvironment.herdrEnv === undefined) {
       delete process.env.HERDR_ENV;
     } else {
       process.env.HERDR_ENV = previousEnvironment.herdrEnv;
     }
+
     if (previousEnvironment.paneId === undefined) {
       delete process.env.HERDR_PANE_ID;
     } else {
       process.env.HERDR_PANE_ID = previousEnvironment.paneId;
     }
+
     if (previousEnvironment.socketPath === undefined) {
       delete process.env.HERDR_SOCKET_PATH;
     } else {

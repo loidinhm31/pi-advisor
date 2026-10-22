@@ -2,14 +2,16 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 const packageJson = JSON.parse(readFileSync("package.json", "utf-8"));
-const parsed = JSON.parse(
-  execFileSync("npm", ["pack", "--dry-run", "--json"], {
-    encoding: "utf-8",
-    stdio: ["ignore", "pipe", "inherit"],
-  })
-);
+const raw = execFileSync("npm", ["pack", "--dry-run", "--json"], {
+  encoding: "utf-8",
+  shell: process.platform === "win32",
+  stdio: ["ignore", "pipe", "inherit"],
+});
+const start = raw.search(/[[{]/u);
+const parsed = JSON.parse(start >= 0 ? raw.slice(start) : raw);
 const [result] = Array.isArray(parsed) ? parsed : Object.values(parsed);
 const actualFiles = result.files.map(({ path }) => path).toSorted();
+
 const expectedFiles = [
   "CHANGELOG.md",
   "LICENSE",
@@ -23,6 +25,7 @@ const expectedFiles = [
   "src/commands.ts",
   "src/commands/activation-preparation.ts",
   "src/commands/activation.ts",
+  "src/commands/advisor-tools.ts",
   "src/commands/lifecycle.ts",
   "src/commands/manual-command.ts",
   "src/commands/manual-consultation.ts",
@@ -56,6 +59,8 @@ const expectedFiles = [
   "src/image-validation.ts",
   "src/images.ts",
   "src/jev/base-url.ts",
+  "src/jev/classifier-key-store.ts",
+  "src/jev/classifier.ts",
   "src/jev/client.ts",
   "src/jev/decisions-client.ts",
   "src/jev/decisions-response.ts",
@@ -85,6 +90,7 @@ const expectedFiles = [
   "src/tool-result-cap.ts",
   "src/tools.ts",
   "src/tools/advisor-output.ts",
+  "src/tools/budget-feedback.ts",
   "src/tools/consult-context.ts",
   "src/tools/consultation.ts",
   "src/tools/gate-policy.ts",
@@ -113,6 +119,7 @@ const expectedFiles = [
   "src/tools/types.ts",
   "src/ui-guard.ts",
   "src/ui.ts",
+  "src/ui/jev-classifier-submenu.ts",
   "src/ui/jev-filter-submenu.ts",
   "src/ui/jev-provider-submenu-view.ts",
   "src/ui/jev-provider-submenu.ts",
@@ -137,6 +144,7 @@ const expectedFiles = [
 const benchmarkFiles = actualFiles.filter(
   (path) => path === "bench" || path.startsWith("bench/")
 );
+
 if (actualFiles.includes("bun.lock")) {
   throw new Error("Repository-only bun.lock leaked into the package.");
 }

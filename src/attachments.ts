@@ -8,6 +8,7 @@ import { redactAndCapText } from "./redaction.ts";
 
 export const ADVISOR_FILE_MAX_BYTES = 8 * 1024;
 const ADVISOR_FILES_TOTAL_MAX_BYTES = 24 * 1024;
+
 export interface UntrackedAttachment {
   bytes: number;
   path: string;
@@ -21,8 +22,10 @@ const imageExtensions = new Map([
   [".gif", "image/gif"],
   [".webp", "image/webp"],
 ]);
+
 export const imageMime = (path: string) =>
   imageExtensions.get(path.slice(path.lastIndexOf(".")).toLowerCase());
+
 export const imageFileCandidate = (path: string) =>
   Boolean(imageMime(path)) || /\.(?:avif|bmp|heic|svg|tiff?)$/iu.test(path);
 
@@ -30,8 +33,10 @@ const PATH_SEGMENTS = /[\\/]/u;
 
 export const within = (root: string, candidate: string) => {
   const path = relative(root, candidate);
+
   return path !== "" && !path.startsWith("..") && !path.includes("../");
 };
+
 const normalizeRelativePath = (root: string, path: string) =>
   relative(root, resolve(root, path));
 
@@ -44,6 +49,7 @@ export const normalizeRequestedPath = (root: string, value: string) => {
   ) {
     return;
   }
+
   return normalizeRelativePath(root, value);
 };
 
@@ -75,7 +81,9 @@ const untracked = (cwd: string, path: string) => {
     "--",
     path,
   ]);
+
   const expected = normalizeRelativePath(cwd, path);
+
   return output
     .split("\0")
     .filter(Boolean)
@@ -85,11 +93,14 @@ const untracked = (cwd: string, path: string) => {
 const tracked = (cwd: string, path: string) => {
   const output = git(cwd, ["ls-files", "--stage", "-z", "--", path]);
   const expected = normalizeRelativePath(cwd, path);
+
   return output.split("\0").some((entry) => {
     if (!entry) {
       return false;
     }
+
     const [metadata, name] = entry.split("\t");
+
     return (
       name &&
       normalizeRelativePath(cwd, name) === expected &&
@@ -111,34 +122,47 @@ const readAttachment = async (
   available: number
 ): Promise<UntrackedAttachment | undefined> => {
   const absolute = resolve(root, normalizedName);
+
   if (!(within(root, absolute) && available > 0)) {
     return;
   }
+
   const stats = await lstat(absolute);
+
   if (stats.isSymbolicLink() || !stats.isFile()) {
     return;
   }
+
   const resolved = await realpath(absolute);
+
   if (!within(root, resolved)) {
     return;
   }
+
   // fs.open needs combined numeric flags for O_NOFOLLOW; O_RDONLY (0) and O_NOFOLLOW occupy disjoint bits, so + is exact.
   const flags = constants.O_NOFOLLOW
     ? constants.O_RDONLY + constants.O_NOFOLLOW
     : constants.O_RDONLY;
+
   const file = await open(resolved, flags);
+
   try {
     const openedStats = await file.stat();
+
     if (!openedStats.isFile()) {
       return;
     }
+
     const buffer = Buffer.alloc(available + 1);
     const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
     const raw = buffer.subarray(0, bytesRead).toString("utf-8");
+
     if (raw.includes("\0")) {
       return;
     }
+
     const text = redactAndCapText(raw, available, redact);
+
     return {
       bytes: Buffer.byteLength(text, "utf-8"),
       path: normalizedName,
@@ -161,15 +185,20 @@ const readFiles = async (
   if (!(enabled && Array.isArray(requested))) {
     return [];
   }
+
   const root = await repositoryRoot(cwd);
+
   if (!root) {
     return [];
   }
+
   const unique = new Set<string>();
   const attachments: UntrackedAttachment[] = [];
   let total = 0;
+
   for (const name of requested) {
     const normalizedName = normalizeRequestedPath(root, name);
+
     if (
       !normalizedName ||
       unique.has(normalizedName) ||
@@ -177,15 +206,20 @@ const readFiles = async (
     ) {
       continue;
     }
+
     unique.add(normalizedName);
+
     try {
       if (!isPermitted(root, normalizedName, kind)) {
         continue;
       }
+
       const available = Math.min(ADVISOR_FILE_MAX_BYTES, totalLimit - total);
+
       if (available <= 0) {
         break;
       }
+
       // Sequentially enforce the aggregate disclosure budget.
       const attachment = await readAttachment(
         root,
@@ -193,6 +227,7 @@ const readFiles = async (
         redact,
         available
       );
+
       if (attachment) {
         attachments.push(attachment);
         total += attachment.bytes;
@@ -201,6 +236,7 @@ const readFiles = async (
       /* refuse unreadable or non-git paths */
     }
   }
+
   return attachments;
 };
 

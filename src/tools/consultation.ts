@@ -100,23 +100,24 @@ const advisorProjectRules = (rules: ConsultationContext["projectRules"]) =>
     : undefined;
 
 const advisorImageNotice = (context: ConsultationContext) => {
-  if (
-    !(
-      context.imageOmissions ||
-      context.images.length ||
-      /\[Image[ :]/u.test(context.conversation)
-    )
-  ) {
+  if (!(
+    context.imageOmissions ||
+    context.images.length ||
+    /\[Image[ :]/u.test(context.conversation)
+  )) {
     return "";
   }
+
   const disclosure = context.supportsImages
     ? `${context.images.length} image(s) attached below; ${context.imageOmissions} image(s) withheld by format, consent, or size/count limits`
     : "Advisor model does not support image input; no pixels were forwarded";
+
   return `\n\nImage disclosure: ${disclosure}. Only the images explicitly attached below have pixels available. Other image markers, image paths, and text descriptions are not visual evidence.`;
 };
 
 const advisorPrivacyKey = (ctx: ExtensionContext) => {
   const settings = getAdvisorSettings();
+
   return JSON.stringify({
     agentsMdContext: settings.agentsMdContext,
     contextMaxChars: settings.contextMaxChars,
@@ -155,11 +156,14 @@ const prepareFollowUp = (
       "Follow-up consultations require a non-empty question. Issue a fresh consultation if no question is needed."
     );
   }
+
   assertAdvisorFollowUpPrivacy(followUp.payload, ctx);
+
   const outboundQuestion =
     advisorRedactSecretsRef || followUp.payload.redacted
       ? redactSecrets(question)
       : question;
+
   const messages = structuredClone(followUp.payload.messages);
   messages.push({
     content: [
@@ -171,6 +175,7 @@ const prepareFollowUp = (
     role: "user",
     timestamp: Date.now(),
   });
+
   return {
     messages,
     privacyKey: followUp.payload.privacyKey,
@@ -184,15 +189,19 @@ const prepareFreshRequest = async (
   resolved: Awaited<ReturnType<typeof resolveConfiguredModel>>
 ): Promise<PreparedAdvisorRequest> => {
   const { question } = options;
+
   const context = await assembleConsultationContext({
     ...options,
     supportsImages: resolved.model.input.includes("image"),
   });
+
   const outboundQuestion =
     advisorRedactSecretsRef && question !== undefined
       ? redactSecrets(question)
       : question;
+
   const imageNotice = advisorImageNotice(context);
+
   const messages: Message[] = [
     {
       content: [
@@ -221,6 +230,7 @@ const prepareFreshRequest = async (
       timestamp: Date.now(),
     },
   ];
+
   return {
     context,
     messages,
@@ -275,10 +285,13 @@ const runAdvisorAttempt = async (
     signal: options.signal,
     systemPrompt: prepared.systemPrompt,
   });
+
   const { text: markdown } = streamed;
+
   if (!markdown.trim()) {
     throw new AdvisorNoAdviceError();
   }
+
   return {
     ...advisorContextDetails(prepared.context),
     followUp: Boolean(options.followUp),
@@ -305,10 +318,13 @@ const runFallbackAdvisorAttempt = async (
 ): Promise<CollectedAdvisorResponse> => {
   const { ctx } = options;
   let request = prepared;
+
   if (!advisorFallbackModelRef) {
     throw primaryError;
   }
+
   const fallbackModel = advisorFallbackModelRef;
+
   if (fallbackModel === primaryModel) {
     throw combinedFallbackError(
       primaryModel,
@@ -317,6 +333,7 @@ const runFallbackAdvisorAttempt = async (
       new Error("fallback is the same model as the primary Advisor")
     );
   }
+
   if (sameModelAdvisorDisabled(ctx, ctx.model, fallbackModel)) {
     throw combinedFallbackError(
       primaryModel,
@@ -325,7 +342,9 @@ const runFallbackAdvisorAttempt = async (
       new Error(fallbackSameModelAdvisorNotice)
     );
   }
+
   const fallbackAccessReason = advisorModelAccessReason(ctx);
+
   if (fallbackAccessReason) {
     throw combinedFallbackError(
       primaryModel,
@@ -334,7 +353,9 @@ const runFallbackAdvisorAttempt = async (
       new Error(fallbackAccessReason)
     );
   }
+
   let resolvedFallback: Awaited<ReturnType<typeof resolveConfiguredModel>>;
+
   try {
     resolvedFallback = await resolveConfiguredModel(
       ctx,
@@ -349,6 +370,7 @@ const runFallbackAdvisorAttempt = async (
       error instanceof Error ? error : new Error(String(error))
     );
   }
+
   if (!request) {
     try {
       request = options.followUp
@@ -363,6 +385,7 @@ const runFallbackAdvisorAttempt = async (
       );
     }
   }
+
   try {
     return await runAdvisorAttempt(
       options,
@@ -374,6 +397,7 @@ const runFallbackAdvisorAttempt = async (
     if (options.signal?.aborted) {
       throw error;
     }
+
     throw combinedFallbackError(
       primaryModel,
       primaryError,
@@ -389,6 +413,7 @@ const collectAdvisorResponse = async (
   const { ctx, signal } = options;
   loadConfig(ctx);
   const primaryModel = options.followUp?.payload.model ?? advisorRef;
+
   if (sameModelAdvisorDisabled(ctx, ctx.model, primaryModel)) {
     throw new Error(
       primaryModel === advisorRef
@@ -396,16 +421,19 @@ const collectAdvisorResponse = async (
         : fallbackSameModelAdvisorNotice
     );
   }
+
   const accessReason = advisorModelAccessReason(ctx);
+
   if (accessReason) {
     throw new Error(accessReason);
   }
 
   let primaryError: Error | undefined;
   let prepared: PreparedAdvisorRequest | undefined;
+
   let resolvedPrimary:
-    | Awaited<ReturnType<typeof resolveConfiguredModel>>
-    | undefined;
+    Awaited<ReturnType<typeof resolveConfiguredModel>> | undefined;
+
   try {
     resolvedPrimary = await resolveConfiguredModel(
       ctx,
@@ -415,10 +443,12 @@ const collectAdvisorResponse = async (
   } catch (error) {
     primaryError = error instanceof Error ? error : new Error(String(error));
   }
+
   if (resolvedPrimary) {
     prepared = options.followUp
       ? prepareFollowUp(options.followUp, options.question, options.ctx)
       : await prepareFreshRequest(options, resolvedPrimary);
+
     try {
       return await runAdvisorAttempt(
         options,
@@ -430,12 +460,15 @@ const collectAdvisorResponse = async (
       primaryError = error instanceof Error ? error : new Error(String(error));
     }
   }
+
   if (!primaryError) {
     throw new Error("Advisor request failed before an error was recorded.");
   }
+
   if (signal?.aborted) {
     throw primaryError;
   }
+
   return runFallbackAdvisorAttempt(
     options,
     primaryModel,
@@ -473,9 +506,11 @@ export const consultAdvisor = async (
     signal,
     systemPrompt: ADVISOR_SYSTEM,
   });
+
   const adviceId = randomUUID();
   const { followUpPayload, ...publicResult } = result;
   onFollowUpPayload?.(adviceId, followUpPayload, followUp?.adviceId);
+
   return { ...publicResult, adviceId, trigger };
 };
 
@@ -498,10 +533,13 @@ export const runAdvisorGate = async (
       signal,
       systemPrompt: ADVISOR_DECISION_SYSTEM,
     });
+
     const parsed = parseAutomaticDecision(result.markdown);
+
     if (!parsed.ok) {
       return { ...parsed, usage: result.usage };
     }
+
     return {
       ...parsed,
       agentRulesBytes: result.agentRulesBytes,
@@ -514,7 +552,9 @@ export const runAdvisorGate = async (
     if (signal?.aborted) {
       throw error;
     }
+
     const message = error instanceof Error ? error.message : String(error);
+
     return {
       category:
         error instanceof AdvisorNoAdviceError

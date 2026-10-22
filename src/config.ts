@@ -1,5 +1,6 @@
 // biome-ignore lint/performance/noBarrelFile: this facade intentionally preserves the public config module contract.
 export { parseArgs } from "./config/args.ts";
+
 export {
   advisorAgentsMdContextRef,
   advisorAutoLoopGateRef,
@@ -75,7 +76,9 @@ export {
   simpleModeRef,
   splitRef,
 } from "./config/state.ts";
+
 export type { SaveConfigOptions } from "./config/storage.ts";
+
 export {
   configPaths,
   loadConfig,
@@ -83,12 +86,14 @@ export {
   saveConfig,
   saveGlobalOutcomeLogging,
 } from "./config/storage.ts";
+
 export type {
   AdvisorConfig,
   AdvisorToolPolicies,
   AdvisorToolPolicy,
   GateFailureMode,
 } from "./config/types.ts";
+
 export {
   ADVISOR_TOOL_POLICIES,
   DEFAULT_ADVISOR_GIT_CONTEXT_MAX_CHARS,
@@ -98,6 +103,7 @@ export {
   GATE_FAILURE_MODES,
   MAX_CONTEXT_MAX_CHARS,
 } from "./config/types.ts";
+
 export {
   isValidAdvisorModelWhitelist,
   isValidAdvisorToolPolicies,

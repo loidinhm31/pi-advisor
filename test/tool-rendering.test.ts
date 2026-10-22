@@ -36,6 +36,7 @@ const emptyRenderState = (): RenderStateFixture => ({});
 const registerForRendering = (): any => {
   const tools = new Map<string, any>();
   registerExtension(mockPi({ tools }));
+
   return tools.get("ask_advisor");
 };
 
@@ -61,6 +62,7 @@ describe("Advisor tool rendering", () => {
       force: true,
       recursive: true,
     });
+
     if (previousAgentDir === undefined) {
       delete process.env.PI_CODING_AGENT_DIR;
     } else {
@@ -76,15 +78,18 @@ describe("Advisor tool rendering", () => {
     expect(advisorTool.parameters.properties.includeTrackedFiles).toBeDefined();
 
     const theme = renderTheme();
+
     const context = {
       invalidate: () => {},
       lastComponent: undefined,
       state: {},
     };
+
     const request = advisorTool
       .renderCall({ question: "Should we ship this change?" }, theme, context)
       .render(120)
       .join("\n");
+
     const response = advisorTool
       .renderResult(usageResult(), { isPartial: false }, theme, context)
       .render(120)
@@ -104,15 +109,18 @@ describe("Advisor tool rendering", () => {
   test("renders same-model no-op in the existing call and skipped-result shell", () => {
     const advisorTool = registerForRendering();
     const theme = renderTheme();
+
     const context = {
       invalidate: () => {},
       lastComponent: undefined,
       state: emptyRenderState(),
     };
+
     const call = advisorTool
       .renderCall({}, theme, context)
       .render(100)
       .join("\n");
+
     const skipped = advisorTool
       .renderResult(
         {
@@ -128,6 +136,7 @@ describe("Advisor tool rendering", () => {
       )
       .render(100)
       .join("\n");
+
     expect(call).toContain("[advisor] Executor → Advisor");
     expect(skipped).toContain("ADVISOR · SKIPPED");
     expect(skipped).toContain("Advisor disabled: same model.");
@@ -138,11 +147,13 @@ describe("Advisor tool rendering", () => {
   test("renders the attached-images label with counts", () => {
     const advisorTool = registerForRendering();
     const theme = renderTheme();
+
     const context = {
       invalidate: () => {},
       lastComponent: undefined,
       state: emptyRenderState(),
     };
+
     const single = advisorTool
       .renderResult(
         {
@@ -161,7 +172,9 @@ describe("Advisor tool rendering", () => {
       )
       .render(120)
       .join("\n");
+
     expect(single).toContain("1 image attached · 1.6 MiB · 1 withheld");
+
     const multiple = advisorTool
       .renderResult(
         {
@@ -181,6 +194,7 @@ describe("Advisor tool rendering", () => {
       )
       .render(120)
       .join("\n");
+
     expect(multiple).toContain("2 images attached · 3.3 MiB");
     expect(multiple).toContain("AGENTS.md rules attached · 2 KiB");
     expect(multiple).toContain("Draft attached · 512 B");
@@ -189,17 +203,21 @@ describe("Advisor tool rendering", () => {
   test("hides usage details from the response when disabled", () => {
     const advisorTool = registerForRendering();
     const theme = renderTheme();
+
     const context = {
       invalidate: () => {},
       lastComponent: undefined,
       state: {},
     };
+
     setShowUsageDetailsRef(false);
+
     try {
       const hiddenUsage = advisorTool
         .renderResult(usageResult(), { isPartial: false }, theme, context)
         .render(120)
         .join("\n");
+
       expect(hiddenUsage).not.toContain("Usage:");
     } finally {
       setShowUsageDetailsRef(true);
@@ -209,11 +227,13 @@ describe("Advisor tool rendering", () => {
   test("renders partial streaming text without internals", () => {
     const advisorTool = registerForRendering();
     const theme = renderTheme();
+
     const context = {
       invalidate: () => {},
       lastComponent: undefined,
       state: {},
     };
+
     const markdownPartial = advisorTool
       .renderResult(
         {
@@ -226,6 +246,7 @@ describe("Advisor tool rendering", () => {
       )
       .render(120)
       .join("\n");
+
     expect(markdownPartial).toContain("The migration looks safe so far");
     expect(markdownPartial).not.toContain("criticalFindings");
   });
@@ -243,15 +264,18 @@ describe("Advisor tool rendering", () => {
       "No question or other input from the Executor is needed"
     );
     const theme = renderTheme();
+
     const context = {
       invalidate: () => {},
       lastComponent: undefined,
       state: {},
     };
+
     const noQuestionCall = advisorTool
       .renderCall({}, theme, context)
       .render(120)
       .join("\n");
+
     expect(noQuestionCall).toContain("[advisor] Executor → Advisor");
     expect(noQuestionCall).not.toContain("General task review");
     expect(resolveAdvisorRequest()).toBeUndefined();
@@ -272,6 +296,7 @@ describe("Advisor tool rendering", () => {
     const entryRenderers = new Map<string, any>();
     registerExtension(mockPi({ entryRenderers }, { registerTool: () => {} }));
     const theme = renderTheme();
+
     const fallback = entryRenderers
       .get("advisor-scout-result")(
         {
@@ -290,6 +315,7 @@ describe("Advisor tool rendering", () => {
       )
       .render(120)
       .join("\n");
+
     expect(fallback).toContain("SCOUT · FALLBACK");
     expect(fallback).toContain("original conversation retained");
     expect(fallback).not.toContain("0 kept / 55 omitted");
@@ -298,6 +324,7 @@ describe("Advisor tool rendering", () => {
     expect(fallback).toContain("2 group(s) omitted before Scout");
 
     setShowUsageDetailsRef(false);
+
     try {
       const hiddenUsage = entryRenderers
         .get("advisor-scout-result")(
@@ -315,6 +342,7 @@ describe("Advisor tool rendering", () => {
         )
         .render(120)
         .join("\n");
+
       expect(hiddenUsage).not.toContain("Usage:");
     } finally {
       setShowUsageDetailsRef(true);
@@ -324,11 +352,13 @@ describe("Advisor tool rendering", () => {
   test("renders the Scout streaming phase before the Advisor response", () => {
     const advisorTool = registerForRendering();
     const theme = renderTheme();
+
     const context = {
       invalidate: () => {},
       lastComponent: undefined,
       state: emptyRenderState(),
     };
+
     const scouting = advisorTool
       .renderResult(
         {
@@ -348,6 +378,7 @@ describe("Advisor tool rendering", () => {
       )
       .render(120)
       .join("\n");
+
     expect(scouting).toContain("SCOUT");
     expect(scouting).not.toContain("ADVISOR");
     expect(scouting).toContain("Selecting relevant context");
@@ -359,11 +390,13 @@ describe("Advisor tool rendering", () => {
   test("transitions from Scout streaming to curated alongside Advisor streaming", () => {
     const advisorTool = registerForRendering();
     const theme = renderTheme();
+
     const context = {
       invalidate: () => {},
       lastComponent: undefined,
       state: emptyRenderState(),
     };
+
     advisorTool.renderResult(
       {
         content: [],
@@ -380,6 +413,7 @@ describe("Advisor tool rendering", () => {
       context
     );
     const scoutTimer = context.state.timerId;
+
     const advising = advisorTool
       .renderResult(
         {
@@ -402,6 +436,7 @@ describe("Advisor tool rendering", () => {
       )
       .render(120)
       .join("\n");
+
     expect(advising).toContain("SCOUT · CURATED");
     expect(advising).toContain("ADVISOR");
     expect(advising).toContain("Streaming review");
@@ -415,11 +450,13 @@ describe("Advisor tool rendering", () => {
   test("clears render timers on the final completed render", () => {
     const advisorTool = registerForRendering();
     const theme = renderTheme();
+
     const context = {
       invalidate: () => {},
       lastComponent: undefined,
       state: emptyRenderState(),
     };
+
     advisorTool.renderResult(
       {
         content: [],
@@ -431,6 +468,7 @@ describe("Advisor tool rendering", () => {
       theme,
       context
     );
+
     const final = advisorTool
       .renderResult(
         {
@@ -456,6 +494,7 @@ describe("Advisor tool rendering", () => {
       )
       .render(120)
       .join("\n");
+
     expect(final).toContain("Reviewing the final recommendation");
     expect(final).toContain("check validation");
     expect(final).not.toContain("**Reviewing the final recommendation**");
@@ -466,11 +505,13 @@ describe("Advisor tool rendering", () => {
   test("preserves Scout cancellation across the final thrown-tool render", () => {
     const advisorTool = registerForRendering();
     const theme = renderTheme();
+
     const context = {
       invalidate: () => {},
       lastComponent: undefined,
       state: emptyRenderState(),
     };
+
     advisorTool.renderResult(
       {
         content: [],
@@ -482,6 +523,7 @@ describe("Advisor tool rendering", () => {
       theme,
       context
     );
+
     const final = advisorTool
       .renderResult(
         {
@@ -493,6 +535,7 @@ describe("Advisor tool rendering", () => {
       )
       .render(120)
       .join("\n");
+
     expect(final).toContain("SCOUT · CANCELLED");
     expect(final).not.toContain("ADVISOR RESPONSE");
     expect(final).not.toContain("This operation was aborted");
@@ -503,6 +546,7 @@ describe("Advisor tool rendering", () => {
     const advisorTool = registerForRendering();
     const theme = renderTheme();
     let invalidations = 0;
+
     const context = {
       invalidate: () => {
         invalidations += 1;
@@ -510,6 +554,7 @@ describe("Advisor tool rendering", () => {
       lastComponent: undefined,
       state: emptyRenderState(),
     };
+
     advisorTool.renderResult(
       { content: [], details: {} },
       { isPartial: true },
@@ -527,11 +572,13 @@ describe("Advisor tool rendering", () => {
   test("animates only while the advisor response is partial", () => {
     const advisorTool = registerForRendering();
     const theme = renderTheme();
+
     const context = {
       invalidate: () => {},
       lastComponent: undefined,
       state: emptyRenderState(),
     };
+
     const partial = advisorTool
       .renderResult(
         { content: [], details: {} },
@@ -541,6 +588,7 @@ describe("Advisor tool rendering", () => {
       )
       .render(120)
       .join("\n");
+
     expect(partial).toMatch(SPINNER_PATTERN);
     expect(context.state.timerId).toBeDefined();
 
@@ -563,21 +611,26 @@ describe("Pi hide_thinking integration", () => {
 
   test("collapses the thinking preview to its label when hide_thinking is on", async () => {
     const { piHideThinkingEnabled } = await import("../src/pi-settings.ts");
+
     const { renderThinkingMarkdown } =
       await import("../src/tools/render-common.ts");
+
     const hiddenAgentDir = mkdtempSync(join(tmpdir(), "pi-advisor-hidden-"));
     const previous = process.env.PI_CODING_AGENT_DIR;
     process.env.PI_CODING_AGENT_DIR = hiddenAgentDir;
+
     try {
       writeFileSync(
         join(hiddenAgentDir, "settings.json"),
         JSON.stringify({ hideThinkingBlock: true })
       );
       expect(piHideThinkingEnabled()).toBe(true);
+
       const collapsed = renderThinkingMarkdown(
         "**Secret internal reasoning**",
         settingsTheme
       );
+
       const lines = collapsed.render(80);
       expect(lines).toHaveLength(1);
       expect(lines[0]).toContain("Thinking…");
@@ -588,6 +641,7 @@ describe("Pi hide_thinking integration", () => {
       } else {
         process.env.PI_CODING_AGENT_DIR = previous;
       }
+
       rmSync(hiddenAgentDir, { force: true, recursive: true });
     }
   });
@@ -596,8 +650,10 @@ describe("Pi hide_thinking integration", () => {
 describe("ask_advisor result spacing", () => {
   test("renders one blank line between the request and the first Scout line", async () => {
     const { renderAdvisorCallBox } = await import("../src/tools.ts");
+
     const { renderAdvisorResult } =
       await import("../src/tools/render-advisor-result.ts");
+
     const { Container } = await import("@earendil-works/pi-tui");
     // Mirrors pi's renderShell "self": unpadded container, prefixed by one blank line.
     const container = new Container();
@@ -629,21 +685,27 @@ describe("ask_advisor result spacing", () => {
     );
     const ESC = String.fromCodePoint(27);
     const sgr = new RegExp(`${ESC}\\[[0-9;]*m`, "gu");
+
     const lines = ["", ...container.render(120)].map((line) =>
-      line.replace(sgr, "")
+      line.replaceAll(sgr, "")
     );
+
     const questionAt = lines.findIndex((line) => line.includes("test"));
     const scoutAt = lines.findIndex((line) => line.includes("◆ SCOUT"));
     expect(questionAt).toBeGreaterThanOrEqual(0);
     expect(scoutAt).toBeGreaterThan(questionAt);
+
     const blankBetween = lines
       .slice(questionAt + 1, scoutAt)
       .every((line) => line.trim() === "");
+
     expect(blankBetween).toBe(true);
     expect(scoutAt - questionAt).toBe(2);
+
     const adviceAt = lines.findIndex((line) =>
       line.includes("Received: test.")
     );
+
     expect(adviceAt).toBeGreaterThan(scoutAt);
     expect(lines[adviceAt].startsWith(" Received:")).toBe(true);
     expect(lines[adviceAt + 1]?.trim()).toBe("");

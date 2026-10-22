@@ -25,27 +25,33 @@ export const registerManualCommand = (runtime: CommandRuntime) => {
       if (!loadCommandConfig(ctx)) {
         return;
       }
+
       if (sameModelAdvisorDisabled(ctx)) {
         notify(ctx, sameModelAdvisorNotice, "info");
+
         return;
       }
+
       const accessReason = advisorModelAccessReason(ctx);
+
       if (accessReason) {
         notify(ctx, accessReason, "warning");
+
         return;
       }
-      if (
-        !(
-          isSimpleMode() ||
-          runtime.advisorSessionState.canConsult(getAdvisorMaxCallsPerSession())
-        )
-      ) {
+
+      if (!(
+        isSimpleMode() ||
+        runtime.advisorSessionState.canConsult(getAdvisorMaxCallsPerSession())
+      )) {
         runtime.reportManualBudgetExhausted(ctx);
+
         return;
       }
 
       let gitContext: GitContextLevel | undefined;
       let question: string | undefined;
+
       if (ctx.mode === "tui") {
         const request = await ctx.ui.custom<ManualAdvisorRequest | undefined>(
           (tui, theme, keybindings, done) =>
@@ -69,20 +75,20 @@ export const registerManualCommand = (runtime: CommandRuntime) => {
             },
           }
         );
+
         if (!request) {
           return;
         }
-        if (
-          !(
-            isSimpleMode() ||
-            runtime.advisorSessionState.canConsult(
-              getAdvisorMaxCallsPerSession()
-            )
-          )
-        ) {
+
+        if (!(
+          isSimpleMode() ||
+          runtime.advisorSessionState.canConsult(getAdvisorMaxCallsPerSession())
+        )) {
           runtime.reportManualBudgetExhausted(ctx);
+
           return;
         }
+
         const { gitContext: selectedGitContext, message } = request;
         gitContext = selectedGitContext;
         question = resolveAdvisorRequest(message);
@@ -92,17 +98,21 @@ export const registerManualCommand = (runtime: CommandRuntime) => {
 
       if (sameModelAdvisorDisabled(ctx)) {
         notify(ctx, sameModelAdvisorNotice, "info");
+
         return;
       }
+
       if (!isSimpleMode()) {
         runtime.advisorSessionState.consumeCall();
       }
+
       // A single visible progress surface avoids competing consultations overwriting
       // each other's streamed state. A newer manual request replaces the previous one.
       for (const [pending, token] of runtime.manualConsultations) {
         pending.abort();
         runtime.scoutStatus.release(ctx, token);
       }
+
       runtime.manualConsultations.clear();
       const controller = new AbortController();
       const scoutStatusToken = Symbol("manual-scout");
@@ -112,6 +122,7 @@ export const registerManualCommand = (runtime: CommandRuntime) => {
       runtime.scoutStatus.register(scoutStatusToken);
       runtime.manualConsultations.set(controller, scoutStatusToken);
       runtime.pi.appendEntry?.("advisor-manual-call", { progressId, question });
+
       // Print mode tears the session down when the handler returns, so the
       // consultation must complete inside the handler to keep its ctx valid.
       if (ctx.mode === "print") {
@@ -124,8 +135,10 @@ export const registerManualCommand = (runtime: CommandRuntime) => {
           progress,
           gitContext
         );
+
         return;
       }
+
       // Intentional fire-and-forget: the consultation streams after the command
       // handler returns. A rejected consultation must not escape as an
       // unhandled rejection; its error paths already notify and record.

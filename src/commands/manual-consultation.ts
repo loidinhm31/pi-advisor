@@ -36,6 +36,7 @@ export const startManualConsultation = async (
   const isPrintMode = ctx.mode === "print";
   progress.phase = "preparing";
   runtime.requestManualRender(ctx);
+
   if (uiAvailable(ctx)) {
     const timer = setInterval(() => {
       if (
@@ -43,14 +44,19 @@ export const startManualConsultation = async (
         runtime.manualConsultations.get(controller) !== scoutStatusToken
       ) {
         clearInterval(timer);
+
         return;
       }
+
       runtime.requestManualRender(ctx);
     }, 80);
+
     runtime.manualProgressTimers.set(controller, timer);
   }
+
   const finishHerdrActivity = runtime.herdrActivity.start();
   let scoutDetails: ScoutToolDetails | undefined;
+
   try {
     const {
       adviceId,
@@ -68,6 +74,7 @@ export const startManualConsultation = async (
         if (controller.signal.aborted) {
           return;
         }
+
         progress.phase = "active";
         progress.thinking = thinking;
         progress.text = text;
@@ -88,9 +95,11 @@ export const startManualConsultation = async (
       },
       gitContext
     );
+
     if (controller.signal.aborted) {
       return;
     }
+
     progress.phase = "complete";
     runtime.advisorSessionState.resetTurnsSinceConsultation();
     runtime.advisorSessionState.recordInvocation({
@@ -102,6 +111,7 @@ export const startManualConsultation = async (
       trigger: "manual",
       usage,
     });
+
     if (isString(adviceId)) {
       // Registering the manual question lets an identical later ask_advisor
       // hit repeat detection instead of re-consulting.
@@ -113,7 +123,9 @@ export const startManualConsultation = async (
         normalizeScreeningQuestion(question)
       );
     }
+
     runtime.updateAdvisorUsageStatus(ctx);
+
     const details: ManualResultDetails = {
       adviceId,
       advisor: model ?? advisorRef,
@@ -123,10 +135,13 @@ export const startManualConsultation = async (
       question,
       text: markdown,
     };
+
     const normalizedUsage = snapshotAdvisorUsage(usage);
+
     if (normalizedUsage) {
       details.usage = normalizedUsage;
     }
+
     runtime.pi.sendMessage(
       {
         content: `Manual Advisor consultation${question ? ` (${question})` : ""} — for your awareness; no action or follow-up consultation is needed unless the user asks:\n\n${markdown}`,
@@ -147,6 +162,7 @@ export const startManualConsultation = async (
     if (controller.signal.aborted) {
       return;
     }
+
     progress.phase = "error";
     const message = error instanceof Error ? error.message : String(error);
     runtime.advisorSessionState.resetTurnsSinceConsultation();
@@ -174,14 +190,18 @@ export const startManualConsultation = async (
     notifyHerdrAdvisorFailure("Advisor consultation failed", message);
   } finally {
     finishHerdrActivity();
+
     if (controller.signal.aborted) {
       progress.phase = "cancelled";
     }
+
     const timer = runtime.manualProgressTimers.get(controller);
+
     if (timer) {
       clearInterval(timer);
       runtime.manualProgressTimers.delete(controller);
     }
+
     runtime.requestManualRender(ctx);
     runtime.scoutStatus.release(ctx, scoutStatusToken);
     runtime.manualConsultations.delete(controller);

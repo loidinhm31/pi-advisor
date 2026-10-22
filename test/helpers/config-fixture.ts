@@ -26,6 +26,7 @@ export const withAgentDir = async (
     JSON.stringify(config, null, 2)
   );
   resetConfigCache();
+
   try {
     await run(agentDir);
   } finally {
@@ -34,6 +35,7 @@ export const withAgentDir = async (
     } else {
       process.env.PI_CODING_AGENT_DIR = previousAgentDir;
     }
+
     resetConfigCache();
     rmSync(agentDir, { force: true, recursive: true });
   }

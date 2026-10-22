@@ -14,6 +14,7 @@ afterEach(() => {
 });
 
 const noKey = () => Promise.resolve({});
+
 const typesafeKey = () =>
   Promise.resolve({ key: "typesafe-key", source: "env" as const });
 
@@ -30,10 +31,12 @@ describe("typesafe-compatible endpoint", () => {
   test("resolves the dedicated endpoint key against the normalized Base URL", async () => {
     setAdvisorJevTransportRef("typesafe-compatible");
     setAdvisorJevBaseUrlRef("https://gw.corp/llm/jev/v1");
+
     const credentials = await resolveJevTransport(
       undefined,
       endpointDeps("jv_live_key")
     );
+
     expect(credentials).toEqual({
       apiKey: "jv_live_key",
       baseUrl: "https://gw.corp/llm/jev",
@@ -47,16 +50,20 @@ describe("typesafe-compatible endpoint", () => {
     setAdvisorJevBaseUrlRef("https://api.codiv.ai");
     setAdvisorJevKeyProviderRef("vercel");
     const lookups: string[] = [];
+
     const credentials = await resolveJevTransport(undefined, {
       getProviderKey: async (provider) => {
         lookups.push(provider);
+
         return "pi-stored-key";
       },
       resolveEndpointKey: async () => {
         lookups.push("endpoint-store");
+
         return { key: "jv_live_key", source: "jev-env" };
       },
     });
+
     expect(credentials).toEqual({
       apiKey: "pi-stored-key",
       baseUrl: "https://api.codiv.ai",
@@ -70,6 +77,7 @@ describe("typesafe-compatible endpoint", () => {
     setAdvisorJevTransportRef("typesafe-compatible");
     setAdvisorJevBaseUrlRef("https://api.codiv.ai");
     setAdvisorJevKeyProviderRef("vercel");
+
     const credentials = await resolveJevTransport(undefined, {
       getProviderKey: async () => undefined,
       resolveEndpointKey: async () => ({
@@ -77,47 +85,56 @@ describe("typesafe-compatible endpoint", () => {
         source: "jev-env",
       }),
     });
+
     expect(credentials).toBeUndefined();
   });
 
   test("resolves nothing without a configured Base URL", async () => {
     setAdvisorJevTransportRef("typesafe-compatible");
     setAdvisorJevBaseUrlRef(undefined);
+
     const credentials = await resolveJevTransport(
       undefined,
       endpointDeps("jv_live_key")
     );
+
     expect(credentials).toBeUndefined();
   });
 
   test("resolves nothing when the configured Base URL is unusable", async () => {
     setAdvisorJevTransportRef("typesafe-compatible");
     setAdvisorJevBaseUrlRef("http://jev.example.com");
+
     const credentials = await resolveJevTransport(
       undefined,
       endpointDeps("jv_live_key")
     );
+
     expect(credentials).toBeUndefined();
   });
 
   test("resolves nothing when no endpoint key is available", async () => {
     setAdvisorJevTransportRef("typesafe-compatible");
     setAdvisorJevBaseUrlRef("https://api.codiv.ai");
+
     const credentials = await resolveJevTransport(
       undefined,
       endpointDeps(undefined)
     );
+
     expect(credentials).toBeUndefined();
   });
 
   test("auto never selects the endpoint even when it is fully configured", async () => {
     setAdvisorJevTransportRef("auto");
     setAdvisorJevBaseUrlRef("https://api.codiv.ai");
+
     const credentials = await resolveJevTransport(undefined, {
       getProviderKey: async () => undefined,
       resolveEndpointKey: () => Promise.reject(new Error("must not be read")),
       resolveTypesafe: noKey,
     });
+
     expect(credentials).toBeUndefined();
   });
 });
@@ -125,10 +142,12 @@ describe("typesafe-compatible endpoint", () => {
 describe("resolveJevTransport", () => {
   test("auto prefers a dedicated TypeSafe key over the OpenRouter login", async () => {
     setAdvisorJevTransportRef("auto");
+
     const credentials = await resolveJevTransport(undefined, {
       getProviderKey: providerKeys({ openrouter: "openrouter-key" }),
       resolveTypesafe: typesafeKey,
     });
+
     expect(credentials).toEqual({
       apiKey: "typesafe-key",
       source: "env",
@@ -138,10 +157,12 @@ describe("resolveJevTransport", () => {
 
   test("auto reuses the pi OpenRouter login when no TypeSafe key exists", async () => {
     setAdvisorJevTransportRef("auto");
+
     const credentials = await resolveJevTransport(undefined, {
       getProviderKey: providerKeys({ openrouter: "openrouter-key" }),
       resolveTypesafe: noKey,
     });
+
     expect(credentials).toEqual({
       apiKey: "openrouter-key",
       transport: "openrouter",
@@ -150,10 +171,12 @@ describe("resolveJevTransport", () => {
 
   test("openrouter skips the TypeSafe chain entirely", async () => {
     setAdvisorJevTransportRef("openrouter");
+
     const credentials = await resolveJevTransport(undefined, {
       getProviderKey: providerKeys({ openrouter: "openrouter-key" }),
       resolveTypesafe: typesafeKey,
     });
+
     expect(credentials).toEqual({
       apiKey: "openrouter-key",
       transport: "openrouter",
@@ -162,10 +185,12 @@ describe("resolveJevTransport", () => {
 
   test("typesafe never falls back to OpenRouter", async () => {
     setAdvisorJevTransportRef("typesafe");
+
     const credentials = await resolveJevTransport(undefined, {
       getProviderKey: providerKeys({ openrouter: "openrouter-key" }),
       resolveTypesafe: noKey,
     });
+
     expect(credentials).toBeUndefined();
   });
 
@@ -174,6 +199,7 @@ describe("resolveJevTransport", () => {
       getProviderKey: providerKeys({}),
       resolveTypesafe: noKey,
     });
+
     expect(credentials).toBeUndefined();
   });
 
@@ -182,11 +208,13 @@ describe("resolveJevTransport", () => {
       getProviderKey: providerKeys({ openrouter: "  \n" }),
       resolveTypesafe: noKey,
     });
+
     expect(credentials).toBeUndefined();
   });
 
   test("explicit OpenAI Decisions accepts only known Platform API-key sources", async () => {
     setAdvisorJevTransportRef("openai-decisions");
+
     const allowedSources: [
       string,
       "openai-env" | "openai-provider-credential",
@@ -194,26 +222,33 @@ describe("resolveJevTransport", () => {
       ["OPENAI_API_KEY", "openai-env"],
       ["stored credential", "openai-provider-credential"],
     ];
+
     for (const [source, expectedSource] of allowedSources) {
       const lookups: string[] = [];
+
       const credentials = await resolveJevTransport(undefined, {
         getProviderAuth: async (provider) => {
           lookups.push(provider);
+
           return { auth: { apiKey: "sk-platform-key" }, source };
         },
         getProviderKey: async (provider) => {
           lookups.push(provider);
+
           return "openrouter-key";
         },
         resolveOpenAIKey: async () => {
           lookups.push("extension-openai-key");
+
           return { key: "extension-key", source: "openai-file" };
         },
         resolveTypesafe: async () => {
           lookups.push("typesafe");
+
           return { key: "typesafe-key", source: "env" };
         },
       });
+
       expect(credentials).toEqual({
         apiKey: "sk-platform-key",
         source: expectedSource,
@@ -226,24 +261,30 @@ describe("resolveJevTransport", () => {
   test("falls back to the extension-owned key when Pi has no Platform API key", async () => {
     setAdvisorJevTransportRef("openai-decisions");
     const lookups: string[] = [];
+
     const credentials = await resolveJevTransport(undefined, {
       getProviderAuth: async (provider) => {
         lookups.push(provider);
+
         return { auth: { apiKey: "subscription-token" }, source: "OAuth" };
       },
       getProviderKey: async (provider) => {
         lookups.push(provider);
+
         return "openrouter-key";
       },
       resolveOpenAIKey: async () => {
         lookups.push("extension-openai-key");
+
         return { key: "extension-platform-key", source: "openai-file" };
       },
       resolveTypesafe: async () => {
         lookups.push("typesafe");
+
         return { key: "typesafe-key", source: "env" };
       },
     });
+
     expect(credentials).toEqual({
       apiKey: "extension-platform-key",
       source: "openai-file",
@@ -254,23 +295,29 @@ describe("resolveJevTransport", () => {
 
   test("rejects OAuth and unknown OpenAI auth sources without provider fallbacks", async () => {
     setAdvisorJevTransportRef("openai-decisions");
+
     for (const source of ["OAuth", "unknown source", undefined]) {
       const lookups: string[] = [];
+
       const credentials = await resolveJevTransport(undefined, {
         getProviderAuth: async (provider) => {
           lookups.push(provider);
+
           return { auth: { apiKey: "oauth-or-unknown-token" }, source };
         },
         getProviderKey: async (provider) => {
           lookups.push(provider);
+
           return "openrouter-key";
         },
         resolveOpenAIKey: async () => ({}),
         resolveTypesafe: async () => {
           lookups.push("typesafe");
+
           return { key: "typesafe-key", source: "env" };
         },
       });
+
       expect(credentials).toBeUndefined();
       expect(lookups).toEqual(["openai"]);
     }
@@ -279,35 +326,43 @@ describe("resolveJevTransport", () => {
   test("returns no explicit OpenAI transport when both key stores are empty", async () => {
     setAdvisorJevTransportRef("openai-decisions");
     const lookups: string[] = [];
+
     const credentials = await resolveJevTransport(undefined, {
       getProviderAuth: async (provider) => {
         lookups.push(provider);
+
         return undefined;
       },
       getProviderKey: async (provider) => {
         lookups.push(provider);
+
         return "openrouter-key";
       },
       resolveOpenAIKey: async () => {
         lookups.push("extension-openai-key");
+
         return {};
       },
       resolveTypesafe: async () => {
         lookups.push("typesafe");
+
         return { key: "typesafe-key", source: "env" };
       },
     });
+
     expect(credentials).toBeUndefined();
     expect(lookups).toEqual(["openai", "extension-openai-key"]);
   });
 
   test("fails closed when OpenAI auth resolution throws", async () => {
     setAdvisorJevTransportRef("openai-decisions");
+
     const credentials = await resolveJevTransport(undefined, {
       getProviderAuth: () => Promise.reject(new Error("OAuth refresh failed")),
       resolveOpenAIKey: () => Promise.resolve({}),
       resolveTypesafe: typesafeKey,
     });
+
     expect(credentials).toBeUndefined();
   });
 });

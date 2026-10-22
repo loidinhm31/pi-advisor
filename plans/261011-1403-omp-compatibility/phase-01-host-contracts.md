@@ -110,17 +110,17 @@
 
 ## Related Code Files
 
-| File Path | Action | Role / Ownership |
-| --- | --- | --- |
-| `/home/loidinh/WS/pi-advisor/src/ui/types.ts` | Modify | Add `HostBoxSymbols`, `HostRoundedBoxSymbols`, `HostSymbolTheme`, and `SettingsListPublicAdapterContract` (leaf-only; do not re-export from `src/ui.ts`) |
-| `/home/loidinh/WS/pi-advisor/src/tools/types.ts` | Modify | Add `DualHostBeforeAgentStartEvent` and `HostAgentEndEvent` (leaf-only; do not re-export from `src/tools.ts`) |
-| `/home/loidinh/WS/pi-advisor/src/child-session.ts` | Modify | Add `HostAgentIdentity`, `AgentAwareContext`, and `hasOmpAgentIdentity(ctx)` structural helpers consumed by Phase 04 |
-| `/home/loidinh/WS/pi-advisor/test/helpers/dual-host-harness.ts` | Create | Executable subprocess harness loading built `dist/index.js` in isolated Pi 1.x and real OMP host processes |
-| `/home/loidinh/WS/pi-advisor/test/host-contracts.test.ts` | Create | Observable dual-host boundary tests exercising real Pi 1.x and OMP loaders, symbol themes, and event contracts |
-| `/home/loidinh/WS/pi-advisor/test/helpers/harness.ts` | Modify | Add bounded unit fixture helpers for `before_agent_start` return chaining and `agent_end` / `agent_settled` dispatch |
-| `/home/loidinh/WS/pi-advisor/test/helpers/mock-pi.ts` | Modify | Support async `setActiveTools` promise return and multi-event registration in bounded unit fixtures |
-| `/home/loidinh/WS/pi-advisor/package.json` | Modify | Add `--loader .md:text` to `scripts.build` for static `.md` prompt asset bundling |
-| `/home/loidinh/WS/pi-advisor/scripts/check-package.mjs` | Modify | Single integration owner updates `expectedFiles` when Phase 03 static `.md` assets are added |
+| File Path                                                       | Action | Role / Ownership                                                                                                                                         |
+| --------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/home/loidinh/WS/pi-advisor/src/ui/types.ts`                   | Modify | Add `HostBoxSymbols`, `HostRoundedBoxSymbols`, `HostSymbolTheme`, and `SettingsListPublicAdapterContract` (leaf-only; do not re-export from `src/ui.ts`) |
+| `/home/loidinh/WS/pi-advisor/src/tools/types.ts`                | Modify | Add `DualHostBeforeAgentStartEvent` and `HostAgentEndEvent` (leaf-only; do not re-export from `src/tools.ts`)                                            |
+| `/home/loidinh/WS/pi-advisor/src/child-session.ts`              | Modify | Add `HostAgentIdentity`, `AgentAwareContext`, and `hasOmpAgentIdentity(ctx)` structural helpers consumed by Phase 04                                     |
+| `/home/loidinh/WS/pi-advisor/test/helpers/dual-host-harness.ts` | Create | Executable subprocess harness loading built `dist/index.js` in isolated Pi 1.x and real OMP host processes                                               |
+| `/home/loidinh/WS/pi-advisor/test/host-contracts.test.ts`       | Create | Observable dual-host boundary tests exercising real Pi 1.x and OMP loaders, symbol themes, and event contracts                                           |
+| `/home/loidinh/WS/pi-advisor/test/helpers/harness.ts`           | Modify | Add bounded unit fixture helpers for `before_agent_start` return chaining and `agent_end` / `agent_settled` dispatch                                     |
+| `/home/loidinh/WS/pi-advisor/test/helpers/mock-pi.ts`           | Modify | Support async `setActiveTools` promise return and multi-event registration in bounded unit fixtures                                                      |
+| `/home/loidinh/WS/pi-advisor/package.json`                      | Modify | Add `--loader .md:text` to `scripts.build` for static `.md` prompt asset bundling                                                                        |
+| `/home/loidinh/WS/pi-advisor/scripts/check-package.mjs`         | Modify | Single integration owner updates `expectedFiles` when Phase 03 static `.md` assets are added                                                             |
 
 ## Implementation Steps
 
@@ -158,11 +158,11 @@
 
 ## Risk Assessment
 
-| Risk | Impact | Mitigation |
-| --- | --- | --- |
-| Accidental export of internal capability types from `src/ui.ts` or `src/tools.ts` breaks `test/facade-exports.test.ts` | Medium | Keep contracts in leaf modules (`src/ui/types.ts`, `src/tools/types.ts`, `src/child-session.ts`) without facade re-exports. |
-| In-process module mocking pollutes Bun test runner state | High | Run real Pi 1.x and real OMP component/loader checks in isolated child processes via `test/helpers/dual-host-harness.ts`; never use `mock.module`. |
-| Incomplete symbol validation misses `selectList.symbols` properties | High | Validate and forward the complete `HostSymbolTheme` object from `getSelectListTheme().symbols` to both `editorTheme.symbols` and `editorTheme.selectList.symbols`. |
+| Risk                                                                                                                   | Impact | Mitigation                                                                                                                                                         |
+| ---------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Accidental export of internal capability types from `src/ui.ts` or `src/tools.ts` breaks `test/facade-exports.test.ts` | Medium | Keep contracts in leaf modules (`src/ui/types.ts`, `src/tools/types.ts`, `src/child-session.ts`) without facade re-exports.                                        |
+| In-process module mocking pollutes Bun test runner state                                                               | High   | Run real Pi 1.x and real OMP component/loader checks in isolated child processes via `test/helpers/dual-host-harness.ts`; never use `mock.module`.                 |
+| Incomplete symbol validation misses `selectList.symbols` properties                                                    | High   | Validate and forward the complete `HostSymbolTheme` object from `getSelectListTheme().symbols` to both `editorTheme.symbols` and `editorTheme.selectList.symbols`. |
 
 ## Security Considerations
 

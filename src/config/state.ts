@@ -45,16 +45,23 @@ export let advisorMaxCallsPerSessionRef: number | undefined;
 export let advisorModelWhitelistRef: string[] = [];
 export let advisorSessionSummaryRef = false;
 export let simpleModeRef = false;
+export let advisorToolsEnabledRef = true;
 export let alwaysOnRef = false;
 export let advisorFailureModeRef: GateFailureMode = "block-session";
 export let advisorHerdrIntegrationRef = true;
 export let advisorJevFilterEnabledRef = false;
+
 export let advisorJevFilterSkipConfidenceRef =
   DEFAULT_JEV_FILTER_SKIP_CONFIDENCE;
+
 export let advisorJevFilterNoulMarginRef = DEFAULT_JEV_FILTER_NOUL_MARGIN;
+
 export let advisorJevFilterOverrideWindowRef =
   DEFAULT_JEV_FILTER_OVERRIDE_WINDOW;
+
 export let advisorJevModelRef = DEFAULT_JEV_MODEL;
+export let advisorJevClassifierRef: string | undefined;
+export let advisorJevClassifierModeRef: "pi" | "api-key" = "pi";
 export let advisorJevTimeoutMsRef = DEFAULT_JEV_TIMEOUT_MS;
 export let advisorJevDigestMaxCharsRef = DEFAULT_JEV_DIGEST_MAX_CHARS;
 export let advisorJevPricePerMtokRef = DEFAULT_JEV_PRICE_PER_MTOK;
@@ -62,8 +69,10 @@ export let advisorJevBaseUrlRef: string | undefined;
 export let advisorJevKeyProviderRef: string | undefined;
 export let advisorJevTransportRef: JevTransport = DEFAULT_JEV_TRANSPORT;
 export let advisorJevTurnGateEveryTurnsRef = DEFAULT_JEV_TURN_GATE_EVERY_TURNS;
+
 export let advisorJevTurnGateNoulThresholdRef =
   DEFAULT_JEV_TURN_GATE_NOUL_THRESHOLD;
+
 export let advisorToolResultMaxLinesRef = DEFAULT_ADVISOR_TOOL_RESULT_MAX_LINES;
 export let advisorToolResultMaxBytesRef = DEFAULT_ADVISOR_TOOL_RESULT_MAX_BYTES;
 export let advisorRedactSecretsRef = false;
@@ -81,15 +90,19 @@ export let showUsageFooterRef = false;
 export const setExecutorRef = (ref: string) => {
   executorRef = ref;
 };
+
 export const setAdvisorRef = (ref: string) => {
   advisorRef = ref;
 };
+
 export const setAdvisorFallbackModelRef = (ref: string | undefined) => {
   advisorFallbackModelRef = ref?.trim() || undefined;
 };
+
 export const setAdvisorAgentsMdContextRef = (enabled: boolean) => {
   advisorAgentsMdContextRef = enabled;
 };
+
 /** Returns model refs explicitly persisted in the global Advisor config. */
 export const getPersistedModelRefs = () => ({
   advisor: persistedAdvisorRef,
@@ -108,139 +121,200 @@ export const setPersistedModelRefs = (
 export const setExecutorEffortRef = (effort: string | undefined) => {
   executorEffortRef = effort;
 };
+
 export const setAdvisorEffortRef = (effort: string | undefined) => {
   advisorEffortRef = effort;
 };
+
 export const setContextMaxCharsRef = (value: number) => {
   contextMaxCharsRef = value;
 };
+
 export const setAdvisorPlanGateRef = (enabled: boolean) => {
   advisorPlanGateRef = enabled;
 };
+
 export const setAdvisorFailureGateRef = (enabled: boolean) => {
   advisorFailureGateRef = enabled;
 };
+
 export const setAdvisorCompletionGateRef = (enabled: boolean) => {
   advisorCompletionGateRef = enabled;
 };
+
 export const setAdvisorCustomInvocationRef = (rule: string | undefined) => {
   advisorCustomInvocationRef = rule?.trim() || undefined;
 };
+
 export const setAdvisorDisableSameModelRef = (enabled: boolean) => {
   advisorDisableSameModelRef = enabled;
 };
+
 export const setAdvisorCollapseResponsesRef = (enabled: boolean) => {
   advisorCollapseResponsesRef = enabled;
 };
+
 export const setAdvisorBlockOnBlockedRef = (enabled: boolean) => {
   advisorBlockOnBlockedRef = enabled;
 };
+
 export const setAdvisorAutoLoopGateRef = (enabled: boolean) => {
   advisorAutoLoopGateRef = enabled;
 };
+
 export const setAdvisorLoopThresholdRef = (value: number) => {
   advisorLoopThresholdRef = value;
 };
+
 export const setAdvisorMaxCallsPerSessionRef = (value: number | undefined) => {
   advisorMaxCallsPerSessionRef = value;
 };
+
 export const setAdvisorModelWhitelistRef = (models: string[]) => {
   advisorModelWhitelistRef = [
-    ...new Set(models.map((model) => model.trim()).filter(Boolean)),
+    ...new Set(
+      models.flatMap((model) => {
+        const trimmed = model.trim();
+
+        return trimmed ? [trimmed] : [];
+      })
+    ),
   ];
 };
+
 export const setAdvisorSessionSummaryRef = (enabled: boolean) => {
   advisorSessionSummaryRef = enabled;
 };
+
 export const setSimpleModeRef = (enabled: boolean) => {
   simpleModeRef = enabled;
 };
+
+export const setAdvisorToolsEnabledRef = (enabled: boolean) => {
+  advisorToolsEnabledRef = enabled;
+};
+
 export const setAlwaysOnRef = (enabled: boolean) => {
   alwaysOnRef = enabled;
 };
+
 /** Whether advanced Advisor automation is suppressed for this session. */
 export const isSimpleMode = () => simpleModeRef;
+
 export const setAdvisorFailureModeRef = (value: GateFailureMode) => {
   advisorFailureModeRef = value;
 };
+
 export const setAdvisorHerdrIntegrationRef = (enabled: boolean) => {
   advisorHerdrIntegrationRef = enabled;
 };
+
+export const setAdvisorJevClassifierRef = (ref: string | undefined) => {
+  advisorJevClassifierRef = ref?.trim() || undefined;
+  advisorJevClassifierModeRef =
+    advisorJevClassifierRef === "jev-api-key" ? "api-key" : "pi";
+};
+
 export const setAdvisorJevFilterEnabledRef = (enabled: boolean) => {
   advisorJevFilterEnabledRef = enabled;
 };
+
 export const setAdvisorJevFilterSkipConfidenceRef = (value: number) => {
   advisorJevFilterSkipConfidenceRef = value;
 };
+
 export const setAdvisorJevFilterNoulMarginRef = (value: number) => {
   advisorJevFilterNoulMarginRef = value;
 };
+
 export const setAdvisorJevFilterOverrideWindowRef = (value: number) => {
   advisorJevFilterOverrideWindowRef = value;
 };
+
 export const setAdvisorJevModelRef = (model: string | undefined) => {
   advisorJevModelRef = model?.trim() || DEFAULT_JEV_MODEL;
 };
+
 export const setAdvisorJevTimeoutMsRef = (value: number) => {
   advisorJevTimeoutMsRef = value;
 };
+
 export const setAdvisorJevDigestMaxCharsRef = (value: number) => {
   advisorJevDigestMaxCharsRef = value;
 };
+
 export const setAdvisorJevPricePerMtokRef = (value: number) => {
   advisorJevPricePerMtokRef = value;
 };
+
 export const setAdvisorJevBaseUrlRef = (value: string | undefined) => {
   advisorJevBaseUrlRef = value?.trim() || undefined;
 };
+
 export const setAdvisorJevKeyProviderRef = (value: string | undefined) => {
   advisorJevKeyProviderRef = value?.trim() || undefined;
 };
+
 export const setAdvisorJevTransportRef = (value: JevTransport) => {
   advisorJevTransportRef = value;
 };
+
 export const setAdvisorJevTurnGateEveryTurnsRef = (value: number) => {
   advisorJevTurnGateEveryTurnsRef = value;
 };
+
 export const setAdvisorJevTurnGateNoulThresholdRef = (value: number) => {
   advisorJevTurnGateNoulThresholdRef = value;
 };
+
 export const setAdvisorToolResultMaxLinesRef = (value: number) => {
   advisorToolResultMaxLinesRef = value;
 };
+
 export const setAdvisorToolResultMaxBytesRef = (value: number) => {
   advisorToolResultMaxBytesRef = value;
 };
+
 export const setAdvisorRedactSecretsRef = (enabled: boolean) => {
   advisorRedactSecretsRef = enabled;
 };
+
 export const setAdvisorGitContextRef = (level: GitContextLevel) => {
   advisorGitContextRef = level;
 };
+
 export const setAdvisorGitContextMaxCharsRef = (value: number) => {
   advisorGitContextMaxCharsRef = value;
 };
+
 export const setAdvisorToolPoliciesRef = (policies: AdvisorToolPolicies) => {
   advisorToolPoliciesRef = { ...policies };
 };
+
 export const setAdvisorOutcomeLoggingRef = (enabled: boolean) => {
   advisorOutcomeLoggingRef = enabled;
 };
+
 export const setAdvisorUntrackedContentRef = (enabled: boolean) => {
   advisorUntrackedContentRef = enabled;
 };
+
 export const setAdvisorTrackedFileContentRef = (enabled: boolean) => {
   advisorTrackedFileContentRef = enabled;
 };
+
 export const setAdvisorScoutEnabledRef = (enabled: boolean) => {
   advisorScoutEnabledRef = enabled;
 };
+
 export const setAdvisorScoutTimeoutMsRef = (value: number) => {
   advisorScoutTimeoutMsRef = value;
 };
+
 export const setShowUsageDetailsRef = (enabled: boolean) => {
   showUsageDetailsRef = enabled;
 };
+
 export const setShowUsageFooterRef = (enabled: boolean) => {
   showUsageFooterRef = enabled;
 };
@@ -250,6 +324,7 @@ export const setShowUsageFooterRef = (enabled: boolean) => {
  * imported mutable bindings, which can be snapshotted by extension loaders.
  */
 export const getAdvisorSettings = () => ({
+  advisorToolsEnabled: advisorToolsEnabledRef,
   agentsMdContext: advisorAgentsMdContextRef,
   alwaysOn: alwaysOnRef,
   autoLoopGate: advisorAutoLoopGateRef,
@@ -267,6 +342,7 @@ export const getAdvisorSettings = () => ({
   gitContextMaxChars: advisorGitContextMaxCharsRef,
   herdrIntegration: advisorHerdrIntegrationRef,
   jevBaseUrl: advisorJevBaseUrlRef,
+  jevClassifier: advisorJevClassifierRef,
   jevDigestMaxChars: advisorJevDigestMaxCharsRef,
   jevFilterEnabled: advisorJevFilterEnabledRef,
   jevFilterNoulMargin: advisorJevFilterNoulMarginRef,
@@ -304,5 +380,6 @@ export const getAdvisorMaxCallsPerSession = () =>
 
 export const splitRef = (ref: string): [string, string] => {
   const i = ref.indexOf("/");
+
   return i === -1 ? ["openai-codex", ref] : [ref.slice(0, i), ref.slice(i + 1)];
 };

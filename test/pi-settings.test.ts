@@ -15,6 +15,7 @@ const withAgentSettings = async (
   const agentDir = mkdtempSync(join(tmpdir(), "pi-advisor-pi-settings-"));
   const previousAgentDir = process.env[AGENT_DIR_ENV];
   process.env[AGENT_DIR_ENV] = agentDir;
+
   if (settings !== null) {
     mkdirSync(agentDir, { recursive: true });
     writeFileSync(
@@ -22,6 +23,7 @@ const withAgentSettings = async (
       JSON.stringify(settings, null, 2)
     );
   }
+
   try {
     await run();
   } finally {
@@ -30,6 +32,7 @@ const withAgentSettings = async (
     } else {
       process.env[AGENT_DIR_ENV] = previousAgentDir;
     }
+
     rmSync(agentDir, { force: true, recursive: true });
   }
 };

@@ -7,15 +7,15 @@
 
 ## Test Results Overview
 
-| Suite / Gate | Command | Pass | Fail | Skip | Assertions / Notes | Duration |
-| --- | --- | --- | --- | --- | --- | --- |
-| Full Test Suite | `bun test` | 589 | 0 | 0 | 5,599 `expect()` calls across 62 files | 21.72s |
-| Node Resource Loader | `bun run test:node-loader` | 1 | 0 | 0 | Bundled package settings state shared under Node `DefaultResourceLoader` | 0.91s |
-| Typecheck | `bun run typecheck` (`bun check`) | 232 files | 0 | 0 | Zero type errors (`tsc --noEmit` also confirmed clean) | 0.67s |
-| Module Boundaries | `bun run check:boundaries` | PASS | 0 | 0 | Production leaves do not import facades | 0.07s |
-| Linter | `bun run lint` (`oxlint`) | PASS | 0 | 0 | Zero lint warnings / errors | 0.76s |
-| Formatter | `bun run format:check` (`oxfmt --check`) | 438 files | 0 | 0 | All matched files correctly formatted | 0.05s |
-| Package Check & Build | `bun run package:check` | 121 files | 0 | 0 | `prepack` bundle build (`dist/index.js`) + asset manifest verified | 0.61s |
+| Suite / Gate          | Command                                  | Pass      | Fail | Skip | Assertions / Notes                                                       | Duration |
+| --------------------- | ---------------------------------------- | --------- | ---- | ---- | ------------------------------------------------------------------------ | -------- |
+| Full Test Suite       | `bun test`                               | 589       | 0    | 0    | 5,599 `expect()` calls across 62 files                                   | 21.72s   |
+| Node Resource Loader  | `bun run test:node-loader`               | 1         | 0    | 0    | Bundled package settings state shared under Node `DefaultResourceLoader` | 0.91s    |
+| Typecheck             | `bun run typecheck` (`bun check`)        | 232 files | 0    | 0    | Zero type errors (`tsc --noEmit` also confirmed clean)                   | 0.67s    |
+| Module Boundaries     | `bun run check:boundaries`               | PASS      | 0    | 0    | Production leaves do not import facades                                  | 0.07s    |
+| Linter                | `bun run lint` (`oxlint`)                | PASS      | 0    | 0    | Zero lint warnings / errors                                              | 0.76s    |
+| Formatter             | `bun run format:check` (`oxfmt --check`) | 438 files | 0    | 0    | All matched files correctly formatted                                    | 0.05s    |
+| Package Check & Build | `bun run package:check`                  | 121 files | 0    | 0    | `prepack` bundle build (`dist/index.js`) + asset manifest verified       | 0.61s    |
 
 - **Total Unit & Integration Tests**: 590 (589 bun test + 1 node test)
 - **Total Passed**: 590

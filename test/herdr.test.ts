@@ -27,6 +27,7 @@ describe("Herdr Advisor activity", () => {
       "bad\n title",
       "  details\u0000 with   spacing "
     );
+
     expect(request.method).toBe("notification.show");
     expect(request.params).toEqual({
       body: "details with spacing",
@@ -40,6 +41,7 @@ describe("Herdr Advisor activity", () => {
   });
   test("keeps seeking advice visible until overlapping consultations finish", () => {
     const reports: any[] = [];
+
     const activity = new HerdrAdvisorActivity((request) =>
       reports.push(request)
     );
@@ -70,6 +72,7 @@ describe("Herdr Advisor activity", () => {
 
   test("clears seeking advice on shutdown", () => {
     const reports: any[] = [];
+
     const activity = new HerdrAdvisorActivity((request) =>
       reports.push(request)
     );
@@ -84,9 +87,11 @@ describe("Herdr Advisor activity", () => {
 
   test("runtime shutdown releases only that runtime's activity leases", () => {
     const reports: any[] = [];
+
     const manager = new HerdrAdvisorActivity((request) =>
       reports.push(request)
     );
+
     const runtimeA = manager.createScope();
     const runtimeB = manager.createScope();
 
@@ -108,9 +113,11 @@ describe("Herdr Advisor activity", () => {
 
   test("ignores a late finish after a newer runtime activity starts", () => {
     const reports: any[] = [];
+
     const runtime = new HerdrAdvisorActivity((request) =>
       reports.push(request)
     ).createScope();
+
     const finishOld = runtime.start();
     runtime.clear();
     const finishNew = runtime.start();
@@ -127,10 +134,12 @@ describe("Herdr Advisor activity", () => {
 
   test("does not report activity or blocked metadata when integration is disabled", () => {
     const reports: any[] = [];
+
     const activity = new HerdrAdvisorActivity(
       (request) => reports.push(request),
       () => false
     );
+
     activity.start();
     activity.finish();
     expect(reports).toHaveLength(0);
@@ -148,10 +157,12 @@ describe("Herdr Advisor activity", () => {
   test("redacts and bounds blocked labels and clears after integration is disabled", () => {
     const reports: any[] = [];
     let enabled = true;
+
     const block = new HerdrAdvisorBlock(
       (request) => reports.push(request),
       () => enabled
     );
+
     block.set(`token=super-secret-token-value\n${"x".repeat(500)}`);
     enabled = false;
     block.clear();
@@ -173,11 +184,13 @@ describe("Herdr Advisor activity", () => {
   test("uses each runtime's own herdr:blocked emitter", () => {
     const eventsA: boolean[] = [];
     const eventsB: boolean[] = [];
+
     const blockA = new HerdrAdvisorBlock(
       () => {},
       () => true,
       (active) => eventsA.push(active)
     );
+
     const blockB = new HerdrAdvisorBlock(
       () => {},
       () => true,
@@ -202,16 +215,19 @@ describe("Herdr Advisor activity", () => {
         const eventsB = new Map<string, any>();
         const receivedA: { active: boolean; label: string }[] = [];
         const receivedB: { active: boolean; label: string }[] = [];
+
         const blockA = new HerdrAdvisorBlock(
           () => {},
           () => true,
           (active, label) => receivedA.push({ active, label })
         );
+
         const blockB = new HerdrAdvisorBlock(
           () => {},
           () => true,
           (active, label) => receivedB.push({ active, label })
         );
+
         registerAdvisorTool(
           mockPi({ activeTools: ["ask_advisor"], events: eventsA }),
           new AdvisorSessionState(),
@@ -222,6 +238,7 @@ describe("Herdr Advisor activity", () => {
           new AdvisorSessionState(),
           { herdrBlock: blockB, runGate: blockedGate }
         );
+
         const ctx = asExtensionContext({
           abort: () => {},
           cwd: agentDir,
@@ -229,6 +246,7 @@ describe("Herdr Advisor activity", () => {
           isProjectTrusted: () => false,
           signal: new AbortController().signal,
         });
+
         const toolCallA = eventsA.get("tool_call");
         await toolCallA(
           { input: { command: "pwd" }, toolCallId: "a-1", toolName: "bash" },
@@ -251,11 +269,13 @@ describe("Herdr Advisor activity", () => {
   test("emits one herdr:blocked edge per block and one clear", () => {
     const events: boolean[] = [];
     setHerdrBlockedEmitter((active) => events.push(active));
+
     try {
       const block = new HerdrAdvisorBlock(
         () => {},
         () => true
       );
+
       block.set("first");
       block.set("second");
       block.clear();

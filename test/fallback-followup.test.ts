@@ -9,9 +9,9 @@ import {
 
 import { resetConfigCache } from "../src/config.ts";
 import {
+  AdvisorFollowUpCache,
   FOLLOW_UP_MAX_TOOL_CALLS,
   FOLLOW_UP_TTL_MS,
-  AdvisorFollowUpCache,
 } from "../src/follow-up.ts";
 import { AdvisorSessionState } from "../src/session-state.ts";
 import { consultAdvisor, registerAdvisorTool } from "../src/tools.ts";
@@ -47,6 +47,7 @@ const fallbackModels = () =>
 describe("Advisor fallback model", () => {
   test("retries once and attributes the response to the fallback model", async () => {
     const faux = fallbackModels();
+
     try {
       await withAgentDir(
         {
@@ -63,10 +64,12 @@ describe("Advisor fallback model", () => {
               }),
             () => fauxAssistantMessage("Fallback advice"),
           ]);
+
           const result = await consultAdvisor(
             fauxContext(agentDir, faux),
             "Review this decision."
           );
+
           expect(result.markdown).toBe("Fallback advice");
           expect(result.model).toBe("fallback-test/fallback");
           expect(faux.state.callCount).toBe(2);
@@ -82,6 +85,7 @@ describe("Advisor fallback model", () => {
     const tools = new Map<string, any>();
     const session = new AdvisorSessionState();
     registerAdvisorTool(mockPi({ tools }), session);
+
     try {
       await withAgentDir(
         {
@@ -99,6 +103,7 @@ describe("Advisor fallback model", () => {
               }),
             () => fauxAssistantMessage("Recovered advice"),
           ]);
+
           const result = await tools
             .get("ask_advisor")
             .execute(
@@ -108,6 +113,7 @@ describe("Advisor fallback model", () => {
               undefined,
               fauxContext(agentDir, faux)
             );
+
           expect(result.details.advisor).toBe("fallback-test/fallback");
           expect(session.consumedCalls).toBe(1);
           expect(session.usageStatus()).toContain("1 call");
@@ -120,6 +126,7 @@ describe("Advisor fallback model", () => {
 
   test("surfaces an invalid fallback model with the primary failure", async () => {
     const faux = fallbackModels();
+
     try {
       await withAgentDir(
         {
@@ -148,6 +155,7 @@ describe("Advisor fallback model", () => {
 
   test("does not call a fallback that matches the active Executor", async () => {
     const faux = fallbackModels();
+
     try {
       await withAgentDir(
         {
@@ -179,6 +187,7 @@ describe("Advisor fallback model", () => {
 
   test("does not retry a cancelled primary request", async () => {
     const faux = fallbackModels();
+
     try {
       await withAgentDir(
         {
@@ -191,6 +200,7 @@ describe("Advisor fallback model", () => {
           faux.setResponses([
             () => {
               controller.abort(new Error("user cancelled"));
+
               return fauxAssistantMessage("", {
                 errorMessage: "cancelled",
                 stopReason: "aborted",
@@ -221,6 +231,7 @@ describe("Advisor follow-up payload cache", () => {
     const session = new AdvisorSessionState();
     const requests: unknown[] = [];
     registerAdvisorTool(mockPi({ tools }), session);
+
     try {
       await withAgentDir(
         {
@@ -232,14 +243,17 @@ describe("Advisor follow-up payload cache", () => {
           faux.setResponses([
             (context) => {
               requests.push(structuredClone(context.messages));
+
               return fauxAssistantMessage("Initial advice");
             },
             (context) => {
               requests.push(structuredClone(context.messages));
+
               return fauxAssistantMessage("Follow-up advice");
             },
           ]);
           const ctx = fauxContext(agentDir, faux);
+
           const first = await tools
             .get("ask_advisor")
             .execute(
@@ -249,6 +263,7 @@ describe("Advisor follow-up payload cache", () => {
               undefined,
               ctx
             );
+
           const second = await tools.get("ask_advisor").execute(
             "second",
             {
@@ -298,6 +313,7 @@ describe("Advisor follow-up payload cache", () => {
     const session = new AdvisorSessionState();
     const requests: string[] = [];
     registerAdvisorTool(mockPi({ tools }), session);
+
     try {
       await withAgentDir(
         {
@@ -310,14 +326,17 @@ describe("Advisor follow-up payload cache", () => {
           faux.setResponses([
             (context) => {
               requests.push(JSON.stringify(context.messages));
+
               return fauxAssistantMessage("Initial advice");
             },
             (context) => {
               requests.push(JSON.stringify(context.messages));
+
               return fauxAssistantMessage("Follow-up advice");
             },
           ]);
           const ctx = fauxContext(agentDir, faux);
+
           const first = await tools
             .get("ask_advisor")
             .execute(
@@ -327,6 +346,7 @@ describe("Advisor follow-up payload cache", () => {
               undefined,
               ctx
             );
+
           await tools.get("ask_advisor").execute(
             "second",
             {
@@ -352,6 +372,7 @@ describe("Advisor follow-up payload cache", () => {
     const tools = new Map<string, any>();
     const session = new AdvisorSessionState();
     registerAdvisorTool(mockPi({ tools }), session);
+
     try {
       await withAgentDir(
         {
@@ -363,6 +384,7 @@ describe("Advisor follow-up payload cache", () => {
         async (agentDir) => {
           faux.setResponses([() => fauxAssistantMessage("Initial advice")]);
           const ctx = fauxContext(agentDir, faux);
+
           const first = await tools
             .get("ask_advisor")
             .execute(
@@ -372,6 +394,7 @@ describe("Advisor follow-up payload cache", () => {
               undefined,
               ctx
             );
+
           writeFileSync(
             join(agentDir, "advisor.json"),
             JSON.stringify({
@@ -406,6 +429,7 @@ describe("Advisor follow-up payload cache", () => {
 
   test("binds follow-ups to trust, cwd, and disclosure policy", async () => {
     const faux = fallbackModels();
+
     try {
       await withAgentDir(
         {
@@ -435,6 +459,7 @@ describe("Advisor follow-up payload cache", () => {
               next: fauxContext(agentDir, faux),
             },
           ];
+
           for (const item of cases) {
             writeFileSync(
               join(agentDir, "advisor.json"),
@@ -449,6 +474,7 @@ describe("Advisor follow-up payload cache", () => {
             const session = new AdvisorSessionState();
             registerAdvisorTool(mockPi({ tools }), session);
             faux.setResponses([() => fauxAssistantMessage("Initial advice")]);
+
             const first = await tools
               .get("ask_advisor")
               .execute(
@@ -458,7 +484,9 @@ describe("Advisor follow-up payload cache", () => {
                 undefined,
                 fauxContext(agentDir, faux)
               );
+
             const callsBeforeFollowUp = faux.state.callCount;
+
             if (item.config) {
               writeFileSync(
                 join(agentDir, "advisor.json"),
@@ -466,6 +494,7 @@ describe("Advisor follow-up payload cache", () => {
               );
               resetConfigCache();
             }
+
             await expect(
               tools.get("ask_advisor").execute(
                 `${item.label}-second`,
@@ -495,6 +524,7 @@ describe("Advisor follow-up payload cache", () => {
     const events = new Map<string, any>();
     const session = new AdvisorSessionState();
     registerAdvisorTool(mockPi({ events, tools }), session);
+
     try {
       await withAgentDir(
         {
@@ -505,12 +535,15 @@ describe("Advisor follow-up payload cache", () => {
         async (agentDir) => {
           faux.setResponses([() => fauxAssistantMessage("Initial advice")]);
           const ctx = fauxContext(agentDir, faux);
+
           const first = await tools
             .get("ask_advisor")
             .execute("first", {}, new AbortController().signal, undefined, ctx);
+
           for (let index = 0; index < FOLLOW_UP_MAX_TOOL_CALLS; index += 1) {
             events.get("tool_result")?.({ toolName: "read" });
           }
+
           await expect(
             tools.get("ask_advisor").execute(
               "second",
@@ -535,6 +568,7 @@ describe("Advisor follow-up payload cache", () => {
     const tools = new Map<string, any>();
     const session = new AdvisorSessionState();
     registerAdvisorTool(mockPi({ tools }), session);
+
     try {
       await withAgentDir(
         {
@@ -566,6 +600,7 @@ describe("Advisor follow-up payload cache", () => {
   test("expires and invalidates cached payloads", () => {
     let now = 10_000;
     const cache = new AdvisorFollowUpCache(() => now);
+
     const payload = {
       depth: 0,
       messages: [],
@@ -574,10 +609,13 @@ describe("Advisor follow-up payload cache", () => {
       redacted: true,
       systemPrompt: "system",
     };
+
     cache.capture("advice", payload);
+
     for (let index = 0; index < FOLLOW_UP_MAX_TOOL_CALLS; index += 1) {
       cache.advanceToolCall();
     }
+
     expect(cache.get("advice").reason).toContain("unknown");
 
     cache.capture("advice", payload);

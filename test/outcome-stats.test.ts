@@ -65,6 +65,7 @@ describe("Advisor outcome stats", () => {
   test("uses the Advisor custom-message renderer shell", () => {
     const messageRenderers = new Map<string, any>();
     registerCommands(mockPi({ messageRenderers }));
+
     const output = messageRenderers
       .get("advisor-stats-result")(
         {

@@ -3,11 +3,13 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { hasOmpAgentIdentity, isNativeHostAdvisor } from "../child-session.ts";
 import {
   advisorSessionSummaryRef,
+  advisorToolsEnabledRef,
   getAdvisorMaxCallsPerSession,
   isSimpleMode,
 } from "../config/state.ts";
 import { loadConfig } from "../config/storage.ts";
 import { advisorDeviceTarget, isRecordOf, isString } from "../content-utils.ts";
+import { advisorBudgetMessage } from "./budget-feedback.ts";
 import { reserveAdvisorCall } from "./gate-policy.ts";
 import { handleAutomaticGate } from "./loop-gate.ts";
 import {
@@ -32,7 +34,7 @@ interface DualHostPromptEventTarget {
     handler: (
       event: DualHostBeforeAgentStartEvent | undefined,
       ctx: Parameters<typeof loadConfig>[0]
-    ) => { systemPrompt: string[] } | undefined
+    ) => { message?: unknown; systemPrompt?: string[] } | undefined
   ) => void) &
     ((
       event: "agent_end",
@@ -42,6 +44,8 @@ interface DualHostPromptEventTarget {
       ) => void
     ) => void);
 }
+
+type DualHostAPI = ExtensionAPI & DualHostPromptEventTarget;
 
 const isOwnedAdvisorBlock = (block: unknown): block is string =>
   isString(block) &&
@@ -64,9 +68,11 @@ const modelAccessBlock = (
   ctx: Parameters<typeof loadConfig>[0]
 ): { block: true; reason: string } | undefined => {
   const access = advisorModelAccess(ctx);
+
   if (access.allowed || toolName !== "ask_advisor") {
     return undefined;
   }
+
   return {
     block: true,
     reason: access.reason,
@@ -91,11 +97,14 @@ export const registerToolLifecycle = ({
     try {
       loadConfig(ctx);
       lastConfigErrorNotified = undefined;
+
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+
       if (message !== lastConfigErrorNotified) {
         lastConfigErrorNotified = message;
+
         if (ctx.hasUI) {
           ctx.ui.notify(
             `Advisor gating skipped; configuration is invalid. ${message} Fix advisor.json.`,
@@ -103,6 +112,7 @@ export const registerToolLifecycle = ({
           );
         }
       }
+
       return false;
     }
   };
@@ -113,13 +123,15 @@ export const registerToolLifecycle = ({
     reservedCalls.clear();
     activeExecutions?.clear();
     herdrBlock.clear();
+
     if (ctx?.hasUI) {
       ctx.ui.setStatus("advisor-usage", undefined);
     }
   });
 
   const buildActiveAdvisorBody = (
-    ctx: Parameters<typeof loadConfig>[0]
+    ctx: Parameters<typeof loadConfig>[0],
+    host: "pi" | "omp"
   ): string | undefined => {
     if (!pi.getActiveTools().includes("ask_advisor")) {
       return undefined;
@@ -127,17 +139,33 @@ export const registerToolLifecycle = ({
     if (!loadConfigOrSkipGating(ctx)) {
       return undefined;
     }
-    if (!advisorModelAccess(ctx).allowed || sameModelAdvisorDisabled(ctx)) {
+    loadConfig(ctx);
+
+    if (
+      !advisorToolsEnabledRef ||
+      !advisorModelAccess(ctx).allowed ||
+      sameModelAdvisorDisabled(ctx)
+    ) {
       return undefined;
     }
+
     const guidelines = advisorInvocationGuidelines();
-    const budget = isSimpleMode()
-      ? undefined
-      : session.remainingCalls(getAdvisorMaxCallsPerSession());
-    if (budget !== undefined) {
-      guidelines.push(
-        `Advisor calls remaining this session: ${budget}.\nReserve calls for material decisions, repeated failures, or final review.`
-      );
+
+    if (host === "pi") {
+      if (!isSimpleMode()) {
+        guidelines.push(
+          "Use the latest advisor-budget message for the current call allowance. Reserve calls for material decisions, repeated failures, or final review."
+        );
+      }
+    } else {
+      const budget = isSimpleMode()
+        ? undefined
+        : session.remainingCalls(getAdvisorMaxCallsPerSession());
+      if (budget !== undefined) {
+        guidelines.push(
+          `Advisor calls remaining this session: ${budget}.\nReserve calls for material decisions, repeated failures, or final review.`
+        );
+      }
     }
     return guidelines.length > 0
       ? `Advisor invocation settings:\n${guidelines.map((rule) => `- ${rule}`).join("\n")}`
@@ -145,7 +173,7 @@ export const registerToolLifecycle = ({
   };
 
   // SAFETY: Both Pi 1.x and OMP dispatch before_agent_start through pi.on; OMP consumes returned string[] systemPrompt overrides.
-  const dualHostPi = pi as DualHostPromptEventTarget & ExtensionAPI;
+  const dualHostPi = pi as DualHostAPI;
   dualHostPi.on(
     "before_agent_start",
     (
@@ -159,9 +187,10 @@ export const registerToolLifecycle = ({
       const rawSections = event?.systemPromptOptions?.sections;
       if (isRecordOf(rawSections)) {
         delete rawSections.advisor_invocation_settings;
-        const body = buildActiveAdvisorBody(ctx);
+        const body = buildActiveAdvisorBody(ctx, "pi");
         if (body) {
           rawSections.advisor_invocation_settings = body;
+          return { message: advisorBudgetMessage(session) };
         }
         return undefined;
       }
@@ -170,7 +199,7 @@ export const registerToolLifecycle = ({
           (block) => !isOwnedAdvisorBlock(block)
         );
         const hadOwnedBlock = cleaned.length !== event.systemPrompt.length;
-        const body = buildActiveAdvisorBody(ctx);
+        const body = buildActiveAdvisorBody(ctx, "omp");
         if (!body) {
           return hadOwnedBlock ? { systemPrompt: cleaned } : undefined;
         }
@@ -221,14 +250,37 @@ export const registerToolLifecycle = ({
         reason: session.blockedReason ?? "Advisor session is blocked.",
       };
     }
+
+    const isAdvisorTool =
+      event.toolName === "ask_advisor" ||
+      event.toolName === "record_advisor_outcome";
+
+    if (isAdvisorTool && !advisorToolsEnabledRef) {
+      return {
+        block: true,
+        reason:
+          "Advisor tools are disabled. Enable them in /advisor-settings or run /advisor.",
+      };
+    }
+
     if (!pi.getActiveTools().includes("ask_advisor")) {
       return;
     }
+
     if (!loadConfigOrSkipGating(ctx)) {
       // The ask_advisor execute path surfaces its own configuration errors as
       // tool errors; every other tool must proceed without Advisor gating.
       return;
     }
+
+    if (isAdvisorTool && !advisorToolsEnabledRef) {
+      return {
+        block: true,
+        reason:
+          "Advisor tools are disabled. Enable them in /advisor-settings or run /advisor.",
+      };
+    }
+
     if (sameModelAdvisorDisabled(ctx)) {
       return;
     }
@@ -236,13 +288,17 @@ export const registerToolLifecycle = ({
       return undefined;
     }
     const accessBlock = modelAccessBlock(event.toolName, ctx);
+
     if (accessBlock) {
       return accessBlock;
     }
+
     const reservation = reserveAdvisorCall(event, ctx, session, reservedCalls);
+
     if (event.toolName === "ask_advisor") {
       return reservation;
     }
+
     return handleAutomaticGate(
       pi,
       event,
@@ -256,8 +312,13 @@ export const registerToolLifecycle = ({
   });
 
   const clearAbandonedReservations = () => {
+    if (!activeExecutions || activeExecutions.size === 0) {
+      reservedCalls.clear();
+      session.clearCallReservations();
+      return;
+    }
     for (const id of reservedCalls) {
-      if (!activeExecutions?.has(id)) {
+      if (!activeExecutions.has(id)) {
         reservedCalls.delete(id);
         session.releaseCall(id);
       }
@@ -273,7 +334,9 @@ export const registerToolLifecycle = ({
     if (isSimpleMode() || session.blocked || !advisorSessionSummaryRef) {
       return;
     }
+
     const summary = session.summary(getAdvisorMaxCallsPerSession());
+
     if (summary && ctx.hasUI) {
       ctx.ui.notify(summary, "info");
     }
@@ -283,7 +346,11 @@ export const registerToolLifecycle = ({
     if (!hasOmpAgentIdentity(ctx) || isNativeHostAdvisor(ctx)) {
       return;
     }
-    if (event?.willContinue === true) {
+    if (
+      isRecordOf(event) &&
+      "willContinue" in event &&
+      event.willContinue === true
+    ) {
       return;
     }
     handleFinalSettlement(ctx);
@@ -304,6 +371,7 @@ export const registerToolLifecycle = ({
     session.clearCallReservations();
     scoutStatus.clear(ctx);
     herdrBlock.clear();
+
     if (ctx?.hasUI) {
       ctx.ui.setStatus("advisor-usage", undefined);
     }

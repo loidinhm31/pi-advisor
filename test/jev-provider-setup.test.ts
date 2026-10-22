@@ -18,6 +18,7 @@ const open = (
   } = {}
 ) => {
   const selections: JevProviderSelection[] = [];
+
   const submenu = new JevProviderSubmenu(
     {
       currentBaseUrl: options.currentBaseUrl,
@@ -27,6 +28,7 @@ const open = (
       done: () => undefined,
       onSelection: (selection) => {
         selections.push(selection);
+
         return options.onSelection ? options.onSelection(selection) : true;
       },
       setupDeps: options.deps,
@@ -35,19 +37,24 @@ const open = (
     },
     {}
   );
+
   return { selections, submenu };
 };
 
 const menuEntries = (submenu: JevProviderSubmenu): string[] => {
   const lines = submenu.render(200);
   const entries: string[] = [];
+
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const line = lines[index] ?? "";
+
     if (!(line.startsWith("→ ") || line.startsWith("  "))) {
       break;
     }
+
     entries.unshift(line.replace(/^(?:→ | {2})/u, "").trimEnd());
   }
+
   return entries;
 };
 
@@ -57,12 +64,15 @@ const chooseAction = async (
 ): Promise<void> => {
   const entries = menuEntries(submenu);
   const index = entries.indexOf(label);
+
   if (index === -1) {
     throw new Error(`menu entry ${label} not found in ${entries.join(" | ")}`);
   }
+
   for (let step = 0; step < index; step += 1) {
     submenu.handleInput(DOWN);
   }
+
   submenu.handleInput("\r");
   await settle();
 };
@@ -106,10 +116,12 @@ const baseDeps = (overrides: Partial<JevSetupDeps>): JevSetupDeps => ({
 describe("JevProviderSubmenu custom endpoint", () => {
   test("a valid Base URL with an existing key verifies and saves the endpoint", async () => {
     const lookups: unknown[] = [];
+
     const { selections, submenu } = open({
       deps: baseDeps({
         resolveEndpoint: (options) => {
           lookups.push(options);
+
           return Promise.resolve({
             apiKey: "jv_live_key",
             baseUrl: options.baseUrl,
@@ -119,6 +131,7 @@ describe("JevProviderSubmenu custom endpoint", () => {
         },
       }),
     });
+
     await settle();
     await chooseAction(submenu, CUSTOM);
     await typeText(submenu, "https://gw.corp/llm/jev/v1");
@@ -137,6 +150,7 @@ describe("JevProviderSubmenu custom endpoint", () => {
         },
       }),
     });
+
     await settle();
     await chooseAction(submenu, CUSTOM);
     await typeText(submenu, "http://jev.example.com");
@@ -150,16 +164,19 @@ describe("JevProviderSubmenu custom endpoint", () => {
 
   test("an entered key is stored and clears a reused Pi login", async () => {
     const written: [string, string][] = [];
+
     const { selections, submenu } = open({
       currentKeyProvider: "openrouter",
       deps: baseDeps({
         resolveEndpoint: () => Promise.resolve(undefined),
         writeKey: (key, transport) => {
           written.push([key, transport]);
+
           return Promise.resolve({ message: "stored", ok: true });
         },
       }),
     });
+
     await settle();
     await chooseAction(submenu, CUSTOM);
     await typeText(submenu, "https://api.codiv.ai");
@@ -189,6 +206,7 @@ describe("JevProviderSubmenu custom endpoint", () => {
           ),
       }),
     });
+
     await settle();
     await chooseAction(submenu, REUSE);
     await typeText(submenu, "openrouter");
@@ -207,6 +225,7 @@ describe("JevProviderSubmenu custom endpoint", () => {
       currentBaseUrl: "https://api.codiv.ai",
       deps: baseDeps({ resolveEndpoint: () => Promise.resolve(undefined) }),
     });
+
     await settle();
     await chooseAction(submenu, REUSE);
     await typeText(submenu, "nope");
@@ -229,6 +248,7 @@ describe("JevProviderSubmenu custom endpoint", () => {
         verify: () => Promise.resolve({ message: "HTTP 401", ok: false }),
       }),
     });
+
     await settle();
     await chooseAction(submenu, CUSTOM);
     await typeText(submenu, "https://api.codiv.ai");
@@ -251,6 +271,7 @@ describe("JevProviderSubmenu custom endpoint", () => {
       }),
       onSelection: () => false,
     });
+
     await settle();
     await chooseAction(submenu, CUSTOM);
     await typeText(submenu, "https://api.codiv.ai");
@@ -263,11 +284,13 @@ describe("JevProviderSubmenu custom endpoint", () => {
 
   test("clearing the stored endpoint key targets the endpoint store", async () => {
     const cleared: string[] = [];
+
     const { submenu } = open({
       currentTransport: "typesafe-compatible",
       deps: baseDeps({
         clearStoredKey: (transport) => {
           cleared.push(transport);
+
           return Promise.resolve({ message: "cleared", ok: true });
         },
         resolveTransport: (transport) =>
@@ -279,6 +302,7 @@ describe("JevProviderSubmenu custom endpoint", () => {
           }),
       }),
     });
+
     await settle();
     await chooseAction(submenu, CLEAR);
 

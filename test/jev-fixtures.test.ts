@@ -37,23 +37,28 @@ const fixtureFiles = () =>
 describe("Jev screening fixtures", () => {
   test("every fixture passes the real pipeline with zero false skips", async () => {
     setAdvisorRedactSecretsRef(true);
+
     try {
       for (const { fixture, name } of fixtureFiles()) {
         const conversation: [string, string][] = [
           ...(fixture.conversation ?? []),
           ["user", `Scratch note: api_key: ${PRIVACY_CANARY}`],
         ];
+
         const ctx = asExtensionContext({
           cwd: "/",
           hasUI: false,
           isProjectTrusted: () => false,
           sessionManager: { getBranch: () => branchFromLines(conversation) },
         });
+
         const state = buildJevState(ctx, {
           draft: fixture.draft,
           question: fixture.question,
         });
+
         const mock = systemOneMock([fixture.response]);
+
         const client = new JevClient({
           apiKey: "tsk-fixture-key",
           fetch: mock.fetch,
@@ -61,15 +66,18 @@ describe("Jev screening fixtures", () => {
           timeoutMs: 5000,
           transport: "typesafe",
         });
+
         // biome-ignore lint/performance/noAwaitInLoops: fixtures replay serially by design.
         const result = await client.ask(state, {
           self_answerable: { type: "noul" },
           stakes: { criteria: ["a", "b", "c"], type: "score" },
         });
+
         const verdict = composeScreeningVerdict(result.answers, {
           noulMargin: 0.35,
           skipConfidence: 0.85,
         });
+
         expect(verdict.skip, `${name}: expected ${fixture.expected}`).toBe(
           fixture.expected === "skip"
         );
@@ -90,10 +98,12 @@ describe("Jev screening fixtures", () => {
       isProjectTrusted: () => false,
       sessionManager: { getBranch: () => [] },
     });
+
     const state = buildJevState(ctx, {
       draft: "d".repeat(20 * 1024),
       question: "q".repeat(20 * 1024),
     });
+
     expect(String(state.executor_question).length).toBeLessThanOrEqual(
       8 * 1024
     );

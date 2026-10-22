@@ -1,7 +1,7 @@
 import type { Message } from "@earendil-works/pi-ai/compat";
 
 export const FOLLOW_UP_TTL_MS = 5 * 60 * 1000;
-export const FOLLOW_UP_MAX_DEPTH = 3;
+const FOLLOW_UP_MAX_DEPTH = 3;
 export const FOLLOW_UP_MAX_TOOL_CALLS = 3;
 
 export interface AdvisorFollowUpPayload {
@@ -39,6 +39,7 @@ export class AdvisorFollowUpCache {
 
   advanceToolCall() {
     const now = this.#now();
+
     for (const [adviceId, entry] of this.#entries) {
       if (
         now >= entry.expiresAt ||
@@ -47,6 +48,7 @@ export class AdvisorFollowUpCache {
         this.#entries.delete(adviceId);
         continue;
       }
+
       entry.toolCallsSince += 1;
     }
   }
@@ -59,6 +61,7 @@ export class AdvisorFollowUpCache {
     if (replacesAdviceId) {
       this.#entries.delete(replacesAdviceId);
     }
+
     this.#entries.set(adviceId, {
       ...copy(payload),
       expiresAt: this.#now() + FOLLOW_UP_TTL_MS,
@@ -68,18 +71,23 @@ export class AdvisorFollowUpCache {
 
   get(adviceId: string): AdvisorFollowUpLookup {
     const entry = this.#entries.get(adviceId);
+
     if (!entry) {
       return { reason: "the adviceId is unknown or no longer cached" };
     }
+
     if (this.#now() >= entry.expiresAt) {
       this.#entries.delete(adviceId);
+
       return { reason: "the cached payload has expired" };
     }
+
     if (entry.depth >= FOLLOW_UP_MAX_DEPTH) {
       return {
         reason: `the follow-up chain is limited to ${FOLLOW_UP_MAX_DEPTH} follow-ups`,
       };
     }
+
     return { payload: copy(entry) };
   }
 }

@@ -30,6 +30,7 @@ describe("Advisor thinking Markdown rendering", () => {
       force: true,
       recursive: true,
     });
+
     if (previousAgentDir === undefined) {
       delete process.env.PI_CODING_AGENT_DIR;
     } else {
@@ -42,6 +43,7 @@ describe("Advisor thinking Markdown rendering", () => {
       "**Reviewing\n\n```ts\nconst next = 1",
       theme
     );
+
     const rendered = component.render(24);
     const plain = rendered.map(stripTerminalSequences).join("\n");
 

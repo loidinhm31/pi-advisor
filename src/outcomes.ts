@@ -16,29 +16,32 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 export type OutcomeAdoption = "followed" | "not-followed" | "unknown";
+
 export type OutcomeValidation = "passed" | "failed" | "not-run" | "unknown";
+
 export type OutcomeTrigger =
-  | "manual"
-  | "executor-requested"
-  | "turn-gate"
-  | "repeated-tool-call";
+  "manual" | "executor-requested" | "turn-gate" | "repeated-tool-call";
+
 export const ADOPTIONS: OutcomeAdoption[] = [
   "followed",
   "not-followed",
   "unknown",
 ];
+
 export const VALIDATIONS: OutcomeValidation[] = [
   "passed",
   "failed",
   "not-run",
   "unknown",
 ];
+
 export const OUTCOME_TRIGGERS: OutcomeTrigger[] = [
   "manual",
   "executor-requested",
   "turn-gate",
   "repeated-tool-call",
 ];
+
 export interface OutcomeRecord {
   adoption: OutcomeAdoption;
   adviceHash: string;
@@ -47,9 +50,11 @@ export interface OutcomeRecord {
   v: 1;
   validationStatus: OutcomeValidation;
 }
+
 const MAX_LOG_BYTES = 1024 * 1024;
 export const OUTCOME_LOG_MAX_BYTES = MAX_LOG_BYTES;
 const statePath = () => join(getAgentDir(), "advisor-outcomes-salt");
+
 export const outcomeLogPath = () =>
   join(getAgentDir(), "advisor-outcomes.jsonl");
 
@@ -59,13 +64,16 @@ const isErrnoException = (error: unknown): error is NodeJS.ErrnoException =>
 const salt = async () => {
   const path = statePath();
   await mkdir(getAgentDir(), { mode: 0o700, recursive: true });
+
   for (let attempt = 0; attempt < 20; attempt += 1) {
     try {
       // Contenders retry sequentially until one salt is atomically published.
       const existing = await readFile(path);
+
       if (existing.length === 32) {
         return existing;
       }
+
       // Recover a salt file left incomplete by an interrupted older writer.
       await unlink(path);
     } catch (error) {
@@ -73,11 +81,14 @@ const salt = async () => {
         throw error;
       }
     }
+
     const value = randomBytes(32);
     const temporary = `${path}.${process.pid}.${randomBytes(8).toString("hex")}.${attempt}`;
     await writeFile(temporary, value, { mode: 0o600 });
+
     try {
       await link(temporary, path);
+
       return value;
     } catch (error) {
       if (!isErrnoException(error) || error.code !== "EEXIST") {
@@ -87,8 +98,10 @@ const salt = async () => {
       await unlink(temporary).catch(() => undefined);
     }
   }
+
   throw new Error("Advisor outcome salt initialization did not complete.");
 };
+
 const sameFile = (
   left: { dev: number | bigint; ino: number | bigint },
   right: { dev: number | bigint; ino: number | bigint }
@@ -96,35 +109,48 @@ const sameFile = (
 
 const withOutcomeLock = async <T>(run: () => Promise<T>): Promise<T> => {
   const lockPath = `${outcomeLogPath()}.lock`;
+
   for (let attempt = 0; attempt < 200; attempt += 1) {
     try {
       // Lock acquisition must retry sequentially across processes.
       const lock = await open(lockPath, "wx", 0o600);
       const identity = await lock.stat();
+
       try {
         return await run();
       } finally {
         await lock.close();
         const current = await stat(lockPath).catch(() => undefined);
+
         if (current && sameFile(identity, current)) {
           await unlink(lockPath).catch(() => undefined);
         }
       }
     } catch (error) {
-      if (!isErrnoException(error) || error.code !== "EEXIST") {
+      if (
+        !isErrnoException(error) ||
+        (error.code !== "EEXIST" &&
+          (process.platform !== "win32" || error.code !== "EPERM"))
+      ) {
         throw error;
       }
+
       const observed = await stat(lockPath).catch(() => undefined);
+
       if (observed && Date.now() - observed.mtimeMs > 30_000) {
         const current = await stat(lockPath).catch(() => undefined);
+
         if (current && sameFile(observed, current)) {
           await unlink(lockPath).catch(() => undefined);
         }
+
         continue;
       }
+
       await sleep(5);
     }
   }
+
   throw new Error("Timed out waiting to append an Advisor outcome.");
 };
 
@@ -139,6 +165,7 @@ export const appendOutcome = async (
 ) => {
   const path = outcomeLogPath();
   await mkdir(getAgentDir(), { mode: 0o700, recursive: true });
+
   return withOutcomeLock(async () => {
     const next: OutcomeRecord = {
       adoption: record.adoption,
@@ -148,20 +175,25 @@ export const appendOutcome = async (
       v: 1,
       validationStatus: record.validationStatus,
     };
+
     const line = `${JSON.stringify(next)}\n`;
+
     const currentBytes = await stat(path)
       .then((value) => value.size)
       .catch((error: NodeJS.ErrnoException) => {
         if (error.code === "ENOENT") {
           return 0;
         }
+
         throw error;
       });
+
     const overflow = currentBytes + Buffer.byteLength(line) > MAX_LOG_BYTES;
     await (overflow
       ? writeFile(path, line, { encoding: "utf-8", mode: 0o600 })
       : appendFile(path, line, { encoding: "utf-8", mode: 0o600 }));
     await chmod(path, 0o600);
+
     return next;
   });
 };

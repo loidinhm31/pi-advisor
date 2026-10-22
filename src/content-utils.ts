@@ -1,12 +1,7 @@
 /** Shared untyped-content inspection helpers. */
 
 export type JsonValue =
-  | null
-  | boolean
-  | number
-  | string
-  | JsonValue[]
-  | { [key: string]: JsonValue };
+  null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 export type RecordValue = Record<string, JsonValue>;
 
@@ -31,6 +26,7 @@ export const contentParts = <Content>(content: Content): unknown[] => {
   if (isString(content)) {
     return [content];
   }
+
   return Array.isArray(content) ? content : [];
 };
 
@@ -38,14 +34,18 @@ export const contentParts = <Content>(content: Content): unknown[] => {
 export const capUtf8Bytes = (value: string, maxBytes: number): string => {
   let result = "";
   let used = 0;
+
   for (const character of value) {
     const characterBytes = byteLength(character);
+
     if (used + characterBytes > maxBytes) {
       break;
     }
+
     result += character;
     used += characterBytes;
   }
+
   return result;
 };
 

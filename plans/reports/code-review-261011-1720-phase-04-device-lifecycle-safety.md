@@ -83,17 +83,17 @@ None (0).
 
 ### Validation Commands & Results
 
-| Command | Result | Notes |
-| --- | --- | --- |
-| `bun test` | PASS | 585 tests passed across 62 files (5,508 assertions) |
-| `bun test test/consultation.test.ts test/scout-context.test.ts test/activation.test.ts` | PASS | 55 targeted tests passed in 1.78s |
-| `bun run test:node-loader` | PASS | Node DefaultResourceLoader shared bundle test passed |
-| `bun x tsc --noEmit` | PASS | 0 TypeScript errors |
-| `bun run check:boundaries` | PASS | Module boundaries verified: 0 violations |
-| `bun run lint` | PASS | oxlint clean: 0 warnings/errors |
-| `bun run format:check` | PASS | oxfmt: 430 files checked, 100% formatted |
-| `bun run package:check` | PASS | Package contents verified (121 files) |
-| `git diff --check` | PASS | Clean diff, 0 whitespace/conflict errors |
+| Command                                                                                 | Result | Notes                                                |
+| --------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------- |
+| `bun test`                                                                              | PASS   | 585 tests passed across 62 files (5,508 assertions)  |
+| `bun test test/consultation.test.ts test/scout-context.test.ts test/activation.test.ts` | PASS   | 55 targeted tests passed in 1.78s                    |
+| `bun run test:node-loader`                                                              | PASS   | Node DefaultResourceLoader shared bundle test passed |
+| `bun x tsc --noEmit`                                                                    | PASS   | 0 TypeScript errors                                  |
+| `bun run check:boundaries`                                                              | PASS   | Module boundaries verified: 0 violations             |
+| `bun run lint`                                                                          | PASS   | oxlint clean: 0 warnings/errors                      |
+| `bun run format:check`                                                                  | PASS   | oxfmt: 430 files checked, 100% formatted             |
+| `bun run package:check`                                                                 | PASS   | Package contents verified (121 files)                |
+| `git diff --check`                                                                      | PASS   | Clean diff, 0 whitespace/conflict errors             |
 
 ---
 

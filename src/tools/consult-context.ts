@@ -37,6 +37,7 @@ import {
 
 /** Maximum bytes for project preferences and the redacted draft. */
 const ATTACHMENT_TEXT_MAX_BYTES = 8 * 1024;
+
 /** Combined budget for untracked plus tracked file attachments. */
 const ATTACHMENTS_TOTAL_MAX_BYTES = 24 * 1024;
 
@@ -86,16 +87,19 @@ export const assembleConsultationContext = async (
   // The user setting is the ceiling; the Executor may only narrow it.
   const allowed = advisorGitContextRef;
   const level = clampGitContextLevel(options.gitContext ?? allowed, allowed);
+
   const gitBudget = advisorGitContextBudget(
     contextMaxCharsRef,
     advisorGitContextMaxCharsRef
   );
+
   const changes = collectGitContext(
     ctx.cwd,
     level,
     gitBudget,
     advisorRedactSecretsRef ? redactSecrets : undefined
   );
+
   // The disclosure warning is control metadata, not repository payload. Keep it
   // outside the zero-byte Git budget so disabling disclosure cannot erase it.
   const changeText = advisorRepositoryContext(
@@ -104,19 +108,23 @@ export const assembleConsultationContext = async (
     level,
     gitBudget
   );
+
   // Repository context spends part of the shared budget, so a large patch
   // cannot silently push the conversation past the model's context window.
   const conversationBudget = Math.max(
     0,
     contextMaxCharsRef - changeText.length
   );
+
   const imageNonce = randomUUID();
+
   const legacyConversation = advisorRequestConversation(
     ctx,
     conversationBudget,
     true,
     imageNonce
   );
+
   const curated = await curateAdvisorConversation(
     ctx,
     legacyConversation,
@@ -128,11 +136,13 @@ export const assembleConsultationContext = async (
     conversationBudget,
     imageNonce
   );
+
   const preferences = await readProjectPreferences(
     ctx,
     ATTACHMENT_TEXT_MAX_BYTES,
     advisorRedactSecretsRef
   );
+
   const projectRules = advisorAgentsMdContextRef
     ? await readProjectRules(
         ctx,
@@ -140,6 +150,7 @@ export const assembleConsultationContext = async (
         advisorRedactSecretsRef
       )
     : undefined;
+
   const draftText = options.draft
     ? redactAndCapText(
         options.draft,
@@ -147,12 +158,14 @@ export const assembleConsultationContext = async (
         advisorRedactSecretsRef
       )
     : undefined;
+
   const untracked = await readUntrackedFiles(
     ctx.cwd,
     options.includeUntracked ?? [],
     advisorUntrackedContentRef,
     advisorRedactSecretsRef
   );
+
   const tracked = await readTrackedFiles(
     ctx.cwd,
     options.includeTracked ?? [],
@@ -164,7 +177,9 @@ export const assembleConsultationContext = async (
         untracked.reduce((sum, item) => sum + item.bytes, 0)
     )
   );
+
   const supportsImages = options.supportsImages ?? false;
+
   const untrackedImages = await readImageFiles(
     ctx.cwd,
     options.includeUntracked ?? [],
@@ -173,6 +188,7 @@ export const assembleConsultationContext = async (
     ADVISOR_IMAGES_TOTAL_MAX_BYTES,
     ADVISOR_IMAGES_MAX_COUNT
   );
+
   const trackedImages = await readImageFiles(
     ctx.cwd,
     options.includeTracked ?? [],
@@ -182,19 +198,23 @@ export const assembleConsultationContext = async (
       untrackedImages.images.reduce((sum, item) => sum + item.bytes, 0),
     ADVISOR_IMAGES_MAX_COUNT - untrackedImages.images.length
   );
+
   const images = [...untrackedImages.images, ...trackedImages.images].map(
     (item) => ({
       image: item.image,
       label: `File ${JSON.stringify(item.path)}`,
     })
   );
+
   let remainingBytes =
     ADVISOR_IMAGES_TOTAL_MAX_BYTES -
     [...untrackedImages.images, ...trackedImages.images].reduce(
       (sum, item) => sum + item.bytes,
       0
     );
+
   let imageOmissions = untrackedImages.omitted + trackedImages.omitted;
+
   const census = selectedConversationImages(
     ctx,
     curated.conversation,
@@ -204,8 +224,10 @@ export const assembleConsultationContext = async (
       : undefined,
     imageNonce
   );
+
   for (const item of census.selected) {
     const bytes = Buffer.from(item.image.data, "base64").length;
+
     if (
       !supportsImages ||
       images.length >= ADVISOR_IMAGES_MAX_COUNT ||
@@ -214,9 +236,11 @@ export const assembleConsultationContext = async (
       imageOmissions += 1;
       continue;
     }
+
     remainingBytes -= bytes;
     images.push({ image: item.image, label: item.marker });
   }
+
   return {
     changeText,
     conversation: curated.conversation,

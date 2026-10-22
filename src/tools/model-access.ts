@@ -15,6 +15,7 @@ const currentModelRef = (
   ctx: Pick<ExtensionContext, "model">
 ): string | undefined => {
   const { model } = ctx;
+
   return model ? `${model.provider}/${model.id}` : undefined;
 };
 
@@ -22,20 +23,26 @@ export const advisorModelAccess = (
   ctx: Pick<ExtensionContext, "model">
 ): AdvisorModelAccess => {
   const modelRef = currentModelRef(ctx);
+
   if (advisorModelWhitelistRef.length === 0) {
     return modelRef ? { allowed: true, modelRef } : { allowed: true };
   }
+
   if (modelRef && advisorModelWhitelistRef.includes(modelRef)) {
     return { allowed: true, modelRef };
   }
+
   const current = modelRef ?? "no current model";
+
   const denial: AdvisorModelAccess = {
     allowed: false,
     reason: `Advisor calls are restricted to the configured model whitelist (${advisorModelWhitelistRef.join(", ")}). Current model: ${current}.`,
   };
+
   if (modelRef) {
     denial.modelRef = modelRef;
   }
+
   return denial;
 };
 
@@ -45,15 +52,19 @@ export const sameModelAdvisorDisabled = (
   advisorModelRef: string | undefined = advisorRef
 ): boolean => {
   const selectedAdvisorRef = advisorModelRef ?? advisorRef;
+
   if (!(advisorDisableSameModelRef && selectedAdvisorRef && model)) {
     return false;
   }
+
   const [provider, id] = splitRef(selectedAdvisorRef);
+
   return provider === model.provider && id === model.id;
 };
 
 export const sameModelAdvisorNotice =
   "Advisor disabled: executor and advisor are the same model.";
+
 export const fallbackSameModelAdvisorNotice =
   "Advisor fallback skipped: executor and fallback Advisor are the same model.";
 
@@ -65,5 +76,6 @@ export const advisorModelAccessReason = (
   ctx: Pick<ExtensionContext, "model">
 ): string | undefined => {
   const access = advisorModelAccess(ctx);
+
   return access.allowed ? undefined : access.reason;
 };

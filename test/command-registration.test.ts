@@ -52,6 +52,7 @@ describe("Extension Registration", () => {
         onChunk?.("thinking", "one");
         onChunk?.("thinking", "two");
         onChunk?.("thinking", "three");
+
         return Promise.resolve({
           adviceId: "advice-1",
           markdown: "Done.",
@@ -85,6 +86,7 @@ describe("Extension Registration", () => {
       consult: (_ctx, _question, _signal, onChunk) => {
         onChunk?.("thinking", "one");
         onChunk?.("thinking", "two");
+
         return Promise.reject(new Error("provider failed"));
       },
     });
@@ -112,6 +114,7 @@ describe("Extension Registration", () => {
     registerCommands(mockPi({ commands, sent }), {
       consult: (_ctx, question) => {
         receivedQuestion = question;
+
         return Promise.resolve({
           markdown: "Ship the focused fix.",
           thinkingText: "",
@@ -144,9 +147,11 @@ describe("Extension Registration", () => {
 
   test("shutdown releases only the Herdr activity owned by its runtime", () => {
     const reports: any[] = [];
+
     const activity = new HerdrAdvisorActivity((request) =>
       reports.push(request)
     );
+
     const runtimeAActivity = activity.createScope();
     const runtimeBActivity = activity.createScope();
     const runtimeAEvents = new Map<string, any>();
@@ -201,9 +206,11 @@ describe("Extension Registration", () => {
         chunks.push("thinking");
         onChunk?.("", "The answer is ready");
         chunks.push("response");
+
         return Promise.resolve({ markdown: "Proceed.", thinkingText: "" });
       },
     });
+
     const ctx = asExtensionContext({
       cwd: tmpdir(),
       hasUI: true,
@@ -285,6 +292,7 @@ describe("Extension Registration", () => {
             },
             type: "success",
           });
+
           return Promise.resolve({ markdown: "Proceed.", thinkingText: "" });
         },
       }
@@ -311,10 +319,12 @@ describe("Extension Registration", () => {
     const commands = new Map<string, any>();
     const events = new Map<string, SessionShutdownHandler>();
     const sent: { message: any; options: any }[] = [];
+
     let resolveConsult!: (value: {
       markdown: string;
       thinkingText: string;
     }) => void;
+
     const pendingConsult = new Promise<{
       markdown: string;
       thinkingText: string;
@@ -359,6 +369,7 @@ describe("Extension Registration", () => {
       {
         consult: (_ctx, _question, _signal, _onChunk, onScout) => {
           lateScout = onScout;
+
           return new Promise(() => {});
         },
       }
@@ -381,9 +392,11 @@ describe("Extension Registration", () => {
     registerCommands(mockPi({ commands, events }), {
       consult: (_ctx, _question, _signal, _onChunk, onScout) => {
         onScout?.({ model: "executor", type: "call" });
+
         return new Promise(() => {});
       },
     });
+
     const ctx = asExtensionContext({
       cwd: tmpdir(),
       hasUI: true,
@@ -393,6 +406,7 @@ describe("Extension Registration", () => {
           statuses.push(value),
       },
     });
+
     await commands.get("advisor-manual").handler("", ctx);
     expect(statuses.every((status) => status === undefined)).toBe(true);
     events.get("session_shutdown")?.({ reason: "reload" }, ctx);
@@ -407,7 +421,9 @@ describe("Extension Registration", () => {
         if (!signal) {
           throw new Error("Manual consultation requires an abort signal.");
         }
+
         signals.push(signal);
+
         return new Promise<{ markdown: string; thinkingText: string }>(
           () => {}
         );

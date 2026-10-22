@@ -85,11 +85,13 @@ const fauxContext = (
 describe("Advisor consultation request construction", () => {
   test("forwards trusted project and global AGENTS.md context with byte accounting", async () => {
     const captured: string[] = [];
+
     const faux = registerFauxProvider({
       api: "pi-advisor-agents-context-test",
       models: [{ id: "advisor", input: ["text"] }],
       provider: "pi-advisor-agents-context-test",
     });
+
     try {
       await withAgentDir(
         {
@@ -101,16 +103,20 @@ describe("Advisor consultation request construction", () => {
           const project = mkdtempSync(join(tmpdir(), "pi-advisor-project-"));
           writeFileSync(join(project, "AGENTS.md"), "project conventions");
           writeFileSync(join(agentDir, "AGENTS.md"), "global conventions");
+
           try {
             faux.setResponses([
               (context) => {
                 captured.push(JSON.stringify(context.messages));
+
                 return fauxAssistantMessage("Advice");
               },
             ]);
+
             const result = await consultAdvisor(
               fauxContext(project, faux, [], true)
             );
+
             expect(captured[0]).toContain("<project_rules");
             expect(captured[0]).toContain("[project AGENTS.md]");
             expect(captured[0]).toContain("[global AGENTS.md]");
@@ -127,11 +133,13 @@ describe("Advisor consultation request construction", () => {
 
   test("omits AGENTS.md context when the setting is disabled", async () => {
     const captured: string[] = [];
+
     const faux = registerFauxProvider({
       api: "pi-advisor-agents-disabled-test",
       models: [{ id: "advisor", input: ["text"] }],
       provider: "pi-advisor-agents-disabled-test",
     });
+
     try {
       await withAgentDir(
         {
@@ -143,16 +151,20 @@ describe("Advisor consultation request construction", () => {
           const project = mkdtempSync(join(tmpdir(), "pi-advisor-project-"));
           writeFileSync(join(project, "AGENTS.md"), "project conventions");
           writeFileSync(join(agentDir, "AGENTS.md"), "global conventions");
+
           try {
             faux.setResponses([
               (context) => {
                 captured.push(JSON.stringify(context.messages));
+
                 return fauxAssistantMessage("Advice");
               },
             ]);
+
             const result = await consultAdvisor(
               fauxContext(project, faux, [], true)
             );
+
             expect(captured[0]).not.toContain("<project_rules");
             expect(result.agentRulesBytes).toBeUndefined();
           } finally {
@@ -167,6 +179,7 @@ describe("Advisor consultation request construction", () => {
 
   test("applies redaction at the Advisor request-context boundary", () => {
     const secret = "AKIAABCDEFGHIJKLMNOP";
+
     const ctx = asExtensionContext({
       sessionManager: {
         getBranch: () => [
@@ -185,8 +198,10 @@ describe("Advisor consultation request construction", () => {
         ],
       },
     });
+
     setAdvisorRedactSecretsRef(true);
     setAdvisorToolPoliciesRef({});
+
     try {
       const context = advisorRequestConversation(ctx);
       expect(context).not.toContain(secret);
@@ -203,6 +218,7 @@ describe("Advisor consultation request construction", () => {
       models: [{ id: "advisor", input: ["text"] }],
       provider: "pi-advisor-gate-test",
     });
+
     try {
       await withAgentDir(
         {
@@ -223,10 +239,12 @@ describe("Advisor consultation request construction", () => {
               }),
           ]);
           const context = fauxContext(agentDir, faux);
+
           const outcomes = await Promise.all([
             runAdvisorGate(context, "Review the repeated action."),
             runAdvisorGate(context, "Review the repeated action."),
           ]);
+
           expect(outcomes).toMatchObject([
             {
               category: "provider-error",
@@ -251,6 +269,7 @@ describe("Advisor consultation request construction", () => {
     delete process.env.PI_ADVISOR_TEST_MISSING_GATE_KEY;
     const notifications: string[] = [];
     const blockedEvents: boolean[] = [];
+
     try {
       await withAgentDir(
         {
@@ -267,6 +286,7 @@ describe("Advisor consultation request construction", () => {
             modelsPath: null,
             refreshOnCreate: false,
           });
+
           const registry = new ModelRegistry(runtime);
           let providerCalled = false;
           registry.registerProvider("provider", {
@@ -302,9 +322,11 @@ describe("Advisor consultation request construction", () => {
             },
           });
           const executor = registry.find("provider", "executor");
+
           if (!executor) {
             throw new Error("Test Executor model was not registered.");
           }
+
           const context = asExtensionContext({
             abort: () => {},
             cwd: agentDir,
@@ -322,20 +344,24 @@ describe("Advisor consultation request construction", () => {
               setStatus: () => {},
             },
           });
+
           loadConfig(context);
           const session = new AdvisorSessionState();
           const sent: { message: any; options: any }[] = [];
           const pi = mockPi({ sent });
+
           const herdrBlock = new HerdrAdvisorBlock(
             () => {},
             () => true,
             (active) => blockedEvents.push(active)
           );
+
           const event = {
             input: { command: "echo repeated" },
             toolName: "bash" as const,
             type: "tool_call" as const,
           };
+
           const runGate = (toolCallId: string) =>
             handleAutomaticGate(
               pi,
@@ -347,6 +373,7 @@ describe("Advisor consultation request construction", () => {
               herdrAdvisorActivity.createScope(),
               herdrBlock
             );
+
           expect(await runGate("first-gate-call")).toBeUndefined();
           const effect = await runGate("second-gate-call");
           expect(effect).toMatchObject({
@@ -377,11 +404,13 @@ describe("Advisor consultation request construction", () => {
 
   test("redacts targeted questions before the provider request", async () => {
     const captured: string[] = [];
+
     const faux = registerFauxProvider({
       api: "pi-advisor-redaction-test",
       models: [{ id: "advisor", input: ["text"] }],
       provider: "pi-advisor-redaction-test",
     });
+
     try {
       await withAgentDir(
         {
@@ -393,19 +422,23 @@ describe("Advisor consultation request construction", () => {
           faux.setResponses([
             (context) => {
               captured.push(JSON.stringify(context.messages));
+
               return fauxAssistantMessage("Advice");
             },
           ]);
+
           const result = await consultAdvisor(
             fauxContext(agentDir, faux),
             "password=hunter2"
           );
+
           expect(result.markdown).toBe("Advice");
         }
       );
     } finally {
       faux.unregister();
     }
+
     expect(captured).toHaveLength(1);
     expect(captured[0]).not.toContain("hunter2");
     expect(captured[0]).toContain("[REDACTED SECRET]");
@@ -417,6 +450,7 @@ describe("Advisor consultation request construction", () => {
       models: [{ id: "advisor", input: ["text"] }],
       provider: "pi-advisor-scout-timeout-test",
     });
+
     try {
       await withAgentDir(
         {
@@ -439,19 +473,24 @@ describe("Advisor consultation request construction", () => {
               type: "message",
             },
           ];
+
           let advisorRequest = "";
           faux.setResponses([
             (_context, options) =>
               new Promise((resolve, reject) => {
                 const signal = options?.signal;
+
                 if (!signal) {
                   reject(new Error("Scout response must be abortable"));
+
                   return;
                 }
+
                 const complete = () =>
                   resolve(
                     fauxAssistantMessage('{"selectedIds":[],"synthesis":""}')
                   );
+
                 if (signal.aborted) {
                   complete();
                 } else {
@@ -460,12 +499,14 @@ describe("Advisor consultation request construction", () => {
               }),
             (context) => {
               advisorRequest = JSON.stringify(context.messages);
+
               return fauxAssistantMessage(
                 "Advisor completed after Scout timeout."
               );
             },
           ]);
           const scoutFallbacks: string[] = [];
+
           const result = await consultAdvisor(
             fauxContext(agentDir, faux, entries),
             "Continue with the original conversation.",
@@ -482,6 +523,7 @@ describe("Advisor consultation request construction", () => {
               }
             }
           );
+
           expect(result.markdown).toBe(
             "Advisor completed after Scout timeout."
           );
@@ -585,7 +627,15 @@ describe("Advisor consultation request construction", () => {
           ctx
         );
         const prompt = sections.advisor_invocation_settings ?? "";
-        expect(piOutcome.result).toBeUndefined();
+        expect(piOutcome.result).toMatchObject({
+          message: expect.objectContaining({
+            content: expect.stringContaining(
+              "remaining this session: unlimited."
+            ),
+            customType: "advisor-budget",
+            display: false,
+          }),
+        });
         expect(sections.mcp_servers).toBe("<mcp_servers>servers</mcp_servers>");
         expect(prompt).toStartWith("Advisor invocation settings:");
         expect(prompt).toContain(

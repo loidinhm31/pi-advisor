@@ -25,14 +25,18 @@ export class TextSettingSubmenu implements Component, Focusable {
     this.input.focused = true;
     this.input.onSubmit = (value) => {
       const result = options.onSubmit(value);
+
       if (result.error) {
         this.error = result.error;
         options.tui.requestRender();
+
         return;
       }
+
       this.error = undefined;
       options.onCancel(result.value);
     };
+
     this.input.onEscape = () => options.onCancel();
   }
 
@@ -43,6 +47,7 @@ export class TextSettingSubmenu implements Component, Focusable {
   render(width: number): string[] {
     const { theme } = this.options;
     const input = this.input.render(Math.max(10, width - 4))[0] || "";
+
     const lines = [
       theme.fg("accent", theme.bold(`  ${this.options.title}`)),
       "",
@@ -50,16 +55,20 @@ export class TextSettingSubmenu implements Component, Focusable {
       "",
       `  ${input}`,
     ];
+
     if (this.error) {
       lines.push(theme.fg("error", `  ${this.error}`));
     }
+
     lines.push("", theme.fg("dim", "  Enter: apply · Esc: cancel"));
+
     return lines.map((line) => truncateToWidth(line, width));
   }
 
   handleInput(keyData: string): void {
     const before = this.input.getValue();
     this.input.handleInput(keyData);
+
     // A failed submit leaves the error visible; the first value change clears it.
     if (this.error && this.input.getValue() !== before) {
       this.error = undefined;

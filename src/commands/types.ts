@@ -32,11 +32,7 @@ export type ManualConsult = (
 export type ThinkingLevel = Parameters<ExtensionAPI["setThinkingLevel"]>[0];
 
 export type ManualAdvisorProgressPhase =
-  | "preparing"
-  | "active"
-  | "complete"
-  | "cancelled"
-  | "error";
+  "preparing" | "active" | "complete" | "cancelled" | "error";
 
 export interface ManualAdvisorProgressState {
   phase: ManualAdvisorProgressPhase;
@@ -56,6 +52,8 @@ export interface CommandRuntime {
   readonly advisorSessionState: AdvisorSessionState;
   readonly herdrActivity: HerdrAdvisorActivityScope;
   flowEnabled: () => boolean;
+  toolAvailabilityRevision: number;
+  noteAdvisorToolsStateChange: () => void;
   readonly manualConsultations: Map<AbortController, symbol>;
   readonly manualProgress: Map<string, ManualAdvisorProgressState>;
   manualProgressSequence: number;

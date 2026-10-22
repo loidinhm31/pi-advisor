@@ -14,6 +14,7 @@ describe("Scout Advisor-context integration", () => {
       type: "message",
     },
   ];
+
   const ctx = asExtensionContext({
     sessionManager: { buildContextEntries: () => entries },
   });
@@ -21,6 +22,7 @@ describe("Scout Advisor-context integration", () => {
   test("disabled mode preserves the exact legacy conversation and makes no Scout call", async () => {
     let calls = 0;
     const legacy = "legacy bytes <&> stay exact";
+
     const result = await curateAdvisorConversation(
       ctx,
       legacy,
@@ -29,15 +31,18 @@ describe("Scout Advisor-context integration", () => {
       false,
       () => {
         calls += 1;
+
         return Promise.reject(new Error("must not run"));
       }
     );
+
     expect(result).toEqual({ conversation: legacy });
     expect(calls).toBe(0);
   });
 
   test("timed-out Scout uses the immutable exact legacy conversation", async () => {
     const legacy = "legacy bytes <&> stay exact";
+
     const result = await curateAdvisorConversation(
       ctx,
       legacy,
@@ -58,6 +63,7 @@ describe("Scout Advisor-context integration", () => {
         ok: false,
       })
     );
+
     expect(result.conversation).toBe(legacy);
     expect(result.scout).toMatchObject({
       category: "timeout",
@@ -68,6 +74,7 @@ describe("Scout Advisor-context integration", () => {
 
   test("zero remaining budget skips Scout and withholds legacy context", async () => {
     let calls = 0;
+
     const result = await curateAdvisorConversation(
       ctx,
       "legacy history must be withheld",
@@ -81,12 +88,14 @@ describe("Scout Advisor-context integration", () => {
       undefined,
       0
     );
+
     expect(calls).toBe(0);
     expect(result.conversation).toBe("");
   });
 
   test("small remaining budget bounds the full curated conversation", async () => {
     let selectedIds: string[] = [];
+
     const result = await curateAdvisorConversation(
       ctx,
       "legacy",
@@ -95,6 +104,7 @@ describe("Scout Advisor-context integration", () => {
       true,
       async (_ctx: any, manifest: ScoutManifest) => {
         selectedIds = manifest.groups.map((group) => group.id);
+
         return {
           conversation: "unbounded mock output",
           metrics: {
@@ -116,6 +126,7 @@ describe("Scout Advisor-context integration", () => {
       undefined,
       200
     );
+
     expect(result.conversation.length).toBeLessThanOrEqual(200);
     expect(result.conversation).toContain("User: current task");
   });
@@ -145,6 +156,7 @@ describe("Scout Advisor-context integration", () => {
         },
       })
     );
+
     expect(result.conversation).toContain("User: current task");
     expect(result.conversation).toContain(
       "untrusted, non-authoritative inference"

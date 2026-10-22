@@ -33,13 +33,17 @@ export const resolveConfiguredModel = async (
   if (!ref) {
     throw new Error(`${label} model not configured`);
   }
+
   const [provider, modelId] = splitRef(ref);
   const lookup: [string, string] = [provider, modelId];
   const model = ctx.modelRegistry.find(...lookup);
+
   if (!model) {
     throw new Error(`${label} model not found: ${ref}`);
   }
+
   const { streamSimple } = ctx.modelRegistry;
+
   if (streamSimple) {
     return {
       model,
@@ -47,13 +51,17 @@ export const resolveConfiguredModel = async (
       streamSimple: streamSimple.bind(ctx.modelRegistry),
     };
   }
+
   const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+
   if (!auth.ok) {
     throw new Error(auth.error);
   }
+
   if (!auth.apiKey) {
     throw new Error(`No API key for ${ref}`);
   }
+
   return {
     apiKey: auth.apiKey,
     env: auth.env,
@@ -131,12 +139,15 @@ export const createCoalescedUpdate = <T>(
 
   const publishPending = () => {
     timer = undefined;
+
     if (!pending) {
       return;
     }
+
     const { value } = pending;
     pending = undefined;
     lastPublishedAt = scheduler.now();
+
     try {
       publish(value);
     } catch (error) {
@@ -152,13 +163,17 @@ export const createCoalescedUpdate = <T>(
       lastPublishedAt === undefined
         ? intervalMs
         : scheduler.now() - lastPublishedAt;
+
     const delay = Math.max(0, intervalMs - elapsed);
+
     if (delay === 0) {
       // A zero delay publishes synchronously rather than through the timer,
       // so the first update of a burst lands before the caller continues.
       publishPending();
+
       return;
     }
+
     timer = scheduler.setTimeout(publishPending, delay);
     timer.unref?.();
   };
@@ -175,19 +190,24 @@ export const createCoalescedUpdate = <T>(
         clearTimer();
         publishPending();
       }
+
       return { error: publishError, failed: publishFailed };
     },
     update: (value) => {
       if (closed) {
         return;
       }
+
       if (publishFailed) {
         throw publishError;
       }
+
       pending = { value };
+
       if (timer === undefined) {
         schedule();
       }
+
       if (publishFailed) {
         throw publishError;
       }
@@ -205,12 +225,15 @@ const toSimpleReasoning = (
   if (effort === undefined || effort === "off") {
     return undefined;
   }
+
   const level = SIMPLE_REASONING_LEVELS.find(
     (candidate) => candidate === effort
   );
+
   if (!level) {
     throw new Error(`Unsupported Advisor reasoning level: ${effort}`);
   }
+
   return level;
 };
 
@@ -223,12 +246,14 @@ const createTextEventStream = (
     messages: options.messages,
     systemPrompt: options.systemPrompt,
   };
+
   if (!streamModel && resolved.streamSimple) {
     return resolved.streamSimple(resolved.model, context, {
       reasoning: toSimpleReasoning(options.reasoning),
       signal: options.signal,
     });
   }
+
   const streamOptions: NonNullable<Parameters<typeof stream>[2]> = {
     apiKey: resolved.apiKey,
     env: resolved.env,
@@ -236,9 +261,11 @@ const createTextEventStream = (
     reasoning: options.reasoning,
     signal: options.signal,
   };
+
   if (options.reasoning !== undefined) {
     streamOptions.reasoningEffort = options.reasoning;
   }
+
   return (streamModel ?? stream)(resolved.model, context, streamOptions);
 };
 
@@ -262,14 +289,17 @@ export const collectTextStream = async (
   }
 
   const response = await eventStream.result();
+
   if (options.signal?.aborted) {
     throw options.signal.reason instanceof Error
       ? options.signal.reason
       : new Error("Advisor operation cancelled.");
   }
+
   const lastAssistant = [response].find(
     (message): message is AssistantMessage => message.role === "assistant"
   );
+
   if (
     lastAssistant?.stopReason === "error" ||
     lastAssistant?.stopReason === "aborted"
@@ -279,6 +309,7 @@ export const collectTextStream = async (
         `Advisor stream ended with ${lastAssistant.stopReason}.`
     );
   }
+
   const finalText =
     lastAssistant?.content
       .filter(
@@ -286,6 +317,7 @@ export const collectTextStream = async (
       )
       .map((part) => part.text)
       .join("\n") || text;
+
   return {
     text: finalText,
     thinking,

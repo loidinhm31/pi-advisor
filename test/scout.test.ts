@@ -8,10 +8,10 @@ import {
   setAdvisorScoutTimeoutMsRef,
 } from "../src/config/state.ts";
 import type {
-  CollectTextStreamOptions,
-  ResolvedConfiguredModel,
   collectTextStream,
+  CollectTextStreamOptions,
   resolveConfiguredModel,
+  ResolvedConfiguredModel,
 } from "../src/model-stream.ts";
 import type { ScoutManifest } from "../src/scout-context.ts";
 import {
@@ -64,6 +64,7 @@ const resolved = {
   model: { id: "model", provider: "provider" },
   ref: "provider/model",
 } as ResolvedConfiguredModel;
+
 /** Deps fixture matching the collect/resolve signatures runAdvisorScout accepts. */
 interface ScoutDepsFixture {
   collect: typeof collectTextStream;
@@ -76,6 +77,7 @@ const successDependencies = (
 ): ScoutDepsFixture => ({
   collect: (_resolved, options) => {
     capture?.(options);
+
     return Promise.resolve({
       text,
       thinking: "thought",
@@ -94,6 +96,7 @@ describe("Advisor Scout", () => {
       }),
       manifest()
     );
+
     expect(selection.selectedIds).toContain("g_failure");
   });
 
@@ -105,6 +108,7 @@ describe("Advisor Scout", () => {
       }),
       manifest()
     );
+
     expect(selection.selectedIds).toEqual(["g_required", "g_failure"]);
 
     const requiredOnly = parseScoutSelection(
@@ -114,6 +118,7 @@ describe("Advisor Scout", () => {
       }),
       manifest()
     );
+
     expect(requiredOnly.selectedIds).toEqual(["g_required"]);
     expect(requiredOnly.synthesis).toBe("");
 
@@ -124,6 +129,7 @@ describe("Advisor Scout", () => {
       }),
       manifest()
     );
+
     expect(normalized.selectedIds).toEqual([
       "g_required",
       "g_failure",
@@ -152,6 +158,7 @@ describe("Advisor Scout", () => {
         synthesis: "",
       }),
     ];
+
     for (const value of invalid) {
       expect(() => parseScoutSelection(value, manifest())).toThrow();
     }
@@ -160,11 +167,13 @@ describe("Advisor Scout", () => {
   test("uses the configured Executor model and effort with conversation-only input", async () => {
     const previousChildMarker = process.env.PI_SUBAGENT_CHILD;
     delete process.env.PI_SUBAGENT_CHILD;
+
     try {
       setExecutorRef("provider/executor");
       setExecutorEffortRef("high");
       let options: any;
       const events: string[] = [];
+
       const outcome = await runAdvisorScout(
         asExtensionContext({}),
         manifest(),
@@ -181,10 +190,13 @@ describe("Advisor Scout", () => {
           }
         )
       );
+
       expect(outcome.ok).toBe(true);
+
       if (!outcome.ok) {
         return;
       }
+
       expect(outcome.model).toBe("provider/executor");
       expect(outcome.conversation).toContain("useful failure");
       expect(outcome.conversation).toContain("non-authoritative inference");
@@ -212,6 +224,7 @@ describe("Advisor Scout", () => {
     setExecutorEffortRef("low");
     let options: any;
     let resolvedModel = "";
+
     try {
       const outcome = await runAdvisorScout(
         asExtensionContext({
@@ -231,14 +244,18 @@ describe("Advisor Scout", () => {
           ),
           resolve: (_ctx, model) => {
             resolvedModel = model ?? "";
+
             return Promise.resolve(resolved);
           },
         }
       );
+
       expect(outcome.ok).toBe(true);
+
       if (!outcome.ok) {
         return;
       }
+
       expect(outcome.model).toBe("provider/host-model");
       expect(resolvedModel).toBe("provider/host-model");
       expect(options.reasoning).toBe("high");
@@ -253,6 +270,7 @@ describe("Advisor Scout", () => {
 
   test("classifies missing model and auth failures without substitution", async () => {
     setExecutorRef("provider/missing");
+
     for (const [message, category] of [
       ["Scout model not found: provider/missing", "missing-model"],
       ["No API key for provider/missing", "auth-error"],
@@ -272,6 +290,7 @@ describe("Advisor Scout", () => {
           },
         }
       );
+
       expect(outcome).toMatchObject({ category, ok: false });
     }
   });
@@ -289,6 +308,7 @@ describe("Advisor Scout", () => {
         100,
         successDependencies(text)
       );
+
       expect(outcome).toMatchObject({ category, ok: false });
     }
   });
@@ -300,10 +320,12 @@ describe("Advisor Scout", () => {
       label: `optional ${index}`,
       originalIndex: index,
     }));
+
     const boundedManifest: ScoutManifest = {
       ...manifest(),
       groups: [manifest().groups[0], ...groups],
     };
+
     const selection = parseScoutSelection(
       JSON.stringify({
         selectedIds: groups.map((group) => group.id).toReversed(),
@@ -311,6 +333,7 @@ describe("Advisor Scout", () => {
       }),
       boundedManifest
     );
+
     expect(selection.selectedIds).toHaveLength(32);
     expect(selection.selectedIds[0]).toBe("g_required");
     expect(selection.selectedIds).toContain("g_optional_32");
@@ -327,6 +350,7 @@ describe("Advisor Scout", () => {
         originalIndex: index,
       })),
     };
+
     expect(() =>
       parseScoutSelection(
         JSON.stringify({ selectedIds: [], synthesis: "" }),
@@ -349,14 +373,17 @@ describe("Advisor Scout", () => {
         })
       )
     );
+
     expect(outcome).toMatchObject({
       metrics: { selectedCount: 2 },
       ok: true,
       selectedLabels: ["current task", "useful failure"],
     });
+
     if (!outcome.ok) {
       return;
     }
+
     expect(outcome.selection.selectedIds).toEqual(["g_required", "g_failure"]);
   });
 
@@ -364,6 +391,7 @@ describe("Advisor Scout", () => {
     const previousTimeout = advisorScoutTimeoutMsRef;
     setAdvisorScoutTimeoutMsRef(5);
     let childSignal: AbortSignal | undefined;
+
     try {
       const outcome = await runAdvisorScout(
         asExtensionContext({}),
@@ -377,9 +405,11 @@ describe("Advisor Scout", () => {
             options: CollectTextStreamOptions
           ) => {
             const { signal } = options;
+
             if (!signal) {
               throw new Error("scout must pass an abort signal");
             }
+
             childSignal = signal;
             await new Promise((_resolve, reject) =>
               signal.addEventListener("abort", () => reject(signal.reason), {
@@ -391,6 +421,7 @@ describe("Advisor Scout", () => {
           resolve: async () => resolved,
         }
       );
+
       expect(childSignal?.aborted).toBe(true);
       expect(outcome).toMatchObject({
         category: "timeout",
@@ -405,6 +436,7 @@ describe("Advisor Scout", () => {
   test("starts the timeout after model and auth resolution", async () => {
     const previousTimeout = advisorScoutTimeoutMsRef;
     setAdvisorScoutTimeoutMsRef(5);
+
     try {
       const outcome = await runAdvisorScout(
         asExtensionContext({}),
@@ -423,10 +455,12 @@ describe("Advisor Scout", () => {
           }),
           resolve: async () => {
             await new Promise((resolve) => setTimeout(resolve, 25));
+
             return resolved;
           },
         }
       );
+
       expect(outcome.ok).toBe(true);
     } finally {
       setAdvisorScoutTimeoutMsRef(previousTimeout);
@@ -436,6 +470,7 @@ describe("Advisor Scout", () => {
   test("parent abort cancels and never reports fallback", async () => {
     const parent = new AbortController();
     const events: string[] = [];
+
     const promise = runAdvisorScout(
       asExtensionContext({}),
       manifest(),
@@ -448,9 +483,11 @@ describe("Advisor Scout", () => {
           options: CollectTextStreamOptions
         ) => {
           const { signal } = options;
+
           if (!signal) {
             throw new Error("scout must pass an abort signal");
           }
+
           await new Promise((_resolve, reject) =>
             signal.addEventListener(
               "abort",
@@ -465,6 +502,7 @@ describe("Advisor Scout", () => {
         resolve: async () => resolved,
       }
     );
+
     parent.abort();
     const outcome = await promise;
     expect(outcome).toEqual({ cancelled: true, ok: false });
@@ -486,6 +524,7 @@ describe("Advisor Scout", () => {
         resolve: async () => resolved,
       }
     );
+
     expect(outcome).toMatchObject({
       category: "provider-error",
       metrics: { availableCount: 3, omittedBeforeScout: 1, selectedCount: 0 },
@@ -524,6 +563,7 @@ describe("Scout status ownership", () => {
       },
       type: "fallback",
     });
+
     expect(details.status).toBe("fallback");
     expect(details).not.toHaveProperty("selectedCount");
   });

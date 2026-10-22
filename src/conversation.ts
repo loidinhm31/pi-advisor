@@ -18,9 +18,11 @@ const textFromPart = <Part>(part: Part): string => {
   if (isString(part)) {
     return part;
   }
+
   if (!isRecordOf(part) || part.type !== "text") {
     return "";
   }
+
   return isString(part.text) ? part.text : "";
 };
 
@@ -39,30 +41,37 @@ const assistantEntry = (
 ): string | undefined => {
   const parts: string[] = [];
   const text = textFrom(message.content);
+
   if (text) {
     parts.push(redact ? redactSecrets(text) : text);
   }
+
   for (const part of contentParts(message.content)) {
     if (!isRecordOf(part) || part.type !== "toolCall") {
       continue;
     }
+
     const toolName = isString(part.name) ? part.name : "unknown";
     const policy = policies[toolName] ?? "full";
+
     if (policy === "exclude") {
       parts.push(`[Tool Call: ${toolName}] (excluded by Advisor tool policy)`);
       continue;
     }
+
     if (policy === "summary") {
       parts.push(
         `[Tool Call: ${toolName}] (arguments omitted by Advisor tool policy: summary)`
       );
       continue;
     }
+
     const argumentsText = JSON.stringify(part.arguments) ?? "undefined";
     parts.push(
       `[Tool Call: ${toolName}(${redact ? redactSecrets(argumentsText) : argumentsText})]`
     );
   }
+
   return parts.length > 0 ? `Executor: ${parts.join("\n")}` : undefined;
 };
 
@@ -79,26 +88,33 @@ const toolResultEntry = (
   const toolName = isString(message.toolName) ? message.toolName : "unknown";
   const policy = policies[toolName] ?? "full";
   const notes = describeImages ? imageNotes(message.content, imageNonce) : [];
+
   const source = [textFrom(message.content), ...notes]
     .filter(Boolean)
     .join("\n");
+
   if (policy === "exclude") {
     return `[Tool Result for ${toolName}] (excluded by Advisor tool policy)`;
   }
+
   if (policy === "summary") {
     const capped = capToolResult(
       source,
       toolResultMaxLines,
       toolResultMaxBytes
     );
+
     return `[Tool Result for ${toolName}] (output omitted by Advisor tool policy: summary; status: ${status}; ${capped.totalLines} lines, ${capped.totalBytes} bytes; source output was${capped.truncated ? "" : " not"} truncated)`;
   }
+
   const disclosed = redact ? redactSecrets(source) : source;
+
   const capped = capToolResult(
     disclosed,
     toolResultMaxLines,
     toolResultMaxBytes
   );
+
   return `[Tool Result for ${toolName}] (${message.isError ? "Error " : ""}output):\n${capped.content}`;
 };
 
@@ -114,23 +130,31 @@ export const conversationEntry = <Entry>(
   if (!isRecordOf(entry)) {
     return;
   }
+
   if (entry.type === "compaction" && isString(entry.summary)) {
     return `[System Compaction Summary]: ${redact ? redactSecrets(entry.summary) : entry.summary}`;
   }
+
   if (entry.type !== "message" || !isRecordOf(entry.message)) {
     return;
   }
+
   const { message } = entry;
+
   if (message.role === "user") {
     const notes = describeImages ? imageNotes(message.content, imageNonce) : [];
+
     const text = [textFrom(message.content), ...notes]
       .filter(Boolean)
       .join("\n");
+
     return text ? `User: ${redact ? redactSecrets(text) : text}` : undefined;
   }
+
   if (message.role === "assistant") {
     return assistantEntry(message, policies, redact);
   }
+
   if (message.role === "toolResult" || message.role === "tool") {
     return toolResultEntry(
       message,
@@ -150,42 +174,55 @@ const omissionMarker = (omitted: number) =>
 const selectRecentEntries = (entries: string[], maxChars: number): string => {
   const separator = "\n\n";
   const joined = entries.join(separator);
+
   if (joined.length <= maxChars || maxChars === Number.MAX_SAFE_INTEGER) {
     return joined;
   }
+
   const newestTruncated = "[Newest entry truncated]";
+
   if (entries.length === 1) {
     const prefix = `${newestTruncated}${separator}`;
+
     return `${prefix}${entries[0].slice(0, Math.max(0, maxChars - prefix.length))}`.slice(
       0,
       maxChars
     );
   }
+
   const selected: string[] = [];
   let selectedLength = 0;
+
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
     const candidateCount = selected.length + 1;
     const omitted = entries.length - candidateCount;
+
     const candidateLength =
       selectedLength +
       entry.length +
       (selected.length > 0 ? separator.length : 0);
+
     if (
       omissionMarker(omitted).length + separator.length + candidateLength >
       maxChars
     ) {
       break;
     }
+
     selected.unshift(entry);
     selectedLength = candidateLength;
   }
+
   const omitted = entries.length - Math.max(1, selected.length);
   const marker = omissionMarker(omitted);
+
   if (selected.length > 0) {
     return `${marker}${separator}${selected.join(separator)}`;
   }
+
   const prefix = `${marker}${separator}${newestTruncated}${separator}`;
+
   return `${prefix}${entries.at(-1)?.slice(0, Math.max(0, maxChars - prefix.length)) ?? ""}`.slice(
     0,
     maxChars
@@ -205,6 +242,7 @@ export const recentConversation = (
   if (maxChars === 0) {
     return "";
   }
+
   const entries = sessionContextEntries(ctx)
     .map((entry) =>
       conversationEntry(
@@ -218,5 +256,6 @@ export const recentConversation = (
       )
     )
     .filter((entry): entry is string => entry !== undefined);
+
   return selectRecentEntries(entries, maxChars);
 };

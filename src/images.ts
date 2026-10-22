@@ -20,10 +20,13 @@ export const imageFromBytes = (
   if (!bytes.length || bytes.length > ADVISOR_IMAGE_MAX_BYTES) {
     return;
   }
+
   const actual = detectImageFormat(bytes);
+
   if (!actual || (mimeType && mimeType !== actual)) {
     return;
   }
+
   return { data: bytes.toString("base64"), mimeType: actual, type: "image" };
 };
 
@@ -39,10 +42,13 @@ export const imageFromPart = (part: RecordValue): ImageContent | undefined => {
   ) {
     return;
   }
+
   const bytes = Buffer.from(part.data, "base64");
+
   if (bytes.toString("base64") !== part.data) {
     return;
   }
+
   return imageFromBytes(bytes, part.mimeType);
 };
 
@@ -53,19 +59,23 @@ export const imageMarker = (
   if (part.type !== "image") {
     return;
   }
+
   const image = imageFromPart(part);
+
   if (!image) {
     return "[Image omitted: unsupported format, invalid data, or over 4 MiB; pixels not reviewed]";
   }
+
   const id = createHash("sha256")
     .update(nonce)
     .update(image.data)
     .digest("hex")
     .slice(0, 24);
+
   return `[Image ref=img_${id}; pixels reviewed only if attached below]`;
 };
 
-export interface SelectedImage {
+interface SelectedImage {
   image: ImageContent;
   marker: string;
 }
@@ -91,23 +101,30 @@ const entryImageCensus = (
 ): ImagePartCensus => {
   let parts = 0;
   const selected: SelectedImage[] = [];
+
   for (const part of contentParts(content)) {
     if (!isRecordOf(part)) {
       continue;
     }
+
     if (eligibleImagePart(part)) {
       parts += 1;
     }
+
     const marker = imageMarker(part, nonce);
+
     if (!marker || seen.has(marker) || !conversation.includes(marker)) {
       continue;
     }
+
     const image = imageFromPart(part);
+
     if (image) {
       seen.add(marker);
       selected.push({ image, marker });
     }
   }
+
   return { parts, selected };
 };
 
@@ -121,10 +138,12 @@ export const selectedConversationImages = (
   if (!conversation) {
     return { imagePartsSeen: 0, selected: [] };
   }
+
   const entries = sessionContextEntries(ctx);
   const images: SelectedImage[] = [];
   const seen = new Set<string>();
   let imagePartsSeen = 0;
+
   for (const [index, entry] of entries.entries()) {
     if (
       entry.type !== "message" ||
@@ -133,19 +152,24 @@ export const selectedConversationImages = (
     ) {
       continue;
     }
+
     const { message } = entry;
+
     if (message.role !== "user" && message.role !== "toolResult") {
       continue;
     }
+
     if (
       message.role === "toolResult" &&
       (policies[message.toolName] ?? "full") !== "full"
     ) {
       continue;
     }
+
     const census = entryImageCensus(message.content, conversation, nonce, seen);
     imagePartsSeen += census.parts;
     images.push(...census.selected);
   }
+
   return { imagePartsSeen, selected: images };
 };

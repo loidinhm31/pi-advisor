@@ -3,6 +3,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { herdrAdvisorActivity, herdrAdvisorBlock } from "../herdr.ts";
 import { appendOutcome } from "../outcomes.ts";
 import type { AdvisorSessionState } from "../session-state.ts";
+import { advisorBudgetUpdate } from "./budget-feedback.ts";
 import { consultAdvisor, runAdvisorGate } from "./consultation.ts";
 import { screenConsultation } from "./jev-filter.ts";
 import { registerJevTurnGate } from "./jev-turn-gate.ts";
@@ -41,6 +42,7 @@ export const registerAdvisorTool = (
   registerToolLifecycle(registration);
   registerAskAdvisorTool(registration);
   registerOutcomeTool(registration);
+
   const turnGate: JevTurnGateRegistration = {
     activeTools: () => pi.getActiveTools(),
     consult: registration.consult,
@@ -48,8 +50,18 @@ export const registerAdvisorTool = (
     send: (message) => pi.sendMessage(message, { deliverAs: "steer" }),
     session,
   };
+
   if (dependencies.turnGateDeps) {
     turnGate.deps = dependencies.turnGateDeps;
   }
-  registerJevTurnGate((event, handler) => pi.on(event, handler), turnGate);
+
+  registerJevTurnGate(
+    (event, handler) =>
+      pi.on(event, async (turn, ctx) => {
+        await handler(turn, ctx);
+
+        return advisorBudgetUpdate(turn, ctx, pi, session);
+      }),
+    turnGate
+  );
 };

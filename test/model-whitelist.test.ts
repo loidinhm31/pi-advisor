@@ -82,6 +82,7 @@ describe("Advisor model whitelist", () => {
           {
             runGate: async () => {
               gateCalls += 1;
+
               return {
                 decision: "proceed",
                 markdown: "Decision: proceed",
@@ -93,6 +94,7 @@ describe("Advisor model whitelist", () => {
             },
           }
         );
+
         const ctx = asExtensionContext({
           cwd: agentDir,
           hasUI: false,
@@ -100,6 +102,7 @@ describe("Advisor model whitelist", () => {
           model: { id: "other", provider: "provider" },
           signal: new AbortController().signal,
         });
+
         const toolCall = events.get("tool_call");
 
         expect(
@@ -139,12 +142,13 @@ describe("Advisor model whitelist", () => {
     setAdvisorJevTurnGateEveryTurnsRef(1);
     setAdvisorModelWhitelistRef(["provider/allowed"]);
     const session = new AdvisorSessionState();
-    let jevChecks = 0;
     let consultations = 0;
+
     const registration: JevTurnGateRegistration = {
       activeTools: () => ["ask_advisor"],
       consult: async () => {
         consultations += 1;
+
         return {
           adviceId: "unused",
           markdown: "",
@@ -153,23 +157,14 @@ describe("Advisor model whitelist", () => {
           trigger: "executor-requested",
         };
       },
-      deps: {
-        resolveTransport: () => {
-          jevChecks += 1;
-          return Promise.resolve({
-            apiKey: "test",
-            transport: "typesafe" as const,
-          });
-        },
-      },
       send: () => {},
       session,
     };
+
     const ctx = contextFor({ id: "other", provider: "provider" });
 
     await handleJevTurnEnd(registration, ctx);
 
-    expect(jevChecks).toBe(0);
     expect(consultations).toBe(0);
     expect(session.consumedCalls).toBe(0);
   });
@@ -193,6 +188,7 @@ describe("Advisor model whitelist", () => {
           {
             runGate: async () => {
               gateCalls += 1;
+
               return {
                 decision: "proceed",
                 markdown: "Decision: proceed",
@@ -204,6 +200,7 @@ describe("Advisor model whitelist", () => {
             },
           }
         );
+
         const ctx = asExtensionContext({
           cwd: agentDir,
           hasUI: false,
@@ -211,6 +208,7 @@ describe("Advisor model whitelist", () => {
           model: { id: "allowed", provider: "provider" },
           signal: new AbortController().signal,
         });
+
         const toolCall = events.get("tool_call");
 
         await toolCall(

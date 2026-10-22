@@ -17,6 +17,7 @@ export const registerOutcomeTool = ({
       "Voluntarily record the settled adoption and validation outcome for a displayed adviceId when global outcome logging is enabled.",
     async execute(_id, params, _signal, _update, ctx) {
       loadConfig(ctx);
+
       if (!advisorOutcomeLoggingRef) {
         return {
           content: [
@@ -25,10 +26,13 @@ export const registerOutcomeTool = ({
           details: { recorded: false },
         };
       }
+
       const advice = session.reserveAdvice(params.adviceId);
+
       if (!advice) {
         throw new Error("Unknown, already recorded, or pending adviceId.");
       }
+
       try {
         // SAFETY: the tool schema's enum restricts adoption and validationStatus to ADOPTIONS/VALIDATIONS members.
         await appendAdvisorOutcome({
@@ -39,6 +43,7 @@ export const registerOutcomeTool = ({
             params.validationStatus as (typeof VALIDATIONS)[number],
         });
         session.commitAdvice(params.adviceId);
+
         return {
           content: [
             { text: "Advisor outcome recorded locally.", type: "text" },
@@ -47,12 +52,14 @@ export const registerOutcomeTool = ({
         };
       } catch {
         session.releaseAdvice(params.adviceId);
+
         if (ctx.hasUI) {
           ctx.ui.notify(
             "Advisor outcome could not be recorded locally.",
             "warning"
           );
         }
+
         return {
           content: [
             {

@@ -31,10 +31,12 @@ export const registerModelCommands = (runtime: CommandRuntime) => {
       if (!(loadCommandConfig(ctx) && ctx.hasUI)) {
         return;
       }
+
       // When `/model` was used before activation, show that session choice as
       // the Executor's current option instead of making the persisted Executor
       // look like the active selection.
       const persisted = getPersistedModelRefs();
+
       const selection = await selectAdvisorModels(ctx, {
         advisor: persisted.advisor ? advisorRef : "",
         advisorEffort: advisorEffortRef,
@@ -46,6 +48,7 @@ export const registerModelCommands = (runtime: CommandRuntime) => {
         selectAdvisor: true,
         selectExecutor: true,
       });
+
       if (!selection) {
         return;
       }
@@ -60,6 +63,7 @@ export const registerModelCommands = (runtime: CommandRuntime) => {
         persistAdvisor: true,
         persistExecutor: true,
       });
+
       runtime.pendingExecutorModelRef = undefined;
       runtime.updateSameModelNotice(ctx);
       ctx.ui.notify(

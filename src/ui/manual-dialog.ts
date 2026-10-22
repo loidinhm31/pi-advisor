@@ -205,23 +205,31 @@ export class ManualAdvisorDialog implements Component, Focusable {
     if (this.state.completed) {
       return;
     }
+
     if (this.isCancel(keyData)) {
       this.cancel();
+
       return;
     }
+
     if (isShiftTab(keyData)) {
       this.changeFocus(-1);
+
       return;
     }
+
     if (this.isTab(keyData)) {
       this.changeFocus(1);
+
       return;
     }
+
     const handlers: Record<ManualAdvisorFocus, (keyData: string) => void> = {
       actions: (key) => this.handleActionInput(key),
       editor: (key) => this.handleEditorInput(key),
       git: (key) => this.handleGitInput(key),
     };
+
     handlers[this.focusTarget](keyData);
   }
 
@@ -230,6 +238,7 @@ export class ManualAdvisorDialog implements Component, Focusable {
     const innerWidth = Math.max(0, renderWidth - 2);
     const horizontalPadding = renderWidth >= 4 ? 1 : 0;
     const contentWidth = Math.max(0, innerWidth - horizontalPadding * 2);
+
     return renderManualAdvisorDialog({
       actionIndex: this.actionIndex,
       editorLines: this.editor.render(Math.max(1, contentWidth)),
@@ -249,6 +258,7 @@ export class ManualAdvisorDialog implements Component, Focusable {
     // edge of the message, a directional key also moves to the adjacent
     // form control so the Git selector is reachable without Tab.
     let direction: -1 | 1 | undefined;
+
     if (this.matches(keyData, "tui.editor.cursorDown", Key.down)) {
       direction = 1;
     } else if (this.matches(keyData, "tui.editor.cursorUp", Key.up)) {
@@ -257,21 +267,26 @@ export class ManualAdvisorDialog implements Component, Focusable {
 
     const beforeCursor =
       direction === undefined ? undefined : this.editor.getCursor();
+
     const beforeText =
       direction === undefined ? undefined : this.editor.getText();
+
     this.editor.handleInput(keyData);
 
     if (direction !== undefined) {
       const afterCursor = this.editor.getCursor();
+
       if (
         beforeCursor?.line === afterCursor.line &&
         beforeCursor.col === afterCursor.col &&
         beforeText === this.editor.getText()
       ) {
         this.changeFocus(direction);
+
         return;
       }
     }
+
     this.options.tui.requestRender();
   }
 
@@ -283,50 +298,66 @@ export class ManualAdvisorDialog implements Component, Focusable {
     const up =
       this.matches(keyData, "tui.select.up", Key.up) ||
       this.matches(keyData, "tui.editor.cursorUp", Key.up);
+
     const down =
       this.matches(keyData, "tui.select.down", Key.down) ||
       this.matches(keyData, "tui.editor.cursorDown", Key.down);
+
     if (up) {
       if (this.gitIndex === 0) {
         this.changeFocus(-1);
       } else {
         this.moveGit(-1);
       }
+
       return;
     }
+
     if (down) {
       if (this.gitIndex === this.gitLevels.length - 1) {
         this.changeFocus(1);
       } else {
         this.moveGit(1);
       }
+
       return;
     }
+
     if (matchesKey(keyData, Key.space)) {
       this.moveGit(1);
+
       return;
     }
+
     if (this.matches(keyData, "tui.input.submit", Key.enter)) {
       this.changeFocus(1);
+
       return;
     }
+
     this.options.tui.requestRender();
   }
 
   private handleActionInput(keyData: string): void {
     if (this.matches(keyData, "tui.editor.cursorUp", Key.up)) {
       this.changeFocus(-1);
+
       return;
     }
+
     if (this.matches(keyData, "tui.editor.cursorDown", Key.down)) {
       this.changeFocus(1);
+
       return;
     }
+
     if (matchesKey(keyData, Key.left) || matchesKey(keyData, Key.right)) {
       this.actionIndex = this.actionIndex === 0 ? 1 : 0;
       this.options.tui.requestRender();
+
       return;
     }
+
     if (
       this.matches(keyData, "tui.input.submit", Key.enter) ||
       matchesKey(keyData, Key.space)
@@ -354,6 +385,7 @@ export class ManualAdvisorDialog implements Component, Focusable {
         (this.gitIndex + direction + this.gitLevels.length) %
         this.gitLevels.length;
     }
+
     this.options.tui.requestRender();
   }
 
@@ -390,13 +422,17 @@ export class ManualAdvisorDialog implements Component, Focusable {
     if (this.state.completed || this.state.submitting) {
       return;
     }
+
     this.state.submitting = true;
+
     const request: ManualAdvisorRequest = {
       gitContext: this.gitLevels[this.gitIndex] ?? "off",
     };
+
     if (message) {
       request.message = message;
     }
+
     try {
       this.options.onSubmit(request);
       this.state.completed = true;
@@ -409,6 +445,7 @@ export class ManualAdvisorDialog implements Component, Focusable {
     if (this.state.completed) {
       return;
     }
+
     this.state.completed = true;
     this.options.onCancel();
   }

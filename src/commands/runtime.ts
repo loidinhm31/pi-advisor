@@ -56,6 +56,7 @@ class CommandRuntime implements CommandRuntimeContract {
   manualProgressSequence = 0;
   pendingExecutorModelRef: string | undefined;
   suppressModelSelectionSync = false;
+  toolAvailabilityRevision = 0;
   private lastSameModelDisabled: boolean | undefined;
 
   constructor(pi: ExtensionAPI, dependencies: CommandDependencies = {}) {
@@ -93,6 +94,10 @@ class CommandRuntime implements CommandRuntimeContract {
     return this.pi.getActiveTools().includes("ask_advisor");
   }
 
+  noteAdvisorToolsStateChange() {
+    this.toolAvailabilityRevision += 1;
+  }
+
   resetSameModelNotice() {
     this.lastSameModelDisabled = undefined;
   }
@@ -104,7 +109,9 @@ class CommandRuntime implements CommandRuntimeContract {
     if (!this.flowEnabled()) {
       return;
     }
+
     const disabled = sameModelAdvisorDisabled(ctx, model);
+
     if (disabled && this.lastSameModelDisabled !== true) {
       notify(ctx, sameModelAdvisorNotice, "info");
     } else if (!disabled && this.lastSameModelDisabled === true) {
@@ -114,11 +121,13 @@ class CommandRuntime implements CommandRuntimeContract {
         "info"
       );
     }
+
     this.lastSameModelDisabled = disabled;
   }
 
   nextManualProgressId() {
     this.manualProgressSequence += 1;
+
     return `manual-${this.manualProgressSequence}`;
   }
 
@@ -126,6 +135,7 @@ class CommandRuntime implements CommandRuntimeContract {
     model: Parameters<ExtensionAPI["setModel"]>[0]
   ): Promise<boolean> {
     this.suppressModelSelectionSync = true;
+
     try {
       return await this.pi.setModel(model);
     } finally {

@@ -68,9 +68,11 @@ const assistant = (
     timestamp: 1,
     usage,
   };
+
   if (errorMessage) {
     message.errorMessage = errorMessage;
   }
+
   return message;
 };
 
@@ -82,9 +84,11 @@ const fakeStream = (
 ) =>
   ((_model: any, _context: any, options: FakeStreamOptions) => {
     capture?.(options);
+
     return {
       async *[Symbol.asyncIterator]() {
         await Promise.resolve();
+
         for (const event of events) {
           yield event;
         }
@@ -99,6 +103,7 @@ describe("model stream", () => {
     let now = 0;
     let nextTimer = 0;
     const timers = new Map<number, () => void>();
+
     const scheduler: CoalescedUpdateScheduler = {
       clearTimeout: (timer) => {
         timers.delete(Number(timer));
@@ -107,19 +112,24 @@ describe("model stream", () => {
       setTimeout: (task) => {
         const id = nextTimer;
         nextTimer += 1;
+
         // SAFETY: fake timer only flows back to this mock's clearTimeout, which reads its numeric id.
         const timer = { [Symbol.toPrimitive]: () => id } as ReturnType<
           typeof setTimeout
         >;
+
         timers.set(id, task);
+
         return timer;
       },
     };
+
     const runTimer = (timer: number) => {
       const task = timers.get(timer);
       timers.delete(timer);
       task?.();
     };
+
     const coalesced = createCoalescedUpdate(
       (value: string) => updates.push(value),
       100,
@@ -154,11 +164,13 @@ describe("model stream", () => {
     expect(updates).toEqual(["first", "third", "fourth", "late"]);
 
     const cancelledUpdates: string[] = [];
+
     const cancelled = createCoalescedUpdate(
       (value: string) => cancelledUpdates.push(value),
       100,
       scheduler
     );
+
     cancelled.update("cancelled");
     cancelled.update("pending");
     expect(cancelledUpdates).toEqual(["cancelled"]);
@@ -171,6 +183,7 @@ describe("model stream", () => {
 
   test("captures update callback errors without losing terminal control", () => {
     const error = new Error("render failed");
+
     const coalesced = createCoalescedUpdate(() => {
       throw error;
     }, 100);
@@ -181,14 +194,17 @@ describe("model stream", () => {
 
   test("resolves the exact configured model and provider auth", async () => {
     const seen: unknown[] = [];
+
     const ctx = asExtensionContext({
       modelRegistry: {
         find: (provider: string, id: string) => {
           seen.push([provider, id]);
+
           return model;
         },
         getApiKeyAndHeaders: (value: any) => {
           seen.push(value);
+
           return Promise.resolve({
             apiKey: "secret",
             env: { REGION: "test" },
@@ -198,11 +214,13 @@ describe("model stream", () => {
         },
       },
     });
+
     const resolved = await resolveConfiguredModel(
       ctx,
       "provider/model",
       "Advisor"
     );
+
     expect(seen).toEqual([["provider", "model"], model]);
     expect(resolved).toMatchObject({
       apiKey: "secret",
@@ -240,6 +258,7 @@ describe("model stream", () => {
     const chunks: string[] = [];
     let optionsSeen: any;
     const { signal } = new AbortController();
+
     const result = await collectTextStream(
       {
         apiKey: "key",
@@ -266,6 +285,7 @@ describe("model stream", () => {
         }
       )
     );
+
     expect(chunks).toEqual(["think|", "think|partial"]);
     expect(result).toEqual({
       text: "final",
@@ -335,12 +355,15 @@ describe("model stream", () => {
       { messages: [], systemPrompt: "system" },
       fakeStream([{ delta: "streamed", type: "text_delta" }], assistant(""))
     );
+
     expect(streamed.text).toBe("streamed");
+
     const empty = await collectTextStream(
       { apiKey: "key", model, ref: "provider/model" },
       { messages: [], systemPrompt: "system" },
       fakeStream([], assistant(""))
     );
+
     expect(empty.text).toBe("");
   });
 
@@ -350,13 +373,16 @@ describe("model stream", () => {
       modelsPath: null,
       refreshOnCreate: false,
     });
+
     const registry = new ModelRegistry(runtime);
     const getApiKeyAndHeaders = registry.getApiKeyAndHeaders.bind(registry);
     let authPreflightCalls = 0;
     registry.getApiKeyAndHeaders = async (value) => {
       authPreflightCalls += 1;
+
       return getApiKeyAndHeaders(value);
     };
+
     let streamSimpleCalls = 0;
     let resolvedApiKey: string | undefined;
     let wrappedApiKey: string | undefined;
@@ -372,11 +398,14 @@ describe("model stream", () => {
         resolvedApiKey = streamOptions?.apiKey;
         resolvedReasoning = streamOptions?.reasoning;
         receivedSignal = streamOptions?.signal;
+
         const wrappedOptions = {
           ...streamOptions,
           apiKey: "WRAPPED-SENTINEL-KEY",
         };
+
         wrappedApiKey = wrappedOptions.apiKey;
+
         return fakeStream(
           [{ delta: "advice", type: "text_delta" }],
           assistant("advice from composed provider")
@@ -384,11 +413,13 @@ describe("model stream", () => {
       },
     });
     const ctx = asExtensionContext({ modelRegistry: registry });
+
     const resolved = await resolveConfiguredModel(
       ctx,
       "provider/model",
       "Advisor"
     );
+
     expect(authPreflightCalls).toBe(0);
     expect(resolved.apiKey).toBeUndefined();
 
@@ -414,6 +445,7 @@ describe("model stream", () => {
       reasoning: "off",
       systemPrompt: "sys",
     });
+
     expect(resolvedReasoning).toBeUndefined();
     expect(offResult.text).toBe("advice from composed provider");
     await expect(
@@ -428,12 +460,14 @@ describe("model stream", () => {
   test("surfaces registry auth errors without calling the provider wrapper", async () => {
     const previousEnvValue = process.env.PI_ADVISOR_TEST_MISSING_STREAM_KEY;
     delete process.env.PI_ADVISOR_TEST_MISSING_STREAM_KEY;
+
     try {
       const runtime = await ModelRuntime.create({
         credentials: new InMemoryCredentialStore(),
         modelsPath: null,
         refreshOnCreate: false,
       });
+
       const registry = new ModelRegistry(runtime);
       let streamSimpleCalled = false;
       registry.registerProvider("provider", {
@@ -442,14 +476,17 @@ describe("model stream", () => {
         models: [model],
         streamSimple: () => {
           streamSimpleCalled = true;
+
           return fakeStream([], assistant("unexpected provider call"))();
         },
       });
+
       const resolved = await resolveConfiguredModel(
         asExtensionContext({ modelRegistry: registry }),
         "provider/model",
         "Advisor"
       );
+
       await expect(
         collectTextStream(resolved, {
           messages: [],
@@ -468,6 +505,7 @@ describe("model stream", () => {
 
   test("uses compat streaming only when the registry has no streamSimple", async () => {
     let capturedOptions: any;
+
     const ctx = asExtensionContext({
       modelRegistry: {
         find: () => model,
@@ -476,11 +514,13 @@ describe("model stream", () => {
         streamSimple: undefined,
       },
     });
+
     const resolved = await resolveConfiguredModel(
       ctx,
       "provider/model",
       "Advisor"
     );
+
     const result = await collectTextStream(
       resolved,
       { messages: [], reasoning: "medium", systemPrompt: "system" },
@@ -488,6 +528,7 @@ describe("model stream", () => {
         capturedOptions = options;
       })
     );
+
     expect(capturedOptions).toMatchObject({
       apiKey: "legacy-key",
       reasoning: "medium",

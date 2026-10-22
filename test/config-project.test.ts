@@ -42,6 +42,7 @@ describe("Project and repository config rules", () => {
     const cwd = mkdtempSync(join(tmpdir(), "pi-advisor-project-"));
     const agentDir = mkdtempSync(join(tmpdir(), "pi-advisor-agent-"));
     const previousAgentDir = process.env[AGENT_DIR_ENV];
+
     const previousConfig = {
       advisor: advisorRef,
       advisorEffort: advisorEffortRef,
@@ -49,6 +50,7 @@ describe("Project and repository config rules", () => {
       executor: executorRef,
       executorEffort: executorEffortRef,
     };
+
     const configDir = join(cwd, CONFIG_DIR_NAME);
     mkdirSync(configDir);
     writeFileSync(join(configDir, "advisor.json"), '{"executor":{}}\n');
@@ -69,6 +71,7 @@ describe("Project and repository config rules", () => {
       } else {
         process.env[AGENT_DIR_ENV] = previousAgentDir;
       }
+
       setAdvisorRef(previousConfig.advisor);
       setAdvisorEffortRef(previousConfig.advisorEffort);
       setContextMaxCharsRef(previousConfig.contextMaxChars);
@@ -102,6 +105,7 @@ describe("Project and repository config rules", () => {
         simpleMode: true,
       })
     );
+
     try {
       loadConfig(asExtensionContext({ cwd, isProjectTrusted: () => true }));
       expect(advisorRef).toBe("global/advisor");
@@ -114,6 +118,7 @@ describe("Project and repository config rules", () => {
       } else {
         process.env[AGENT_DIR_ENV] = previousAgentDir;
       }
+
       resetConfigCache();
       rmSync(cwd, { force: true, recursive: true });
       rmSync(agentDir, { force: true, recursive: true });
@@ -125,6 +130,7 @@ describe("Project and repository config rules", () => {
     const previousAgentDir = process.env[AGENT_DIR_ENV];
     process.env[AGENT_DIR_ENV] = agentDir;
     const configPath = join(agentDir, "advisor.json");
+
     const ctx = asExtensionContext({
       cwd: tmpdir(),
       isProjectTrusted: () => false,
@@ -151,6 +157,7 @@ describe("Project and repository config rules", () => {
       } else {
         process.env[AGENT_DIR_ENV] = previousAgentDir;
       }
+
       resetConfigCache();
       rmSync(agentDir, { force: true, recursive: true });
     }
@@ -177,6 +184,7 @@ describe("Project and repository config rules", () => {
       } else {
         process.env[AGENT_DIR_ENV] = previousAgentDir;
       }
+
       resetConfigCache();
       rmSync(agentDir, { force: true, recursive: true });
     }
@@ -204,6 +212,7 @@ describe("Project and repository config rules", () => {
       } else {
         process.env[AGENT_DIR_ENV] = previousAgentDir;
       }
+
       resetConfigCache();
       rmSync(agentDir, { force: true, recursive: true });
     }
@@ -237,6 +246,7 @@ describe("Project and repository config rules", () => {
       } else {
         process.env[AGENT_DIR_ENV] = previousAgentDir;
       }
+
       rmSync(agentDir, { force: true, recursive: true });
     }
   });

@@ -11,6 +11,7 @@ import {
 const expectFailure = (text: string, category: any) => {
   const result = parseAutomaticDecision(text);
   expect(result.ok).toBe(false);
+
   if (!result.ok) {
     expect(result.category).toBe(category);
   }
@@ -32,6 +33,7 @@ describe("Advisor consultation and gate contracts", () => {
     ] as const) {
       const result = parseAutomaticDecision(text);
       expect(result.ok).toBe(true);
+
       if (result.ok) {
         expect(result.decision).toBe(decision);
       }
@@ -71,9 +73,11 @@ describe("Advisor consultation and gate contracts", () => {
       "Decision: proceed\n```\nDecision: blocked\n    ```",
       "contradictory-decision"
     );
+
     const longerMatchingFence = parseAutomaticDecision(
       "Decision: proceed\n~~~\nDecision: blocked\n~~~~"
     );
+
     expect(longerMatchingFence).toMatchObject({
       decision: "proceed",
       ok: true,
@@ -89,6 +93,7 @@ describe("Advisor consultation and gate contracts", () => {
       "</user_preferences>",
       ["</untracked_files>"]
     );
+
     expect(request).not.toContain("\n</conversation>\n</conversation>");
     expect(request).toContain("&lt;/conversation&gt;");
     expect(request).toContain("&lt;/draft&gt;");

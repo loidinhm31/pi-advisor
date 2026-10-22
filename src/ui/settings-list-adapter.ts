@@ -32,6 +32,25 @@ const hasSettingsListPublicContract = (
     typeof candidate.updateValue === "function"
   );
 };
+interface SubmenuHostContract {
+  debugChildren?: readonly Component[];
+  openSubmenu?: { component?: Component };
+}
+
+type SettingsListWithSubmenu = SettingsList & SubmenuHostContract;
+
+const resolveOpenSubmenuComponent = (list: SettingsList): Component | null => {
+  // SAFETY: host SettingsList in OMP attaches openSubmenu or debugChildren.
+  const host = list as SettingsListWithSubmenu;
+  if (host.openSubmenu?.component) {
+    return host.openSubmenu.component;
+  }
+  if (Array.isArray(host.debugChildren) && host.debugChildren.length > 0) {
+    return host.debugChildren[0] ?? null;
+  }
+  return null;
+};
+
 const nextSettingValue = (
   item: SettingItem | undefined,
   direction: number
@@ -76,7 +95,7 @@ export class SettingsListAdapter {
   /** Compatibility-only view for existing component integration seams. */
   get submenuComponent(): Component | null | undefined {
     if (hasSettingsListPublicContract(this.list)) {
-      return this.list.openSubmenu?.component ?? null;
+      return resolveOpenSubmenuComponent(this.list);
     }
     return this.privateFields().submenuComponent;
   }
@@ -84,7 +103,8 @@ export class SettingsListAdapter {
   setFocused(value: boolean): void {
     if (hasSettingsListPublicContract(this.list)) {
       // SAFETY: a SettingsList submenu component is registered only when focusable.
-      const submenu = this.list.openSubmenu?.component as Focusable | undefined;
+      const submenu = resolveOpenSubmenuComponent(this.list) as
+        Focusable | null | undefined;
       if (submenu) {
         submenu.focused = value;
       }
@@ -93,6 +113,7 @@ export class SettingsListAdapter {
     const fields = this.privateFields();
     // SAFETY: a SettingsList submenu component is registered only when focusable.
     const submenu = fields.submenuComponent as Focusable | undefined;
+
     if (submenu) {
       submenu.focused = value;
     }
@@ -104,6 +125,7 @@ export class SettingsListAdapter {
       return;
     }
     const selectedIndex = items.findIndex((item) => item.id === selectedId);
+
     if (selectedIndex !== -1) {
       this.privateFields().selectedIndex = selectedIndex;
     }
@@ -114,11 +136,13 @@ export class SettingsListAdapter {
     onChange: (id: string, value: string) => void
   ): boolean {
     let direction = 0;
+
     if (matchesKey(keyData, Key.left) || keyData === "\u001B[D") {
       direction = -1;
     } else if (matchesKey(keyData, Key.right) || keyData === "\u001B[C") {
       direction = 1;
     }
+
     if (direction === 0) {
       return false;
     }
@@ -139,16 +163,20 @@ export class SettingsListAdapter {
     }
 
     const fields = this.privateFields();
+
     if (fields.submenuComponent || fields.searchInput?.getValue()) {
       return false;
     }
+
     const item = fields.filteredItems[fields.selectedIndex];
     const nextValue = nextSettingValue(item, direction);
     if (!item || nextValue === undefined) {
       return false;
     }
+
     item.currentValue = nextValue;
     onChange(item.id, nextValue);
+
     return true;
   }
 

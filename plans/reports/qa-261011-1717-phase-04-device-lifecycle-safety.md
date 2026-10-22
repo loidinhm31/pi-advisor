@@ -16,30 +16,30 @@ All 7 required validation gates executed and passed with 100% success rate. Zero
 
 ## 2. Test Results Overview
 
-| Suite / Command | Files | Tests | Passed | Failed | Skipped | Assertions (`expect()`) | Duration |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| **Phase 04 Target Suite** (`test/consultation.test.ts`, `test/scout-context.test.ts`, `test/activation.test.ts`) | 3 | 55 | 55 | 0 | 0 | 250 | 1.78s |
-| - `test/consultation.test.ts` | 1 | 14 | 14 | 0 | 0 | 97 | 447ms |
-| - `test/scout-context.test.ts` | 1 | 23 | 23 | 0 | 0 | 91 | 266ms |
-| - `test/activation.test.ts` | 1 | 18 | 18 | 0 | 0 | 62 | 1.80s |
-| **Full Test Suite** (`bun test`) | 62 | 585 | 585 | 0 | 0 | 5,508 | 12.96s |
-| **Facade Exports** (`bun test test/facade-exports.test.ts`) | 1 | 9 | 9 | 0 | 0 | 47 | 335ms |
-| **Node Loader Integration** (`bun run test:node-loader`) | 1 | 1 | 1 | 0 | 0 | 1 | 739ms |
-| **Total Test Runs** | - | **586** | **586** | **0** | **0** | **5,509** | - |
+| Suite / Command                                                                                                  | Files | Tests   | Passed  | Failed | Skipped | Assertions (`expect()`) | Duration |
+| ---------------------------------------------------------------------------------------------------------------- | ----- | ------- | ------- | ------ | ------- | ----------------------- | -------- |
+| **Phase 04 Target Suite** (`test/consultation.test.ts`, `test/scout-context.test.ts`, `test/activation.test.ts`) | 3     | 55      | 55      | 0      | 0       | 250                     | 1.78s    |
+| - `test/consultation.test.ts`                                                                                    | 1     | 14      | 14      | 0      | 0       | 97                      | 447ms    |
+| - `test/scout-context.test.ts`                                                                                   | 1     | 23      | 23      | 0      | 0       | 91                      | 266ms    |
+| - `test/activation.test.ts`                                                                                      | 1     | 18      | 18      | 0      | 0       | 62                      | 1.80s    |
+| **Full Test Suite** (`bun test`)                                                                                 | 62    | 585     | 585     | 0      | 0       | 5,508                   | 12.96s   |
+| **Facade Exports** (`bun test test/facade-exports.test.ts`)                                                      | 1     | 9       | 9       | 0      | 0       | 47                      | 335ms    |
+| **Node Loader Integration** (`bun run test:node-loader`)                                                         | 1     | 1       | 1       | 0      | 0       | 1                       | 739ms    |
+| **Total Test Runs**                                                                                              | -     | **586** | **586** | **0**  | **0**   | **5,509**               | -        |
 
 ---
 
 ## 3. Static Analysis & Verification Commands
 
-| Command | Target | Status | Output Summary / Findings | Duration |
-| --- | --- | --- | --- | --- |
-| `bun test test/consultation.test.ts test/scout-context.test.ts test/activation.test.ts` | Phase 04 targeted tests | PASS | 55 passed across 3 files | 1.78s |
-| `bun test` | Full project test suite | PASS | 585 passed across 62 files | 12.96s |
-| `bun x tsc --noEmit` | TypeScript compiler | PASS | Clean, 0 errors | 1.02s |
-| `bun run lint` | oxlint | PASS | Clean, 0 warnings/errors | 0.61s |
-| `bun run format:check` | oxfmt | PASS | 429 files matched correct format | 46ms |
-| `node scripts/check-module-boundaries.mjs` | Module boundary verification | PASS | Production leaves do not import facades | 0.05s |
-| `bun test test/facade-exports.test.ts` | Frozen public facade exports | PASS | 9 tests passed across 1 file | 335ms |
+| Command                                                                                 | Target                       | Status | Output Summary / Findings               | Duration |
+| --------------------------------------------------------------------------------------- | ---------------------------- | ------ | --------------------------------------- | -------- |
+| `bun test test/consultation.test.ts test/scout-context.test.ts test/activation.test.ts` | Phase 04 targeted tests      | PASS   | 55 passed across 3 files                | 1.78s    |
+| `bun test`                                                                              | Full project test suite      | PASS   | 585 passed across 62 files              | 12.96s   |
+| `bun x tsc --noEmit`                                                                    | TypeScript compiler          | PASS   | Clean, 0 errors                         | 1.02s    |
+| `bun run lint`                                                                          | oxlint                       | PASS   | Clean, 0 warnings/errors                | 0.61s    |
+| `bun run format:check`                                                                  | oxfmt                        | PASS   | 429 files matched correct format        | 46ms     |
+| `node scripts/check-module-boundaries.mjs`                                              | Module boundary verification | PASS   | Production leaves do not import facades | 0.05s    |
+| `bun test test/facade-exports.test.ts`                                                  | Frozen public facade exports | PASS   | 9 tests passed across 1 file            | 335ms    |
 
 ---
 

@@ -11,14 +11,27 @@ export interface MaskedInputOptions {
 
 interface InputCursorAdapterContract {
   cursor?: number;
+  debugState?: () => { cursor?: number };
   getCursor?: () => number;
 }
+
+const resolveRawCursor = (
+  input: InputCursorAdapterContract
+): number | undefined => {
+  if (input.getCursor) {
+    return input.getCursor();
+  }
+  if (input.debugState) {
+    return input.debugState().cursor;
+  }
+  return input.cursor;
+};
 
 const resolveInputCursor = (
   input: InputCursorAdapterContract,
   valueLength: number
 ): number => {
-  const rawCursor = input.getCursor ? input.getCursor() : input.cursor;
+  const rawCursor = resolveRawCursor(input);
   return isNumber(rawCursor) && Number.isFinite(rawCursor)
     ? Math.max(0, Math.min(Math.trunc(rawCursor), valueLength))
     : valueLength;
@@ -76,6 +89,7 @@ export class MaskedInput implements Component, Focusable {
       value.length === 0 && this.options.placeholder
         ? this.options.placeholder
         : masked;
+
     return [truncateToWidth(placeholder, Math.max(1, width))];
   }
 }

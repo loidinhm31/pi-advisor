@@ -32,6 +32,7 @@ describe("Fallback Advisor model configuration", () => {
         hasUI: false,
         isProjectTrusted: () => false,
       });
+
       loadConfig(ctx);
       expect(advisorFallbackModelRef).toBeUndefined();
       expect(getAdvisorSettings().fallbackModel).toBeUndefined();
@@ -56,6 +57,7 @@ describe("Fallback Advisor model configuration", () => {
 
   test("selects a fallback model from Advisor settings", () => {
     let saved: any;
+
     const selector = new AdvisorSettingsSelector({
       effortLevels: ["Default (Model Default)"],
       initial: {
@@ -89,6 +91,7 @@ describe("Fallback Advisor model configuration", () => {
 
   test("clears a configured fallback model from Advisor settings", () => {
     let saved: any;
+
     const selector = new AdvisorSettingsSelector({
       effortLevels: ["Default (Model Default)"],
       initial: {

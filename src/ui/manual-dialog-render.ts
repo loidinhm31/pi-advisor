@@ -30,17 +30,21 @@ export const renderManualAdvisorDialog = (
     renderWidth,
     theme,
   } = view;
+
   const innerWidth = Math.max(0, renderWidth - 2);
   const contentWidth = Math.max(0, innerWidth - horizontalPadding * 2);
   const lines: string[] = [];
 
   const focusMarker = (target: ManualAdvisorDialogView["focusTarget"]) =>
     focusTarget === target ? theme.fg("accent", "▸ ") : "  ";
+
   const addLine = (text: string) => {
     if (renderWidth < 2) {
       lines.push(truncateToWidth(text, renderWidth, ""));
+
       return;
     }
+
     lines.push(
       `${theme.fg("border", "│")}${" ".repeat(
         horizontalPadding
@@ -49,12 +53,14 @@ export const renderManualAdvisorDialog = (
       )}${theme.fg("border", "│")}`
     );
   };
+
   const addWrapped = (
     text: string,
     color: "accent" | "text" | "muted" | "dim" = "text"
   ) => {
     const content = theme.fg(color, text);
     const wrapped = wrapTextWithAnsi(content, Math.max(1, contentWidth - 2));
+
     for (const line of wrapped.length > 0 ? wrapped : [""]) {
       addLine(`  ${line}`);
     }
@@ -67,6 +73,7 @@ export const renderManualAdvisorDialog = (
       "",
       false
     );
+
     const titleWidth = visibleWidth(title);
     const remaining = Math.max(0, innerWidth - titleWidth);
     const left = Math.floor(remaining / 2);
@@ -82,9 +89,11 @@ export const renderManualAdvisorDialog = (
   addLine(
     `${focusMarker("editor")}${theme.bold("Message for Advisor (optional)")}`
   );
+
   for (const editorLine of editorLines) {
     addLine(editorLine);
   }
+
   addLine("");
   addWrapped(
     "Automatic context follows your settings: conversation history, tool disclosure, project preferences, redaction, and configured limits remain unchanged.",
@@ -105,6 +114,7 @@ export const renderManualAdvisorDialog = (
       `Git repository context (max: ${gitCeiling}; ↑/↓ or Space to choose)`
     )}`
   );
+
   for (let index = 0; index < gitLevels.length; index += 1) {
     const level = gitLevels[index];
     const copy = MANUAL_GIT_CONTEXT_COPY[level];
@@ -117,10 +127,12 @@ export const renderManualAdvisorDialog = (
       color
     );
   }
+
   addLine("");
 
   let interactionHint =
     "Enter submit · Shift+Enter newline · Tab/Shift+Tab focus · Esc cancel";
+
   if (focusTarget === "git") {
     interactionHint =
       "↑/↓ or Space choose · Enter next · Tab/Shift+Tab focus · Esc cancel";
@@ -128,21 +140,28 @@ export const renderManualAdvisorDialog = (
     interactionHint =
       "←/→ choose · Enter/Space activate · Tab/Shift+Tab focus · Esc cancel";
   }
+
   const submit = focusTarget === "actions" && actionIndex === 0;
+
   const submitLabel = submit
     ? theme.fg("accent", "[Submit]")
     : theme.fg("text", "[Submit]");
+
   const cancel = focusTarget === "actions" && actionIndex === 1;
+
   const cancelLabel = cancel
     ? theme.fg("accent", "[Cancel]")
     : theme.fg("text", "[Cancel]");
+
   const actionButtons = `${submitLabel}  ${cancelLabel}`;
+
   // Center the buttons in the content area; the 2-column focus marker sits
   // left of the computed offset.
   const buttonOffset = Math.max(
     0,
     Math.floor((contentWidth - visibleWidth(actionButtons)) / 2) - 2
   );
+
   addLine(
     `${focusMarker("actions")}${" ".repeat(buttonOffset)}${actionButtons}`
   );
@@ -154,5 +173,6 @@ export const renderManualAdvisorDialog = (
       theme.fg("border", `╰${"─".repeat(Math.max(0, renderWidth - 2))}╯`)
     );
   }
+
   return lines.map((line) => truncateToWidth(line, renderWidth, ""));
 };

@@ -3,7 +3,6 @@ import type { Usage } from "@earendil-works/pi-ai/compat";
 import { isNumber, isRecordOf } from "./content-utils.ts";
 import type { JsonValue, RecordValue } from "./content-utils.ts";
 
-/** Normalized usage returned by an Advisor or Scout provider response. */
 export interface AdvisorUsageSnapshot {
   cacheRead?: number;
   cacheWrite?: number;
@@ -38,6 +37,7 @@ const hasPartialProviderCost = (
   usage: RecordValue
 ) => {
   const cost = isRecordOf(usage.cost) ? usage.cost : undefined;
+
   return (
     cost !== undefined &&
     snapshot.cost === undefined &&
@@ -45,14 +45,15 @@ const hasPartialProviderCost = (
   );
 };
 
-/** Extracts provider-agnostic usage fields without trusting provider metadata. */
 export const snapshotAdvisorUsage = <Input>(
   usage: Input
 ): AdvisorUsageSnapshot | undefined => {
   if (!isRecordOf(usage)) {
     return undefined;
   }
+
   const cost = isRecordOf(usage.cost) ? usage.cost : undefined;
+
   const snapshot = {
     cacheRead: finite(usage.cacheRead),
     cacheWrite: finite(usage.cacheWrite),
@@ -61,52 +62,113 @@ export const snapshotAdvisorUsage = <Input>(
     output: finite(usage.output),
     totalTokens: finite(usage.totalTokens),
   } satisfies AdvisorUsageSnapshot;
+
   const hasCostField = costFields.some(
     (field) => finite(cost?.[field]) !== undefined
   );
+
   return Object.values(snapshot).some((value) => value !== undefined) ||
     hasCostField
     ? snapshot
     : undefined;
 };
 
-/** Returns the reported provider cost, when the response includes one. */
-export const advisorUsageCost = <Input>(usage: Input): number | undefined =>
+export const advisorUsageCost = <Input>(usage: Input) =>
   snapshotAdvisorUsage(usage)?.cost;
 
-const completeUsageSnapshot = <Input>(
-  usage: Input
-): { snapshot: AdvisorUsageSnapshot; usage: RecordValue } | undefined => {
+const completeUsageSnapshot = <Input>(usage: Input) => {
   const snapshot = snapshotAdvisorUsage(usage);
+
   if (!(snapshot && isRecordOf(usage))) {
-    return;
+    return undefined;
   }
+
   if (hasPartialProviderCost(snapshot, usage)) {
-    return;
+    return undefined;
   }
+
   return { snapshot, usage };
 };
 
-/**
- * Converts supported provider usage to Pi's complete nested-tool usage shape.
- * Missing fields become zero only at this Pi API boundary; absent usage remains
- * undefined so an unavailable request is never presented as a zero-cost call.
- */
+const cleanUsage = (usage: Usage): Usage => {
+  const { cost } = usage;
+
+  const totalTokens =
+    usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
+
+  return {
+    cacheRead: usage.cacheRead,
+    cacheWrite: usage.cacheWrite,
+    cost: {
+      cacheRead: cost.cacheRead,
+      cacheWrite: cost.cacheWrite,
+      input: cost.input,
+      output: cost.output,
+      total: cost.total,
+    },
+    input: usage.input,
+    output: usage.output,
+    totalTokens,
+  };
+};
+
+export const combineAdvisorAndClassifierUsage = (
+  advisor: Usage | undefined,
+  classifier: Usage | undefined
+): Usage | undefined => {
+  if (!(advisor || classifier)) {
+    return undefined;
+  }
+
+  const left = advisor ? cleanUsage(advisor) : undefined;
+  const right = classifier ? cleanUsage(classifier) : undefined;
+
+  if (!left) {
+    return right;
+  }
+
+  if (!right) {
+    return left;
+  }
+
+  return {
+    cacheRead: left.cacheRead + right.cacheRead,
+    cacheWrite: left.cacheWrite + right.cacheWrite,
+    cost: {
+      cacheRead: left.cost.cacheRead + right.cost.cacheRead,
+      cacheWrite: left.cost.cacheWrite + right.cost.cacheWrite,
+      input: left.cost.input + right.cost.input,
+      output: left.cost.output,
+      total:
+        left.cost.total +
+        right.cost.input +
+        right.cost.cacheRead +
+        right.cost.cacheWrite,
+    },
+    input: left.input + right.input,
+    output: left.output + right.output,
+    totalTokens: left.totalTokens + right.totalTokens,
+  };
+};
+
 export const advisorUsageForPi = <Input>(usage: Input): Usage | undefined => {
   const complete = completeUsageSnapshot(usage);
+
   if (!complete) {
     return undefined;
   }
+
   const { snapshot } = complete;
+
   const cost = isRecordOf(complete.usage.cost)
     ? complete.usage.cost
     : undefined;
+
   const input = snapshot.input ?? 0;
   const output = snapshot.output ?? 0;
   const cacheRead = snapshot.cacheRead ?? 0;
   const cacheWrite = snapshot.cacheWrite ?? 0;
-  const cacheWrite1h = finite(complete.usage.cacheWrite1h);
-  const reasoning = finite(complete.usage.reasoning);
+
   const piUsage: Usage = {
     cacheRead,
     cacheWrite,
@@ -122,38 +184,45 @@ export const advisorUsageForPi = <Input>(usage: Input): Usage | undefined => {
     totalTokens:
       snapshot.totalTokens ?? input + output + cacheRead + cacheWrite,
   };
+
+  const cacheWrite1h = finite(complete.usage.cacheWrite1h);
+  const reasoning = finite(complete.usage.reasoning);
+
   if (cacheWrite1h !== undefined) {
     piUsage.cacheWrite1h = cacheWrite1h;
   }
+
   if (reasoning !== undefined) {
     piUsage.reasoning = reasoning;
   }
+
   return piUsage;
 };
 
-/** Creates empty totals without treating absent usage as zero usage. */
 export const emptyAdvisorUsageTotals = (): AdvisorUsageTotals => ({
   calls: 0,
   costCalls: 0,
   knownCalls: 0,
 });
 
-/** Adds one direct Advisor response to session-local usage totals. */
 export const addAdvisorUsage = <Input>(
   totals: AdvisorUsageTotals,
   usage: Input
 ) => {
   totals.calls += 1;
   const snapshot = snapshotAdvisorUsage(usage);
+
   if (!snapshot) {
     return;
   }
+
   totals.knownCalls += 1;
   totals.cacheRead = add(totals.cacheRead, snapshot.cacheRead);
   totals.cacheWrite = add(totals.cacheWrite, snapshot.cacheWrite);
   totals.input = add(totals.input, snapshot.input);
   totals.output = add(totals.output, snapshot.output);
   totals.totalTokens = add(totals.totalTokens, snapshot.totalTokens);
+
   if (snapshot.cost !== undefined) {
     totals.cost = add(totals.cost, snapshot.cost);
     totals.costCalls += 1;
@@ -164,68 +233,70 @@ export const formatTokenCount = (value: number) => {
   if (value < 1000) {
     return String(value);
   }
+
   if (value < 10_000) {
     return `${(value / 1000).toFixed(1)}k`;
   }
+
   if (value < 1_000_000) {
     return `${Math.round(value / 1000)}k`;
   }
+
   if (value < 10_000_000) {
     return `${(value / 1_000_000).toFixed(1)}M`;
   }
+
   return `${Math.round(value / 1_000_000)}M`;
 };
-
-const formatTokens = formatTokenCount;
 
 const formatCost = (value: number) => `$${value.toFixed(4)}`;
 
 const formatUsageFields = (usage: AdvisorUsageSnapshot): string | undefined => {
   const tokens = [
-    usage.input === undefined ? undefined : `↑${formatTokens(usage.input)}`,
-    usage.output === undefined ? undefined : `↓${formatTokens(usage.output)}`,
+    usage.input === undefined ? undefined : `↑${formatTokenCount(usage.input)}`,
+    usage.output === undefined
+      ? undefined
+      : `↓${formatTokenCount(usage.output)}`,
     usage.cacheRead === undefined
       ? undefined
-      : `cr:${formatTokens(usage.cacheRead)}`,
+      : `cr:${formatTokenCount(usage.cacheRead)}`,
     usage.cacheWrite === undefined
       ? undefined
-      : `cw:${formatTokens(usage.cacheWrite)}`,
+      : `cw:${formatTokenCount(usage.cacheWrite)}`,
   ].filter((value): value is string => value !== undefined);
+
   if (tokens.length === 0 && usage.totalTokens !== undefined) {
-    tokens.push(`tokens:${formatTokens(usage.totalTokens)}`);
+    tokens.push(`tokens:${formatTokenCount(usage.totalTokens)}`);
   }
+
   if (usage.cost !== undefined) {
     tokens.push(formatCost(usage.cost));
   }
+
   return tokens.join(" · ") || undefined;
 };
 
-export const formatAdvisorUsage = <Input>(usage: Input): string | undefined => {
+export const formatAdvisorUsage = <Input>(usage: Input) => {
   const snapshot = snapshotAdvisorUsage(usage);
+
   return snapshot ? formatUsageFields(snapshot) : undefined;
 };
 
-export const formatAdvisorUsageTotals = (
-  totals: AdvisorUsageTotals
-): string => {
+export const formatAdvisorUsageTotals = (totals: AdvisorUsageTotals) => {
   const usage = formatUsageFields(totals);
   const missing = totals.calls - totals.knownCalls;
-  const parts = [
-    usage,
-    missing > 0 ? `${missing} without usage data` : undefined,
-  ];
+
   return (
-    parts.filter((value): value is string => value !== undefined).join(" · ") ||
-    "unavailable"
+    [usage, missing > 0 ? `${missing} without usage data` : undefined]
+      .filter((value): value is string => value !== undefined)
+      .join(" · ") || "unavailable"
   );
 };
 
-export const formatAdvisorUsageStatus = (
-  totals: AdvisorUsageTotals
-): string | undefined => {
+export const formatAdvisorUsageStatus = (totals: AdvisorUsageTotals) => {
   if (totals.calls === 0) {
     return undefined;
   }
-  const label = `Advisor: ${totals.calls} call${totals.calls === 1 ? "" : "s"}`;
-  return `${label} · ${formatAdvisorUsageTotals(totals)}`;
+
+  return `Advisor: ${totals.calls} call${totals.calls === 1 ? "" : "s"} · ${formatAdvisorUsageTotals(totals)}`;
 };

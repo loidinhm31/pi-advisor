@@ -281,7 +281,8 @@ export const buildPiProbeScript = (packageRoot: string): string => `
 
 export const buildOmpProbeScript = (bundledEntry: string): string => `
   import { loadExtensions } from "./packages/coding-agent/src/extensibility/extensions/loader.ts";
-  import { ExtensionRunner, TOP_LEVEL_AGENT } from "./packages/coding-agent/src/extensibility/extensions/runner.ts";
+  import { ExtensionRunner } from "./packages/coding-agent/src/extensibility/extensions/runner.ts";
+  const TOP_LEVEL_AGENT = { id: "Main", kind: "main" };
   import { SessionManager } from "./packages/coding-agent/src/session/session-manager.ts";
   import { getSelectListTheme, getSettingsListTheme, initTheme } from "./packages/coding-agent/src/extensibility/legacy-pi-coding-agent-shim.ts";
   import { Editor, Input, SettingsList } from "./packages/coding-agent/src/extensibility/legacy-pi-tui-shim.ts";
@@ -320,11 +321,14 @@ export const buildOmpProbeScript = (bundledEntry: string): string => `
     { id: "Task1", kind: "sub", name: "worker" }
   );
   const mainCtx = mainRunner.createContext();
+  mainCtx.agent = TOP_LEVEL_AGENT;
   const subCtx = subRunner.createContext();
+  subCtx.agent = { id: "Task1", kind: "sub", name: "worker" };
   const nativeAdvisorCtx = mainRunner.createContext(undefined, undefined, {
     id: "advisor",
     kind: "sub",
   });
+  nativeAdvisorCtx.agent = { id: "advisor", kind: "sub" };
 
   const selectListTheme = getSelectListTheme();
   const settingsList = new SettingsList(
@@ -344,6 +348,9 @@ export const buildOmpProbeScript = (bundledEntry: string): string => `
   const afterUpdateValue = settingsList.getSelectedItem()?.currentValue ?? null;
 
   const input = new Input();
+  if (typeof input.getCursor !== "function" && typeof input.debugState === "function") {
+    input.getCursor = () => input.debugState().cursor;
+  }
   const initialCursor = typeof input.getCursor === "function" ? input.getCursor() : -1;
   input.handleInput("a");
   input.handleInput("b");

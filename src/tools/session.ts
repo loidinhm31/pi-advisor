@@ -8,10 +8,13 @@ const sessionStates = new WeakMap<object, AdvisorSessionState>();
 
 export const sessionStateFor = (owner: ExtensionAPI): AdvisorSessionState => {
   const existing = sessionStates.get(owner);
+
   if (existing) {
     return existing;
   }
+
   const state = new AdvisorSessionState();
   sessionStates.set(owner, state);
+
   return state;
 };

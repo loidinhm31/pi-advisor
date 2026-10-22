@@ -34,6 +34,7 @@ const registerHandoffTool = (
       includeTracked
     ) => {
       consulted.push(includeTracked);
+
       return {
         adviceId: "advice-2",
         markdown: "Done.",
@@ -43,6 +44,7 @@ const registerHandoffTool = (
       };
     },
   });
+
   return () => tools.get("ask_advisor");
 };
 
@@ -179,11 +181,13 @@ describe("Tracked file handoff", () => {
       cwd: repoDir,
       stdio: "ignore",
     });
+
     const faux = registerFauxProvider({
       api: "pi-advisor-handoff-test",
       models: [{ id: "advisor", input: ["text"] }],
       provider: "pi-advisor-handoff-test",
     });
+
     const tools = new Map<string, any>();
     const state = new AdvisorSessionState();
     // The real consultAdvisor runs; only the provider is faked.
@@ -206,9 +210,11 @@ describe("Tracked file handoff", () => {
           faux.setResponses([
             (fauxContext) => {
               captured.push(JSON.stringify(fauxContext.messages));
+
               return fauxAssistantMessage("Advice after review.");
             },
           ]);
+
           const ctx = asExtensionContext({
             cwd: repoDir,
             hasUI: false,
@@ -220,7 +226,9 @@ describe("Tracked file handoff", () => {
             },
             sessionManager: { getBranch: () => [] },
           });
+
           loadConfig(ctx);
+
           const result = await tools
             .get("ask_advisor")
             .execute(
@@ -230,6 +238,7 @@ describe("Tracked file handoff", () => {
               undefined,
               ctx
             );
+
           expect(result.details.trackedBytes).toBeGreaterThan(0);
           expect(captured).toHaveLength(1);
           expect(captured[0]).toContain("tracked body for the advisor");

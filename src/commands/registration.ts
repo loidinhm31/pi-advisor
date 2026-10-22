@@ -18,6 +18,7 @@ export const registerCommands = (
   dependencies: CommandDependencies = {}
 ) => {
   const runtime = createCommandRuntime(pi, dependencies);
+
   const activate = (args: string, ctx: ExtensionContext, announce = true) =>
     activateAdvisor(runtime, args, ctx, announce);
 

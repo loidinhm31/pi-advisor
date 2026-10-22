@@ -24,9 +24,11 @@ const state = { role: "executor" };
 
 const expectJevFailure = async <T>(ask: Promise<T>): Promise<JevFailure> => {
   const failure = await ask.catch((error: JevFailure) => error);
+
   if (!(failure instanceof JevFailure)) {
-    throw new Error("expected ask to reject with JevFailure");
+    throw new TypeError("expected ask to reject with JevFailure");
   }
+
   return failure;
 };
 
@@ -34,10 +36,13 @@ const abortableFetch =
   (handler: Fetch) => (input: string, init?: RequestInit) =>
     new Promise<Response>((resolve, reject) => {
       const rejectOnAbort = () => reject(new Error("fetch aborted"));
+
       if (init?.signal?.aborted) {
         rejectOnAbort();
+
         return;
       }
+
       init?.signal?.addEventListener("abort", rejectOnAbort, { once: true });
       handler(input, init).then(resolve).catch(reject);
     });
@@ -69,6 +74,7 @@ describe("JevClient.ask", () => {
       state,
       { proceed: noul("Proceed?") }
     );
+
     expect(result.answers.proceed).toEqual({ noul: 0.9, type: "noul" });
     expect(result.model).toBe("jev-test");
     expect(result.usage).toEqual({
@@ -80,13 +86,17 @@ describe("JevClient.ask", () => {
 
   test("posts to the transport endpoint with bearer auth", async () => {
     let captured: { url: string; init?: RequestInit } | undefined;
+
     const fetch: Fetch = async (url, init) => {
       captured = { init, url };
+
       return jsonResponse(validBody);
     };
+
     const result = await client(fetch).ask(state, {
       proceed: noul("Proceed?"),
     });
+
     expect(result.answers.proceed).toBeDefined();
     expect(captured?.url).toBe("https://api.typesafe.ai/v1/systemone");
     const headers = new Headers(captured?.init?.headers);
@@ -97,11 +107,14 @@ describe("JevClient.ask", () => {
   test("posts a custom endpoint to its Base URL with the unmodified model", async () => {
     let capturedUrl = "";
     let capturedBody = "";
+
     const endpointFetch: Fetch = async (url, init) => {
       capturedUrl = String(url);
       capturedBody = String(init?.body);
+
       return jsonResponse(validBody);
     };
+
     const endpointClient = new JevClient({
       apiKey: API_KEY,
       baseUrl: "https://gw.corp/llm/jev",
@@ -110,9 +123,11 @@ describe("JevClient.ask", () => {
       timeoutMs: 5000,
       transport: "typesafe-compatible",
     });
+
     const result = await endpointClient.ask(state, {
       proceed: noul("Proceed?"),
     });
+
     expect(capturedUrl).toBe("https://gw.corp/llm/jev/v1/systemone");
     expect(JSON.parse(capturedBody)).toEqual({
       model: "jev-latest",
@@ -137,6 +152,7 @@ describe("JevClient.ask", () => {
         transport: "typesafe-compatible",
       }).ask(state, { proceed: noul("Proceed?") })
     );
+
     expect(failure.message).toContain("endpoint");
     expect(failure.message).not.toContain("TypeSafe");
   });
@@ -156,10 +172,13 @@ describe("JevClient.ask", () => {
 
   test("prefixes OpenRouter models without a namespace", async () => {
     let capturedBody = "";
+
     const openRouterFetch: Fetch = async (_url, init) => {
       capturedBody = String(init?.body);
+
       return jsonResponse(validBody);
     };
+
     const openRouterClient = new JevClient({
       apiKey: API_KEY,
       fetch: openRouterFetch,
@@ -167,16 +186,20 @@ describe("JevClient.ask", () => {
       timeoutMs: 5000,
       transport: "openrouter",
     });
+
     await openRouterClient.ask(state, { proceed: noul("Proceed?") });
     expect(JSON.parse(capturedBody).model).toBe("~typesafe/jev-latest");
   });
 
   test("keeps a fully-qualified OpenRouter model id as-is", async () => {
     let capturedBody = "";
+
     const openRouterFetch: Fetch = async (_url, init) => {
       capturedBody = String(init?.body);
+
       return jsonResponse(validBody);
     };
+
     const openRouterClient = new JevClient({
       apiKey: API_KEY,
       fetch: openRouterFetch,
@@ -184,6 +207,7 @@ describe("JevClient.ask", () => {
       timeoutMs: 5000,
       transport: "openrouter",
     });
+
     await openRouterClient.ask(state, { proceed: noul("Proceed?") });
     expect(JSON.parse(capturedBody).model).toBe("typesafe/jev-1.13");
   });
@@ -195,6 +219,7 @@ describe("JevClient.ask", () => {
         { proceed: noul("Proceed?") }
       )
     );
+
     expect(failure).toBeInstanceOf(JevFailure);
     expect(failure.category).toBe("auth");
     expect(failure.message).not.toContain(API_KEY);
@@ -202,10 +227,12 @@ describe("JevClient.ask", () => {
 
   test("lets the total deadline cancel a pending retry", async () => {
     let calls = 0;
+
     const failure = await expectJevFailure(
       client(
         abortableFetch(async () => {
           calls += 1;
+
           return calls === 1
             ? jsonResponse({ error: "slow down" }, 429)
             : jsonResponse(validBody);
@@ -213,6 +240,7 @@ describe("JevClient.ask", () => {
         150
       ).ask(state, { proceed: noul("Proceed?") })
     );
+
     expect(failure).toBeInstanceOf(JevFailure);
     expect(failure.category).toBe("timeout");
     expect(failure.message).toContain("150 ms");
@@ -223,30 +251,37 @@ describe("JevClient.ask", () => {
     const failure = await expectJevFailure(
       client(hangingFetch(), 100).ask(state, { proceed: noul("Proceed?") })
     );
+
     expect(failure).toBeInstanceOf(JevFailure);
     expect(failure.category).toBe("timeout");
   }, 10_000);
 
   test("retries a 429 once and returns the second attempt's answers", async () => {
     let calls = 0;
+
     const result = await client(async () => {
       calls += 1;
+
       return calls === 1
         ? jsonResponse({ error: "slow down" }, 429)
         : jsonResponse(validBody);
     }).ask(state, { proceed: noul("Proceed?") });
+
     expect(result.answers.proceed).toBeDefined();
     expect(calls).toBe(2);
   });
 
   test("does not retry a 401", async () => {
     let calls = 0;
+
     const failure = await expectJevFailure(
       client(async () => {
         calls += 1;
+
         return jsonResponse({ error: "unauthorized" }, 401);
       }).ask(state, { proceed: noul("Proceed?") })
     );
+
     expect(failure).toBeInstanceOf(JevFailure);
     expect(failure.category).toBe("auth");
     expect(calls).toBe(1);
@@ -258,6 +293,7 @@ describe("JevClient.ask", () => {
         jsonResponse({ answers: "garbage", model: "jev-test", usage: {} })
       ).ask(state, { proceed: noul("Proceed?") })
     );
+
     expect(failure).toBeInstanceOf(JevFailure);
     expect(failure.category).toBe("malformed");
   });
@@ -268,6 +304,7 @@ describe("JevClient.ask", () => {
         async () => new Response("<html>gateway</html>", { status: 200 })
       ).ask(state, { proceed: noul("Proceed?") })
     );
+
     expect(failure).toBeInstanceOf(JevFailure);
     expect(failure.category).toBe("malformed");
   });
@@ -278,6 +315,7 @@ describe("JevClient.ask", () => {
         jsonResponse({ error: { message: "bad rubric" } }, 422)
       ).ask(state, { proceed: noul("Proceed?") })
     );
+
     expect(failure).toBeInstanceOf(JevFailure);
     expect(failure.category).toBe("malformed");
     expect(failure.message).toContain("bad rubric");
@@ -285,12 +323,14 @@ describe("JevClient.ask", () => {
 
   test("classifies connection failures as network and retries once", async () => {
     let calls = 0;
+
     const failure = await expectJevFailure(
       client(async () => {
         calls += 1;
         throw new Error("ECONNREFUSED connection refused");
       }).ask(state, { proceed: noul("Proceed?") })
     );
+
     expect(failure).toBeInstanceOf(JevFailure);
     expect(failure.category).toBe("network");
     expect(calls).toBe(2);
@@ -313,8 +353,10 @@ describe("JevClient.ask", () => {
     let resolveResponse: ((response: Response) => void) | undefined;
     let calls = 0;
     const startedAt = performance.now();
+
     const pending = client(() => {
       calls += 1;
+
       return new Promise<Response>((resolve) => {
         resolveResponse = resolve;
       });
@@ -335,6 +377,7 @@ describe("JevClient.ask", () => {
         model: "jev-test",
       })
     ).ask(state, { proceed: noul("Proceed?") });
+
     expect(result.usage).toEqual({ cost: 0, inputTokens: 0, outputTokens: 0 });
   });
 });
@@ -365,10 +408,12 @@ const decisionsBody = {
 describe("OpenAI Decisions JevClient", () => {
   test("sends bounded state and named questions to the fixed endpoint/model", async () => {
     let captured: { url: string; init?: RequestInit } | undefined;
+
     const result = await new JevClient({
       apiKey: API_KEY,
       fetch: async (url, init) => {
         captured = { init, url };
+
         return jsonResponse(decisionsBody);
       },
       model: "ignored-jev-model",
@@ -425,12 +470,15 @@ describe("OpenAI Decisions JevClient", () => {
 
   test("classifies auth and validation failures without retrying or leaking secrets", async () => {
     let calls = 0;
+
     const auth = await expectJevFailure(
       decisionsClient(async () => {
         calls += 1;
+
         return jsonResponse({ error: `Bearer ${API_KEY}` }, 401);
       }).ask(state, screeningQuestions)
     );
+
     expect(auth.category).toBe("auth");
     expect(auth.message).not.toContain(API_KEY);
     expect(auth.message).toContain("[REDACTED SECRET]");
@@ -441,6 +489,7 @@ describe("OpenAI Decisions JevClient", () => {
         jsonResponse({ error: { message: "invalid decision schema" } }, 422)
       ).ask(state, screeningQuestions)
     );
+
     expect(validation.category).toBe("malformed");
     expect(validation.message).toContain("invalid decision schema");
   });
@@ -449,6 +498,7 @@ describe("OpenAI Decisions JevClient", () => {
     const timeout = await expectJevFailure(
       decisionsClient(hangingFetch(), 100).ask(state, screeningQuestions)
     );
+
     expect(timeout.category).toBe("timeout");
 
     const controller = new AbortController();
@@ -464,10 +514,12 @@ describe("OpenAI Decisions JevClient", () => {
 
   test("retries transient errors and validates the Decisions JSON contract", async () => {
     let calls = 0;
+
     const result = await new JevClient({
       apiKey: API_KEY,
       fetch: async () => {
         calls += 1;
+
         return calls === 1
           ? jsonResponse({ error: "slow down" }, 429)
           : jsonResponse(decisionsBody);
@@ -476,6 +528,7 @@ describe("OpenAI Decisions JevClient", () => {
       timeoutMs: 5000,
       transport: "openai-decisions",
     }).ask(state, screeningQuestions);
+
     expect(calls).toBe(2);
     expect(result.usage.inputTokens).toBe(159);
 
@@ -488,6 +541,7 @@ describe("OpenAI Decisions JevClient", () => {
         transport: "openai-decisions",
       }).ask(state, screeningQuestions)
     );
+
     expect(malformed.category).toBe("malformed");
   });
 });

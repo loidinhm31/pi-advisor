@@ -1,6 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-import { advisorScoutEnabledRef, executorRef } from "./config/state.ts";
+import { effectiveExecutorRef } from "./child-session.ts";
+import { advisorScoutEnabledRef } from "./config/state.ts";
 import {
   buildScoutManifest,
   reconstructScoutConversation,
@@ -30,15 +31,18 @@ export const curateAdvisorConversation = async (
   if (!enabled) {
     return { conversation: legacyConversation };
   }
+
   if (maxChars !== undefined && maxChars <= 0) {
     return { conversation: "" };
   }
+
   const built = buildScoutManifest(ctx, {
     currentInvocationId,
     imageNonce,
     maxConversationChars: maxChars,
     maxManifestBytes: SCOUT_MANIFEST_MAX_BYTES,
   });
+
   if (!built.ok) {
     const scout: Exclude<ScoutOutcome, { cancelled: true }> = {
       category: built.reason,
@@ -50,23 +54,30 @@ export const curateAdvisorConversation = async (
         omittedBeforeScout: 0,
         selectedCount: 0,
       },
-      model: executorRef,
+      model: effectiveExecutorRef(ctx),
       ok: false,
     };
+
     onScout?.({ outcome: scout, type: "fallback" });
+
     return { conversation: legacyConversation, scout };
   }
+
   const outcome = await runScout(ctx, built.manifest, signal, onScout);
+
   if (!outcome.ok && outcome.cancelled) {
     throw signal?.reason instanceof Error
       ? signal.reason
       : new Error("Advisor operation cancelled during Scout.");
   }
+
   if (outcome.ok) {
     const selected = new Set(outcome.selection.selectedIds);
+
     const selectedEntryIds = built.manifest.groups
       .filter((group) => group.required || selected.has(group.id))
       .flatMap((group) => group.entryIds ?? []);
+
     const conversation =
       maxChars === undefined
         ? outcome.conversation
@@ -76,7 +87,9 @@ export const curateAdvisorConversation = async (
             outcome.selection.synthesis,
             maxChars
           );
+
     return { conversation, scout: outcome, selectedEntryIds };
   }
+
   return { conversation: legacyConversation, scout: outcome };
 };

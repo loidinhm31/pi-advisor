@@ -41,12 +41,18 @@ export const isNativeHostAdvisor = (ctx?: AgentAwareContext | null): boolean =>
   ctx.agent.kind === "sub" &&
   ctx.agent.id === "advisor";
 
+export const followsSessionExecutor = (ctx?: AgentAwareContext | null) =>
+  isMarkedSubagent(ctx) || !executorRef;
+
 export const effectiveExecutorRef = (ctx: ExtensionContext) => {
-  if (isMarkedSubagent(ctx) && ctx.model) {
+  if (followsSessionExecutor(ctx) && ctx.model) {
     return `${ctx.model.provider}/${ctx.model.id}`;
   }
+
   return executorRef;
 };
 
 export const effectiveExecutorEffort = (ctx: ExtensionContext) =>
-  isMarkedSubagent(ctx) ? ctx.thinkingLevel : executorEffortRef;
+  isMarkedSubagent(ctx) || !(executorRef || executorEffortRef)
+    ? ctx.thinkingLevel
+    : executorEffortRef;

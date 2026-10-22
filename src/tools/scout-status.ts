@@ -20,6 +20,7 @@ export const scoutDetailsFromEvent = (
   if (event.type === "call") {
     return { model: event.model, status: "calling" };
   }
+
   if (event.type === "chunk") {
     return {
       ...previous,
@@ -29,13 +30,16 @@ export const scoutDetailsFromEvent = (
       thinking: event.thinking,
     };
   }
+
   if (event.type === "cancelled") {
     return {
       model: previous ? previous.model : executorRef,
       status: "cancelled",
     };
   }
+
   const { outcome } = event;
+
   return outcome.ok
     ? {
         availableCount: outcome.metrics.availableCount,
@@ -65,6 +69,7 @@ export const appendScoutLifecycleEntry = (
   previous?: ScoutToolDetails
 ) => {
   const scout = scoutDetailsFromEvent(event, previous);
+
   if (
     event.type === "success" ||
     event.type === "fallback" ||
@@ -72,6 +77,7 @@ export const appendScoutLifecycleEntry = (
   ) {
     pi.appendEntry?.("advisor-scout-result", scout);
   }
+
   return scout;
 };
 
@@ -95,14 +101,19 @@ export class ScoutStatusManager {
     if (this.#retired.has(token) || !uiAvailable(ctx)) {
       return;
     }
+
     this.#known.add(token);
+
     if (event.type === "call" || event.type === "chunk") {
       this.#active.add(token);
+
       if (this.showStatus) {
         uiAction(ctx, (ui) => ui.setStatus("advisor-scout", "Scout curating…"));
       }
+
       return;
     }
+
     this.release(ctx, token);
   }
 
@@ -110,9 +121,11 @@ export class ScoutStatusManager {
     this.#active.delete(token);
     this.#known.delete(token);
     this.#retired.add(token);
+
     if (!(uiAvailable(ctx) && this.showStatus)) {
       return;
     }
+
     uiAction(ctx, (ui) =>
       ui.setStatus(
         "advisor-scout",
@@ -125,8 +138,10 @@ export class ScoutStatusManager {
     for (const token of this.#known) {
       this.#retired.add(token);
     }
+
     this.#known.clear();
     this.#active.clear();
+
     if (this.showStatus) {
       uiAction(ctx, (ui) => ui.setStatus("advisor-scout", undefined));
     }
@@ -137,12 +152,15 @@ const scoutTitle = (scout: ScoutToolDetails, frame: string) => {
   if (scout.status === "calling" || scout.status === "streaming") {
     return `◆ SCOUT ${frame} · CURATING…`;
   }
+
   if (scout.status === "curated") {
     return "◆ SCOUT · CURATED";
   }
+
   if (scout.status === "cancelled") {
     return "◆ SCOUT · CANCELLED";
   }
+
   return "◆ SCOUT · FALLBACK";
 };
 
@@ -150,9 +168,11 @@ const scoutSelectionSummary = (scout: ScoutToolDetails) => {
   if (scout.status === "fallback") {
     return " · original conversation retained";
   }
+
   if (scout.status !== "curated" || scout.selectedCount === undefined) {
     return "";
   }
+
   return ` · ${scout.selectedCount} kept / ${Math.max(0, (scout.availableCount ?? 0) - scout.selectedCount)} omitted`;
 };
 
@@ -165,11 +185,13 @@ const scoutExpandedLines = (
   theme: Theme
 ): string[] => {
   const lines: string[] = [];
+
   if (expanded && scout.selectedLabels?.length) {
     lines.push(
       theme.fg("dim", `  Selected: ${scout.selectedLabels.join("; ")}`)
     );
   }
+
   if (expanded && scout.synthesis) {
     lines.push(
       theme.fg(
@@ -178,6 +200,7 @@ const scoutExpandedLines = (
       )
     );
   }
+
   if (expanded && scout.omittedBeforeScout) {
     lines.push(
       theme.fg(
@@ -186,6 +209,7 @@ const scoutExpandedLines = (
       )
     );
   }
+
   return lines;
 };
 
@@ -196,9 +220,12 @@ export const renderScoutDetails = (
   theme: Theme
 ) => {
   const active = scout.status === "calling" || scout.status === "streaming";
+
   const frame =
     SPINNER_FRAMES[Math.floor(Date.now() / 80) % SPINNER_FRAMES.length];
+
   const title = scoutTitle(scout, frame);
+
   const lines = [
     theme.fg(
       scout.status === "fallback" || scout.status === "cancelled"
@@ -208,21 +235,28 @@ export const renderScoutDetails = (
     ),
     theme.fg("dim", scoutSummaryLine(scout)),
   ];
+
   if (getAdvisorSettings().showUsageDetails) {
     const usage = formatAdvisorUsage(scout.usage);
+
     if (usage) {
       lines.push(theme.fg("dim", `  Usage: ${usage}`));
     }
   }
+
   if (scout.fallbackReason) {
     lines.push(theme.fg("warning", `  ${scout.fallbackReason}`));
   }
+
   const thinking = scout.thinking && active ? scout.thinking.slice(-200) : "";
   box.addChild(new Text(lines.join("\n"), 0, 0));
+
   if (thinking.trim()) {
     box.addChild(renderThinkingMarkdown(thinking, theme));
   }
+
   const expandedLines = scoutExpandedLines(scout, expanded, theme);
+
   if (expandedLines.length > 0) {
     box.addChild(new Text(expandedLines.join("\n"), 0, 0));
   }

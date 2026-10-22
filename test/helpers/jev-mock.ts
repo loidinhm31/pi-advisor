@@ -31,6 +31,7 @@ export const systemOneMock = (
 ): SystemOneMock => {
   const captured: CapturedJevRequest[] = [];
   let call = 0;
+
   const fetch: Fetch = (url, init) =>
     new Promise<Response>((resolve, reject) => {
       captured.push({
@@ -39,6 +40,7 @@ export const systemOneMock = (
         headers: (init?.headers ?? {}) as Record<string, string>,
         url,
       });
+
       const timer = setTimeout(() => {
         const entry = responses[Math.min(call, responses.length - 1)];
         call += 1;
@@ -52,6 +54,7 @@ export const systemOneMock = (
           })
         );
       }, options.latencyMs ?? 0);
+
       timer.unref?.();
       init?.signal?.addEventListener(
         "abort",
@@ -62,6 +65,7 @@ export const systemOneMock = (
         { once: true }
       );
     });
+
   return { captured, fetch };
 };
 

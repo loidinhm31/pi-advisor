@@ -38,8 +38,7 @@ const EXPECTED_TOOLS = ["ask_advisor", "record_advisor_outcome"];
 
 describe("dual-host capability and loader contracts (Phase 01 / H1)", () => {
   let probesPromise:
-    | Promise<[PiHostProbeResult, OmpHostProbeResult]>
-    | undefined;
+    Promise<[PiHostProbeResult, OmpHostProbeResult]> | undefined;
   const loadHostProbes = () => {
     probesPromise ??= Promise.all([runPiHostProbe(), runOmpHostProbe()]);
     return probesPromise;

@@ -10,6 +10,7 @@ import type { JevSecretsLike } from "../src/jev/key-store.ts";
 
 const fileStoreSpy = () => {
   const written: string[] = [];
+
   return {
     deleteFileStore: () => {
       written.pop();
@@ -27,14 +28,17 @@ const memorySecrets = (
   initial?: Map<string, string>
 ): JevSecretsLike & { stored: Map<string, string> } => {
   const stored = initial ?? new Map<string, string>();
+
   return {
     delete: (options) => {
       stored.delete(keyOf(options));
+
       return Promise.resolve(true);
     },
     get: (options) => Promise.resolve(stored.get(keyOf(options))),
     set: (options) => {
       stored.set(keyOf(options), options.value);
+
       return Promise.resolve();
     },
     stored,
@@ -56,6 +60,7 @@ describe("resolveJevEndpointKey", () => {
         new Map([["pi-advisor/jev-api-key", "stored-key"]])
       ),
     });
+
     expect(resolution).toEqual({
       key: "stored-key",
       source: "jev-bun-secrets",
@@ -68,6 +73,7 @@ describe("resolveJevEndpointKey", () => {
       readFileStore: () => "file-key",
       secrets: null,
     });
+
     expect(resolution).toEqual({ key: "env-key", source: "jev-env" });
   });
 
@@ -77,6 +83,7 @@ describe("resolveJevEndpointKey", () => {
       readFileStore: () => "file-key",
       secrets: null,
     });
+
     expect(resolution).toEqual({ key: "file-key", source: "jev-file" });
   });
 
@@ -86,6 +93,7 @@ describe("resolveJevEndpointKey", () => {
       readFileStore: () => "\n",
       secrets: memorySecrets(),
     });
+
     expect(resolution).toEqual({});
   });
 
@@ -95,6 +103,7 @@ describe("resolveJevEndpointKey", () => {
       readFileStore: () => undefined,
       secrets: failingSecrets("keychain locked"),
     });
+
     expect(resolution).toEqual({ key: "env-key", source: "jev-env" });
   });
 });
@@ -109,10 +118,12 @@ describe("writeJevEndpointKey", () => {
 
   test("stores the key in the agent directory when no secret store exists", async () => {
     const file = fileStoreSpy();
+
     const result = await writeJevEndpointKey("jv_live_key", {
       secrets: null,
       writeFileStore: file.writeFileStore,
     });
+
     expect(result.ok).toBe(true);
     expect(file.files).toEqual(["jv_live_key"]);
   });
@@ -139,12 +150,15 @@ describe("clearJevEndpointKey", () => {
     const secrets = memorySecrets(
       new Map([["pi-advisor/jev-api-key", "stored-key"]])
     );
+
     const file = fileStoreSpy();
     file.writeFileStore("file-key");
+
     const result = await clearJevEndpointKey({
       deleteFileStore: file.deleteFileStore,
       secrets,
     });
+
     expect(result.ok).toBe(true);
     expect(secrets.stored.size).toBe(0);
     expect(file.files).toEqual([]);
@@ -155,6 +169,7 @@ describe("clearJevEndpointKey", () => {
       deleteFileStore: () => undefined,
       secrets: failingSecrets("keychain locked"),
     });
+
     expect(result.ok).toBe(false);
     expect(result.message).toBeString();
   });

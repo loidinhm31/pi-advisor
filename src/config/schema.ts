@@ -11,13 +11,14 @@ import {
   advisorCustomInvocationRef,
   advisorDisableSameModelRef,
   advisorEffortRef,
-  advisorFallbackModelRef,
   advisorFailureGateRef,
   advisorFailureModeRef,
+  advisorFallbackModelRef,
   advisorGitContextMaxCharsRef,
   advisorGitContextRef,
   advisorHerdrIntegrationRef,
   advisorJevBaseUrlRef,
+  advisorJevClassifierRef,
   advisorJevDigestMaxCharsRef,
   advisorJevFilterEnabledRef,
   advisorJevFilterNoulMarginRef,
@@ -43,6 +44,7 @@ import {
   advisorToolPoliciesRef,
   advisorToolResultMaxBytesRef,
   advisorToolResultMaxLinesRef,
+  advisorToolsEnabledRef,
   advisorTrackedFileContentRef,
   advisorUntrackedContentRef,
   alwaysOnRef,
@@ -85,6 +87,7 @@ export const isValidAdvisorToolPolicies = (
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return false;
   }
+
   return Object.entries(value).every(
     ([toolName, policy]) =>
       toolName.trim().length > 0 &&
@@ -121,7 +124,7 @@ export const isValidToolResultMaxLines = (value: unknown): value is number =>
 export const isValidToolResultMaxBytes = (value: unknown): value is number =>
   nonNegativeSafeInteger(value);
 
-export const isValidJevTimeoutMs = (value: unknown): value is number =>
+const isValidJevTimeoutMs = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
 
 const isValidScoutTimeoutMs = (value: unknown): value is number =>
@@ -130,19 +133,19 @@ const isValidScoutTimeoutMs = (value: unknown): value is number =>
   value >= 1 &&
   value <= MAX_SCOUT_TIMEOUT_MS;
 
-export const isValidJevDigestMaxChars = (value: unknown): value is number =>
+const isValidJevDigestMaxChars = (value: unknown): value is number =>
   nonNegativeSafeInteger(value);
 
-export const isValidJevPricePerMtok = (value: unknown): value is number =>
+const isValidJevPricePerMtok = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value) && value > 0;
 
-export const isValidJevSkipConfidence = (value: unknown): value is number =>
+const isValidJevSkipConfidence = (value: unknown): value is number =>
   typeof value === "number" &&
   Number.isFinite(value) &&
   value >= 0.5 &&
   value <= 1;
 
-export const isValidJevNoulMargin = (value: unknown): value is number =>
+const isValidJevNoulMargin = (value: unknown): value is number =>
   typeof value === "number" &&
   Number.isFinite(value) &&
   value >= 0 &&
@@ -150,15 +153,15 @@ export const isValidJevNoulMargin = (value: unknown): value is number =>
 
 const JEV_TRANSPORT_NAMES = new Set<string>(JEV_TRANSPORTS);
 
-export const isValidJevTransport = (value: unknown): value is JevTransport =>
+const isValidJevTransport = (value: unknown): value is JevTransport =>
   isString(value) && JEV_TRANSPORT_NAMES.has(value);
 
 /** An empty value clears the endpoint; anything else must be a usable Base URL. */
-export const isValidJevBaseUrl = (value: unknown): value is string =>
+const isValidJevBaseUrl = (value: unknown): value is string =>
   isString(value) &&
   (value.trim() === "" || normalizeJevBaseUrl(value).baseUrl !== undefined);
 
-export const isValidJevKeyProvider = (value: unknown): value is string =>
+const isValidJevKeyProvider = (value: unknown): value is string =>
   isString(value) && (value.trim() === "" || !/\s/u.test(value.trim()));
 
 /** One declarative entry per AdvisorConfig key: JSON type, persistence, and
@@ -271,6 +274,15 @@ export const CONFIG_SCHEMA = {
     persisted: true,
     type: "string",
     validate: isValidJevBaseUrl,
+  },
+  advisorJevClassifier: {
+    accepted: "a concrete provider/model classifier reference or jev-api-key",
+    current: () => advisorJevClassifierRef,
+    persisted: true,
+    type: "string",
+    validate: (value: unknown): value is JsonValue =>
+      isString(value) &&
+      (value === "jev-api-key" || /^[^/]+\/.+$/u.test(value.trim())),
   },
   advisorJevDigestMaxChars: {
     accepted: "a non-negative safe integer",
@@ -433,6 +445,12 @@ export const CONFIG_SCHEMA = {
     persisted: true,
     type: "number",
     validate: isValidToolResultMaxLines,
+  },
+  advisorToolsEnabled: {
+    accepted: "true or false",
+    current: () => advisorToolsEnabledRef,
+    persisted: true,
+    type: "boolean",
   },
   advisorTrackedFileContent: {
     accepted: "true or false",

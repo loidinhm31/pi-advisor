@@ -9,7 +9,7 @@ import { recentConversation } from "../conversation.ts";
 import { redactAndCapText } from "../redaction.ts";
 
 /** Per-field byte cap for executor question and draft sent to Jev. */
-export const JEV_TEXT_CAP_BYTES = 8 * 1024;
+const JEV_TEXT_CAP_BYTES = 8 * 1024;
 
 export interface JevStateInput {
   draft?: string;
@@ -26,6 +26,7 @@ export const buildJevState = (
   input: JevStateInput = {}
 ) => {
   const fields = new Map<string, string>([["role", "executor"]]);
+
   if (input.question) {
     fields.set(
       "executor_question",
@@ -36,15 +37,19 @@ export const buildJevState = (
       )
     );
   }
+
   if (input.draft) {
     fields.set(
       "executor_draft",
       redactAndCapText(input.draft, JEV_TEXT_CAP_BYTES, advisorRedactSecretsRef)
     );
   }
+
   const digest = recentConversation(ctx, advisorJevDigestMaxCharsRef);
+
   if (digest) {
     fields.set("recent_conversation", digest);
   }
+
   return Object.fromEntries(fields);
 };

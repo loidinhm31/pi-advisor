@@ -36,9 +36,11 @@ const formatByteSize = (bytes: number) => {
   if (bytes >= 1024 * 1024) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
   }
+
   if (bytes >= 1024) {
     return `${Math.round(bytes / 1024)} KiB`;
   }
+
   return `${bytes} B`;
 };
 
@@ -46,9 +48,11 @@ const manualCallRenderer =
   (runtime: CommandRuntime): EntryRenderer<ManualCallEntryDetails> =>
   (entry, { expanded }, theme) => {
     const { progressId, question } = entry.data ?? {};
+
     const progress = progressId
       ? runtime.manualProgress.get(progressId)
       : undefined;
+
     return progress
       ? new ManualAdvisorProgressComponent(
           question,
@@ -66,24 +70,30 @@ const manualResultRenderer: MessageRenderer<ManualResultDetails> = (
 ) => {
   const { details } = message;
   const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
+
   const advice =
     details?.text ??
     (isString(message.content)
       ? message.content
       : "(Advisor returned no advice.)");
+
   // Manual consultations must render exactly like an Executor ask_advisor call.
   box.addChild(
     new Text(renderAdvisorResponseHeader(hasSoundVerdict(advice), theme), 0, 0)
   );
+
   if (details?.advisor) {
     box.addChild(new Text(theme.fg("dim", `  ${details.advisor}`), 0, 0));
   }
+
   if (getAdvisorSettings().showUsageDetails) {
     const usage = formatAdvisorUsage(details?.usage);
+
     if (usage) {
       box.addChild(new Text(theme.fg("dim", `  Usage: ${usage}`), 0, 0));
     }
   }
+
   const attachments = [
     details?.agentRulesBytes
       ? `AGENTS.md rules attached · ${formatByteSize(details.agentRulesBytes)}`
@@ -92,14 +102,17 @@ const manualResultRenderer: MessageRenderer<ManualResultDetails> = (
       ? `Project preferences attached · ${formatByteSize(details.preferenceBytes)}`
       : undefined,
   ].filter((value): value is string => value !== undefined);
+
   if (attachments.length) {
     box.addChild(
       new Text(theme.fg("dim", `  ${attachments.join(" · ")}`), 0, 0)
     );
   }
+
   box.addChild(
     new Markdown(adviceForDisplay(advice, expanded), 0, 0, getMarkdownTheme())
   );
+
   return box;
 };
 
@@ -120,6 +133,7 @@ const outcomeStatsRenderer: MessageRenderer<AdvisorStatsDetails> = (
       getMarkdownTheme()
     )
   );
+
   return box;
 };
 

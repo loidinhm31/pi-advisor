@@ -88,12 +88,15 @@ export const providerName = (transport: JevTransportKind): string => {
   if (transport === "typesafe") {
     return "TypeSafe Jev";
   }
+
   if (transport === "openrouter") {
     return "OpenRouter (Pi login)";
   }
+
   if (transport === "typesafe-compatible") {
     return "System One–compatible endpoint";
   }
+
   return `OpenAI Decisions (${OPENAI_DECISIONS_MODEL})`;
 };
 
@@ -102,12 +105,15 @@ const endpointSourceLabel = (source: JevCredentials["source"]): string => {
     case "provider-credential": {
       return "Pi provider login";
     }
+
     case "jev-bun-secrets": {
       return "Bun.secrets";
     }
+
     case "jev-file": {
       return "stored file, mode 0600";
     }
+
     default: {
       return "JEV_API_KEY";
     }
@@ -118,44 +124,56 @@ export const transportLabel = (credentials: JevCredentials): string => {
   if (credentials.transport === "openrouter") {
     return "OpenRouter (reusing Pi login)";
   }
+
   if (credentials.transport === "typesafe-compatible") {
     return `System One–compatible (${credentials.baseUrl ?? "no Base URL"}; key: ${endpointSourceLabel(credentials.source)})`;
   }
+
   if (credentials.transport === "openai-decisions") {
     let source = "verified API key";
+
     switch (credentials.source) {
       case "openai-bun-secrets": {
         source = "Bun.secrets";
         break;
       }
+
       case "openai-env": {
         source = "OPENAI_API_KEY";
         break;
       }
+
       case "openai-file": {
         source = "stored file, mode 0600";
         break;
       }
+
       case "openai-provider-credential": {
         source = "Pi stored API key";
         break;
       }
+
       default: {
         break;
       }
     }
+
     return `OpenAI Decisions (${OPENAI_DECISIONS_MODEL}; key: ${source})`;
   }
+
   switch (credentials.source) {
     case "advisor-json": {
       return "TypeSafe (key: advisor.json — plaintext, not recommended)";
     }
+
     case "bun-secrets": {
       return "TypeSafe (key: Bun.secrets)";
     }
+
     case "file": {
       return "TypeSafe (key: stored file, mode 0600)";
     }
+
     default: {
       return "TypeSafe (key: TYPESAFE_API_KEY)";
     }
@@ -181,19 +199,23 @@ export const keyEntryPrompt = (transport: JevTransportKind): string => {
   if (transport === "openai-decisions") {
     return "Paste an OpenAI Platform API key";
   }
+
   if (transport === "typesafe-compatible") {
     return "Paste the endpoint API key";
   }
+
   return "Paste a TypeSafe API key";
 };
 
-export const defaultVerify = async (credentials: JevCredentials) => {
+const defaultVerify = async (credentials: JevCredentials) => {
   const client = jevClientFromCredentials(credentials);
+
   try {
     await client.ask(
       { purpose: "pi-advisor setup verification" },
       { verified: noul("Answer yes.") }
     );
+
     return { ok: true };
   } catch (error) {
     return {
@@ -207,9 +229,11 @@ const writeKeyFor = (key: string, transport: JevTransportKind) => {
   if (transport === "openai-decisions") {
     return writeOpenAIDecisionsKey(key);
   }
+
   if (transport === "typesafe-compatible") {
     return writeJevEndpointKey(key);
   }
+
   return writeKeyTypeSafeKey(key);
 };
 
@@ -217,13 +241,27 @@ const clearKeyFor = (transport: JevTransportKind) => {
   if (transport === "openai-decisions") {
     return clearOpenAIDecisionsKey();
   }
+
   if (transport === "typesafe-compatible") {
     return clearJevEndpointKey();
   }
+
   return clearKeyTypeSafeKey();
 };
 
-export const defaultSetupDeps: Required<JevSetupDeps> = {
+export const defaultSetupDeps: Required<
+  Omit<
+    JevSetupDeps,
+    | "modelRegistry"
+    | "resolveClassifierKey"
+    | "persistClassifierKey"
+    | "restoreClassifierKey"
+  >
+> &
+  Pick<
+    JevSetupDeps,
+    "resolveClassifierKey" | "persistClassifierKey" | "restoreClassifierKey"
+  > = {
   clearStoredKey: (transport) => clearKeyFor(transport),
   removePlaintextKey: removeTypeSafeKeyFromAdvisorJson,
   resolveEndpoint: (options) => resolveTypesafeCompatibleCredentials(options),

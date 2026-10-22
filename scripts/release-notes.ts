@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 
 const headingVersion = (line: string): string | undefined => {
   const match = /^##\s+\[?(?<version>v?\d+\.\d+\.\d+)\]?(?:\s|$)/u.exec(line);
+
   return match?.groups?.version?.replace(/^v/u, "");
 };
 
@@ -21,6 +22,7 @@ export const extractReleaseNotes = (
   }
 
   let end = start + 1;
+
   while (end < lines.length && !/^##\s/u.test(lines[end] ?? "")) {
     end += 1;
   }
@@ -29,6 +31,7 @@ export const extractReleaseNotes = (
     .slice(start + 1, end)
     .join("\n")
     .trim();
+
   if (!notes) {
     throw new Error(`The changelog entry for ${version} is empty.`);
   }
@@ -38,10 +41,12 @@ export const extractReleaseNotes = (
 
 if (import.meta.main) {
   const [version, changelogPath = "CHANGELOG.md"] = process.argv.slice(2);
+
   try {
     if (!version) {
       throw new Error("Expected a stable version in x.y.z format.");
     }
+
     process.stdout.write(
       `${extractReleaseNotes(readFileSync(changelogPath, "utf-8"), version)}\n`
     );

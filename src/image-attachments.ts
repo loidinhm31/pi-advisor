@@ -28,23 +28,32 @@ const readImageAttachment = async (
   remaining: number
 ): Promise<ImageAttachment | undefined> => {
   const absolute = resolve(root, name);
+
   if (!within(root, absolute)) {
     return;
   }
+
   const stats = await lstat(absolute);
+
   if (stats.isSymbolicLink() || !stats.isFile()) {
     return;
   }
+
   const resolved = await realpath(absolute);
+
   if (!within(root, resolved)) {
     return;
   }
+
   const flags = constants.O_NOFOLLOW
     ? constants.O_RDONLY + constants.O_NOFOLLOW
     : constants.O_RDONLY;
+
   const file = await open(resolved, flags);
+
   try {
     const opened = await file.stat();
+
     if (
       !opened.isFile() ||
       opened.size > ADVISOR_IMAGE_MAX_BYTES ||
@@ -52,12 +61,16 @@ const readImageAttachment = async (
     ) {
       return;
     }
+
     const buffer = Buffer.alloc(opened.size + 1);
     const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
+
     if (bytesRead !== opened.size) {
       return;
     }
+
     const image = imageFromBytes(buffer.subarray(0, bytesRead), mimeType);
+
     return image ? { bytes: bytesRead, image, path: name } : undefined;
   } finally {
     await file.close();
@@ -79,27 +92,36 @@ export const readImageFiles = async (
         : []
     ),
   ];
+
   if (!enabled || !names.length) {
     return { images: [], omitted: names.length };
   }
+
   const root = await repositoryRoot(cwd);
+
   if (!root) {
     return { images: [], omitted: names.length };
   }
+
   const seen = new Set<string>();
   const images: ImageAttachment[] = [];
   let omitted = 0;
   let bytes = 0;
+
   for (const path of names) {
     const name = normalizeRequestedPath(root, path);
+
     if (name && seen.has(name)) {
       continue;
     }
+
     if (name) {
       seen.add(name);
     }
+
     try {
       const mime = name && imageMime(name);
+
       const image =
         name &&
         mime &&
@@ -108,6 +130,7 @@ export const readImageFiles = async (
         isPermitted(root, name, kind)
           ? await readImageAttachment(root, name, mime, remainingBytes - bytes)
           : undefined;
+
       if (image) {
         images.push(image);
         bytes += image.bytes;
@@ -118,5 +141,6 @@ export const readImageFiles = async (
       omitted += 1;
     }
   }
+
   return { images, omitted };
 };
