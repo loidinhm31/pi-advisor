@@ -7,8 +7,7 @@ const raw = execFileSync("npm", ["pack", "--dry-run", "--json"], {
   shell: process.platform === "win32",
   stdio: ["ignore", "pipe", "inherit"],
 });
-const start = raw.search(/[[{]/u);
-const parsed = JSON.parse(start >= 0 ? raw.slice(start) : raw);
+const parsed = JSON.parse(raw);
 const [result] = Array.isArray(parsed) ? parsed : Object.values(parsed);
 const actualFiles = result.files.map(({ path }) => path).toSorted();
 

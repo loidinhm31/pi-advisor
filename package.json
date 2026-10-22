@@ -42,7 +42,7 @@
     "knip": "knip",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
-    "prepack": "bun run build",
+    "prepack": "node -e \"require('node:child_process').execSync('bun run build', { stdio: ['ignore', 'ignore', 'inherit'] })\"",
     "package:check": "node scripts/check-package.mjs",
     "preinstall": "node scripts/check-bun-version.mjs",
     "prepare": "husky",
