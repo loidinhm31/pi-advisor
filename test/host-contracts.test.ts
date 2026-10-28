@@ -30,6 +30,7 @@ const EXPECTED_COMMANDS = [
   "advisor-manual",
   "advisor-models",
   "advisor-off",
+  "advisor-on",
   "advisor-settings",
   "advisor-stats",
 ];

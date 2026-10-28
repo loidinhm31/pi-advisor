@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Injected delimited `<!-- pi-advisor-flow:invocation-settings:start -->`…`<!-- pi-advisor-flow:invocation-settings:end -->` invocation rules into OMP's `systemPrompt` `string[]` array on `before_agent_start`, preserving foreign prompt blocks and removing only the plugin-owned block on `/advisor-off`.
 - Added conditional `xd://ask_advisor` and `xd://record_advisor_outcome` routing instructions when the host advertises `xd://` devices.
 - Added dual-host subprocess verification harness and tests for host capability contracts, isolated plugin linking (`R2`), and TUI renderer compatibility.
+- Added `/advisor-on` command to enable the Advisor flow without colliding with Oh-My-Pi's built-in `/advisor` command, while retaining `/advisor` as a backward-compatible alias in Pi 1.x.
 
 ### Changed
 

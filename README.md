@@ -96,19 +96,21 @@ omp plugin install pi-advisor-flow@0.13.0
 
 Start a fresh OMP process after installing or linking. Reload Pi after installing.
 
+In Oh-My-Pi, the host's built-in `/advisor` command toggles OMP's native advisor runtime. Use `/advisor-on` to activate pi-advisor without collision (`/advisor` remains available as a backward-compatible alias in Pi 1.x).
+
 ## Quick start
 
 ```text
-/advisor            # Enable the Advisor Flow
+/advisor-on         # Enable the Advisor Flow (/advisor also works in Pi 1.x)
 /advisor-models     # Choose the Executor, Advisor, and optional fallback models
 /advisor-settings   # Configure behavior, modes, etc.
 /advisor-stats      # Show retained outcome adoption and validation stats
 ```
 
-The Executor is whichever model your Pi session is using; `/advisor` never switches it unless you pin one with `executor=` or `/advisor-models`. On first use, or whenever the saved Advisor is unavailable, `/advisor` opens the available-model picker; it never silently chooses an unconfigured Advisor. If the active Executor and Advisor use the same provider/model, calls and automatic gates are skipped with a notice; switching either model resumes consultations. Turn off **Disable same-model Advisor** in `/advisor-settings` (or set `"advisorDisableSameModel": false` globally) if you intentionally want a higher-effort review from that same model. You can also enable the flow and select both models at once:
+The Executor is whichever model your Pi session is using; `/advisor-on` (or `/advisor` in Pi 1.x) never switches it unless you pin one with `executor=` or `/advisor-models`. On first use, or whenever the saved Advisor is unavailable, `/advisor-on` (or `/advisor` in Pi 1.x) opens the available-model picker; it never silently chooses an unconfigured Advisor. If the active Executor and Advisor use the same provider/model, calls and automatic gates are skipped with a notice; switching either model resumes consultations. Turn off **Disable same-model Advisor** in `/advisor-settings` (or set `"advisorDisableSameModel": false` globally) if you intentionally want a higher-effort review from that same model. You can also enable the flow and select both models at once:
 
 ```text
-/advisor executor=openai-codex/gpt-5.6-luna advisor=openai-codex/gpt-5.6-sol
+/advisor-on executor=openai-codex/gpt-5.6-luna advisor=openai-codex/gpt-5.6-sol
 ```
 
 From the Executor, `ask_advisor({})` requests a general review. A targeted `question` or concise `draft` can focus the review on a particular decision. `/advisor-settings` can restrict this tool and every automatic Advisor gate to a whitelist of exact `provider/model` Executor references; an empty whitelist preserves the default of allowing every model.
@@ -168,14 +170,15 @@ Successful calls return an opaque `adviceId`. If global outcome logging is enabl
 
 ## Commands
 
-| Command                   | What it does                                                                           |
-| ------------------------- | -------------------------------------------------------------------------------------- |
-| `/advisor`                | Enable the flow; choose available models when needed.                                  |
-| `/advisor-manual [focus]` | Ask for an immediate second opinion.                                                   |
-| `/advisor-models`         | Choose the Executor, Advisor, and optional fallback models.                            |
-| `/advisor-settings`       | Configure behavior, models, context, privacy, and limits.                              |
-| `/advisor-stats`          | Show retained outcome adoption and validation stats.                                   |
-| `/advisor-off`            | Disable model-facing Advisor tools across sessions and turn off persistent activation. |
+| Command                   | What it does                                                                                               |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `/advisor-on`             | Enable the flow; choose available models when needed.                                                      |
+| `/advisor`                | Backward-compatible alias for `/advisor-on` in Pi 1.x (in OMP, `/advisor` is reserved for native advisor). |
+| `/advisor-manual [focus]` | Ask for an immediate second opinion.                                                                       |
+| `/advisor-models`         | Choose the Executor, Advisor, and optional fallback models.                                                |
+| `/advisor-settings`       | Configure behavior, models, context, privacy, and limits.                                                  |
+| `/advisor-stats`          | Show retained outcome adoption and validation stats.                                                       |
+| `/advisor-off`            | Disable model-facing Advisor tools across sessions and turn off persistent activation.                     |
 
 In the interactive TUI, `/advisor-manual [focus]` opens a centered overlay with the focus text prefilled, a choice of permitted Git-context level, and live progress in the transcript. Canceling has no side effects.
 
