@@ -18,11 +18,13 @@ import { selectAdvisorModels } from "./model-picker.ts";
 import type { CommandRuntime } from "./types.ts";
 
 export const registerModelCommands = (runtime: CommandRuntime) => {
-  runtime.pi.registerCommand("advisor", {
-    description:
-      "Enable the Executor/Advisor flow and switch to the configured or explicitly selected Executor model; accepts contextMaxChars=N",
-    handler: (args, ctx) => activateAdvisor(runtime, args, ctx),
-  });
+  for (const commandName of ["advisor", "advisor-on"] as const) {
+    runtime.pi.registerCommand(commandName, {
+      description:
+        "Enable the Executor/Advisor flow and switch to the configured or explicitly selected Executor model; accepts contextMaxChars=N",
+      handler: (args, ctx) => activateAdvisor(runtime, args, ctx),
+    });
+  }
 
   runtime.pi.registerCommand("advisor-models", {
     description:

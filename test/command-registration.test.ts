@@ -26,7 +26,7 @@ describe("Extension Registration", () => {
     expect(runAdvisorGate).toBeInstanceOf(Function);
     expect(parseAutomaticDecision).toBeInstanceOf(Function);
   });
-  test("registers the ask_advisor tool and the six advisor commands", () => {
+  test("registers the ask_advisor tool and the seven advisor commands", () => {
     const tools = new Map<string, any>();
     const commands = new Map<string, any>();
 
@@ -36,12 +36,17 @@ describe("Extension Registration", () => {
     expect([...tools.keys()]).toContain("ask_advisor");
 
     // Verify all commands registered
+    expect(commands.size).toBe(7);
     expect([...commands.keys()]).toContain("advisor");
+    expect([...commands.keys()]).toContain("advisor-on");
     expect([...commands.keys()]).toContain("advisor-manual");
     expect([...commands.keys()]).toContain("advisor-models");
     expect([...commands.keys()]).toContain("advisor-settings");
     expect([...commands.keys()]).toContain("advisor-off");
     expect([...commands.keys()]).toContain("advisor-stats");
+    expect(commands.get("advisor-on").description).toBe(
+      commands.get("advisor").description
+    );
   });
 
   test("coalesces Advisor tool updates and flushes on completion", async () => {

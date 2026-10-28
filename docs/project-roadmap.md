@@ -111,6 +111,7 @@ Implementation is executed in six dependency-gated phases:
     - Documented permission-restricted (`0700`) backup and rollback commands for operator environments (`omp plugin install pi-advisor-flow@0.13.0` and `omp plugin install github:loidinhm31/pi-advisor#<ref>`).
   - **Full Quality Gate Satisfaction**:
     - All 589 unit and dual-host integration tests passing across boundary checks, typechecks, lint, format, and package checks.
+
 ---
 
 ## Verification & Quality Gates

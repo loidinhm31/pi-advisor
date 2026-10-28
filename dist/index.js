@@ -7447,10 +7447,12 @@ var registerManualCommand = (runtime) => {
 
 // src/commands/model-commands.ts
 var registerModelCommands = (runtime) => {
-  runtime.pi.registerCommand("advisor", {
-    description: "Enable the Executor/Advisor flow and switch to the configured or explicitly selected Executor model; accepts contextMaxChars=N",
-    handler: (args, ctx) => activateAdvisor(runtime, args, ctx)
-  });
+  for (const commandName of ["advisor", "advisor-on"]) {
+    runtime.pi.registerCommand(commandName, {
+      description: "Enable the Executor/Advisor flow and switch to the configured or explicitly selected Executor model; accepts contextMaxChars=N",
+      handler: (args, ctx) => activateAdvisor(runtime, args, ctx)
+    });
+  }
   runtime.pi.registerCommand("advisor-models", {
     description: "Select and persist the Executor, Advisor, and optional fallback models with reasoning levels",
     handler: async (_args, ctx) => {

@@ -838,4 +838,225 @@ describe("Advisor activation flow", () => {
     expect(ompResult.afterOffSystemPrompt).toEqual(ompResult.retryPrefix);
     expect(ompResult.afterCleanSystemPrompt).toBeNull();
   });
+  test("keeps available persisted models without opening the picker with advisor-on", async () => {
+    await withAgentDir(
+      {
+        advisor: "provider/advisor",
+        executor: "provider/executor",
+      },
+      async (agentDir) => {
+        const { commands, pi, selectedModels, setActiveTools } =
+          activationHarness();
+        setActiveTools(["unrelated-tool"]);
+        const models = [
+          { id: "executor", provider: "provider" },
+          { id: "advisor", provider: "provider" },
+        ];
+        let customCalls = 0;
+        const ctx = asExtensionContext({
+          cwd: agentDir,
+          hasUI: true,
+          isProjectTrusted: () => false,
+          modelRegistry: modelsRegistry(models),
+          ui: {
+            custom: () => {
+              customCalls += 1;
+              return Promise.resolve();
+            },
+            notify: () => undefined,
+          },
+        });
+
+        registerCommands(pi);
+        await commands.get("advisor-on").handler("", ctx);
+
+        expect(customCalls).toBe(0);
+        expect(selectedModels).toEqual([
+          { id: "executor", provider: "provider" },
+        ]);
+        expect(pi.getActiveTools()).toEqual([
+          "unrelated-tool",
+          "ask_advisor",
+          "record_advisor_outcome",
+        ]);
+      }
+    );
+  });
+
+  test("awaits setActiveTools in /advisor-on activation", async () => {
+    await withAgentDir(
+      {
+        advisor: "provider/advisor",
+        executor: "provider/executor",
+      },
+      async (agentDir) => {
+        const { promise: toolsBarrier, resolve: releaseTools } =
+          Promise.withResolvers<undefined>();
+        const { promise: reachedMutation, resolve: signalMutationReached } =
+          Promise.withResolvers<undefined>();
+        let toolsSettled = false;
+        const activeTools: string[] = ["preexisting-tool"];
+        const commands = new Map<string, any>();
+        const pi = mockPi(
+          { activeTools, commands },
+          {
+            getActiveTools: () => [...activeTools],
+            setActiveTools: async (tools: string[]) => {
+              signalMutationReached(undefined);
+              await toolsBarrier;
+              activeTools.length = 0;
+              activeTools.push(...tools);
+              toolsSettled = true;
+            },
+            setModel: () => Promise.resolve(true),
+            setThinkingLevel: () => undefined,
+          }
+        );
+        registerCommands(pi);
+        const ctx = activationContext(agentDir);
+
+        let handlerSettled = false;
+        const activationPromise = commands
+          .get("advisor-on")
+          .handler("", ctx)
+          .then(() => {
+            expect(toolsSettled).toBe(true);
+            handlerSettled = true;
+          });
+
+        await reachedMutation;
+        expect(handlerSettled).toBe(false);
+        expect(toolsSettled).toBe(false);
+
+        releaseTools(undefined);
+        await activationPromise;
+
+        expect(handlerSettled).toBe(true);
+        expect(toolsSettled).toBe(true);
+        expect(activeTools).toEqual([
+          "preexisting-tool",
+          "ask_advisor",
+          "record_advisor_outcome",
+        ]);
+      }
+    );
+  });
+
+  test("opens model picker and persists choices on first activation with advisor-on", async () => {
+    await withAgentDir({}, async (agentDir) => {
+      const { commands, pi, setActiveTools } = activationHarness();
+      setActiveTools([]);
+      const models = [
+        { id: "chosen-executor", provider: "provider" },
+        { id: "chosen-advisor", provider: "provider" },
+      ];
+      const selectedModels: string[] = [];
+      const notices: string[] = [];
+      const ctx = asExtensionContext({
+        cwd: agentDir,
+        hasUI: true,
+        isProjectTrusted: () => false,
+        modelRegistry: modelsRegistry(models),
+        ui: {
+          ...typingSelectorUi(plainTheme, {
+            onValue: (value) => {
+              if (value) {
+                selectedModels.push(value);
+              }
+            },
+            search: "chosen-advisor",
+          }),
+          notify: (message: string) => notices.push(message),
+        },
+      });
+
+      registerCommands(pi);
+      await commands.get("advisor-on").handler("", ctx);
+
+      expect(selectedModels).toEqual([
+        "provider/chosen-executor",
+        "provider/chosen-advisor",
+        "Disabled (no fallback)",
+      ]);
+      expect(savedConfig(agentDir)).toMatchObject({
+        advisor: "provider/chosen-advisor",
+        executor: "provider/chosen-executor",
+      });
+      expect(pi.getActiveTools()).toEqual([
+        "ask_advisor",
+        "record_advisor_outcome",
+      ]);
+      const explanation = notices.find((message) =>
+        message.startsWith("The Advisor is")
+      );
+      expect(explanation).toContain("Advisor flow ready");
+    });
+  });
+
+  test("persists context arguments and model overrides supplied to /advisor-on", async () => {
+    await withAgentDir(
+      {
+        advisor: "provider/initial-advisor",
+        contextMaxChars: 15_000,
+        executor: "provider/initial-executor",
+      },
+      async (agentDir) => {
+        const { commands, pi, selectedModels, setActiveTools } =
+          activationHarness();
+        setActiveTools([]);
+        registerCommands(pi);
+        const ctx = activationContext(agentDir);
+        await commands
+          .get("advisor-on")
+          .handler(
+            "executor=provider/explicit advisor=provider/advisor contextMaxChars=5000",
+            ctx
+          );
+        const saved = savedConfig(agentDir);
+        expect(saved.executor).toBe("provider/explicit");
+        expect(saved.advisor).toBe("provider/advisor");
+        expect(saved.contextMaxChars).toBe(5000);
+        expect(selectedModels).toEqual([
+          { id: "explicit", provider: "provider" },
+        ]);
+        expect(pi.getActiveTools()).toEqual([
+          "ask_advisor",
+          "record_advisor_outcome",
+        ]);
+        expect(loadConfig(ctx)).toBeTruthy();
+        expect(contextMaxCharsRef).toBe(5000);
+      }
+    );
+  });
+
+  test("cancels first activation with advisor-on without persisting or enabling the flow", async () => {
+    await withAgentDir({}, async (agentDir) => {
+      const { commands, pi, setActiveTools } = activationHarness();
+      setActiveTools([]);
+      const ctx = asExtensionContext({
+        cwd: agentDir,
+        hasUI: true,
+        isProjectTrusted: () => false,
+        modelRegistry: {
+          find: () => undefined,
+          getApiKeyAndHeaders: () =>
+            Promise.resolve({ apiKey: "key", ok: true }),
+          getAvailable: () => [
+            { id: "executor", provider: "provider" },
+            { id: "advisor", provider: "provider" },
+          ],
+        },
+        ui: {
+          custom: () => Promise.resolve(),
+          notify: () => undefined,
+        },
+      });
+
+      registerCommands(pi);
+      await commands.get("advisor-on").handler("", ctx);
+
+      expect(savedConfig(agentDir)).toEqual({});
+      expect(pi.getActiveTools()).toEqual([]);
+    });
+  });
 });
