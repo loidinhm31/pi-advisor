@@ -105,7 +105,7 @@ In Oh-My-Pi, the host's built-in `/advisor` command toggles OMP's native advisor
 /advisor-stats      # Show retained outcome adoption and validation stats
 ```
 
-On first use, or whenever a saved model is unavailable, `/advisor-on` (or `/advisor`) opens the same available-model picker as `/advisor-models`; it never silently chooses an unconfigured model. If the active Executor and Advisor use the same provider/model, calls and automatic gates are skipped with a notice; switching either model resumes consultations. Turn off **Disable same-model Advisor** in `/advisor-settings` (or set `"advisorDisableSameModel": false` globally) if you intentionally want a higher-effort review from that same model. You can also enable the flow and select both models at once:
+On first use, or whenever a saved model is unavailable, `/advisor-on` (or `/advisor` in Pi 1.x) opens the same available-model picker as `/advisor-models`; it never silently chooses an unconfigured model. If the active Executor and Advisor use the same provider/model, calls and automatic gates are skipped with a notice; switching either model resumes consultations. Turn off **Disable same-model Advisor** in `/advisor-settings` (or set `"advisorDisableSameModel": false` globally) if you intentionally want a higher-effort review from that same model. You can also enable the flow and select both models at once:
 
 ```text
 /advisor-on executor=openai-codex/gpt-5.6-luna advisor=openai-codex/gpt-5.6-sol
