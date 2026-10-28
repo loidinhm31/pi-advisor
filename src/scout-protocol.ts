@@ -31,16 +31,19 @@ const indexAssistantCalls = (
 ): InvalidProtocolResult | undefined => {
   for (const call of toolCalls(message)) {
     const id = toolCallId(call);
+
     if (!id || callOwners.has(id)) {
       return invalid(
         `Assistant tool calls at context entry ${index} have missing or duplicate IDs.`
       );
     }
+
     callOwners.set(id, {
       index,
       name: isString(call.name) ? call.name : "unknown",
     });
   }
+
   return undefined;
 };
 
@@ -51,14 +54,17 @@ const indexToolResult = (
   resultsByCall: Map<string, { entry: RecordValue; index: number }[]>
 ): InvalidProtocolResult | undefined => {
   const id = message.toolCallId;
+
   if (!isString(id)) {
     return invalid(
       `Tool result at context entry ${index} has no tool-call ID.`
     );
   }
+
   const results = resultsByCall.get(id) ?? [];
   results.push({ entry, index });
   resultsByCall.set(id, results);
+
   return undefined;
 };
 
@@ -72,15 +78,19 @@ const indexEntry = (
   if (entry.type !== "message" || !isRecord(entry.message)) {
     return undefined;
   }
+
   if (entry.message.role === "user" && textFrom(entry.message.content)) {
     state.latestUserIndex = index;
   }
+
   if (entry.message.role === "assistant") {
     return indexAssistantCalls(entry.message, index, callOwners);
   }
+
   if (entry.message.role === "toolResult") {
     return indexToolResult(entry, entry.message, index, resultsByCall);
   }
+
   return undefined;
 };
 
@@ -90,13 +100,17 @@ export const indexToolCalls = (
   entries: unknown[]
 ): { index: ToolCallIndex; ok: true } | InvalidProtocolResult => {
   const callOwners = new Map<string, { index: number; name: string }>();
+
   const resultsByCall = new Map<
     string,
     { entry: RecordValue; index: number }[]
   >();
+
   const state = { latestUserIndex: -1 };
+
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index];
+
     if (isRecord(entry)) {
       const failure = indexEntry(
         entry,
@@ -105,16 +119,19 @@ export const indexToolCalls = (
         resultsByCall,
         state
       );
+
       if (failure) {
         return failure;
       }
     }
   }
+
   for (const [id, results] of resultsByCall) {
     if (results.length > 1) {
       return invalid(`Tool call ${id} has duplicate result messages.`);
     }
   }
+
   return {
     index: {
       callOwners,

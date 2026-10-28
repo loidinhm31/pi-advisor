@@ -10,10 +10,9 @@ import {
 } from "./herdr-shared.ts";
 
 export { HerdrAdvisorBlock } from "./herdr-block.ts";
+
 export {
   createHerdrNotificationRequest,
-  type HerdrMetadataRequest,
-  type HerdrNotificationRequest,
   setHerdrBlockedEmitter,
 } from "./herdr-shared.ts";
 
@@ -66,6 +65,7 @@ export class HerdrAdvisorActivity implements HerdrAdvisorActivityScope {
 
   createScope(): HerdrAdvisorActivityScope {
     const owner = Symbol("Herdr Advisor runtime");
+
     return {
       clear: () => this.clearFor(owner),
       start: () => this.startFor(owner),
@@ -74,24 +74,31 @@ export class HerdrAdvisorActivity implements HerdrAdvisorActivityScope {
 
   private startFor(owner: symbol) {
     const lease = Symbol("Herdr activity lease");
+
     if (!this.enabled()) {
       return () => this.finishLease(owner, lease);
     }
+
     let leases = this.#activeByOwner.get(owner);
+
     if (!leases) {
       leases = new Set();
       this.#activeByOwner.set(owner, leases);
     }
+
     leases.add(lease);
     this.#activeConsultations += 1;
+
     if (this.#activeConsultations === 1) {
       this.safeReport(false);
     }
+
     return () => this.finishLease(owner, lease);
   }
 
   private finishFor(owner: symbol) {
     const lease = this.#activeByOwner.get(owner)?.values().next().value;
+
     if (lease) {
       this.finishLease(owner, lease);
     }
@@ -99,13 +106,17 @@ export class HerdrAdvisorActivity implements HerdrAdvisorActivityScope {
 
   private finishLease(owner: symbol, lease: symbol) {
     const leases = this.#activeByOwner.get(owner);
+
     if (!leases?.delete(lease)) {
       return;
     }
+
     if (leases.size === 0) {
       this.#activeByOwner.delete(owner);
     }
+
     this.#activeConsultations -= 1;
+
     if (this.#activeConsultations === 0) {
       this.safeReport(true);
     }
@@ -113,11 +124,14 @@ export class HerdrAdvisorActivity implements HerdrAdvisorActivityScope {
 
   private clearFor(owner: symbol) {
     const leases = this.#activeByOwner.get(owner);
+
     if (!leases?.size) {
       return;
     }
+
     this.#activeByOwner.delete(owner);
     this.#activeConsultations -= leases.size;
+
     if (this.#activeConsultations === 0) {
       this.safeReport(true);
     }
@@ -136,6 +150,7 @@ export const notifyHerdrAdvisorFailure = (title: string, body: string) => {
   if (!getAdvisorSettings().herdrIntegration) {
     return;
   }
+
   try {
     sendToHerdr(createHerdrNotificationRequest(title, body));
   } catch {
@@ -147,6 +162,7 @@ export const herdrAdvisorActivity = new HerdrAdvisorActivity(
   sendToHerdr,
   () => getAdvisorSettings().herdrIntegration
 );
+
 export const herdrAdvisorBlock = new HerdrAdvisorBlock(
   sendToHerdr,
   () => getAdvisorSettings().herdrIntegration

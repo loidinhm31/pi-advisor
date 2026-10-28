@@ -48,6 +48,7 @@ describe("Advisor Scout timeout setting", () => {
       expect(
         validateConfig({ advisorScoutTimeoutMs: MAX_SCOUT_TIMEOUT_MS })
       ).toBe(true);
+
       for (const value of [0, -1, 1.5, MAX_SCOUT_TIMEOUT_MS + 1]) {
         expect(() => validateConfig({ advisorScoutTimeoutMs: value })).toThrow(
           /advisorScoutTimeoutMs/u
@@ -63,6 +64,7 @@ describe("Advisor Scout timeout setting", () => {
       expect(advisorScoutTimeoutMsRef).toBe(45_000);
 
       const updates: AdvisorSettings[] = [];
+
       const selector = new AdvisorSettingsSelector({
         effortLevels: ["Default (Model Default)", "high"],
         initial: initialSettings(advisorScoutTimeoutMsRef),
@@ -72,6 +74,7 @@ describe("Advisor Scout timeout setting", () => {
         theme: plainThemeMock,
         tui: { requestRender: () => {} },
       });
+
       try {
         const screen = plainScreen(selector);
         expect(screen).toContain("Scout timeout ms");
@@ -79,9 +82,11 @@ describe("Advisor Scout timeout setting", () => {
         changeSetting(selector, "Scout timeout ms");
         const updated = updates.at(-1);
         expect(updated?.scoutTimeoutMs).toBe(60_000);
+
         if (!updated) {
           throw new Error("Scout timeout setting was not saved");
         }
+
         saveAdvisorSettings(ctx, updated);
         expect(savedConfig(agentDir()).advisorScoutTimeoutMs).toBe(60_000);
         resetConfigCache();

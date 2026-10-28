@@ -12,13 +12,17 @@ export const createOutageNotifier = (
   format: (category: string, message: string) => string
 ): OutageNotifier => {
   let lastKey: string | undefined;
+
   return {
     notify: (ctx, category, message) => {
       const key = `${category}:${message}`;
+
       if (key === lastKey) {
         return;
       }
+
       lastKey = key;
+
       if (ctx.hasUI) {
         ctx.ui.notify(format(category, message), "warning");
       }

@@ -2,7 +2,6 @@ import { getSettingsListTheme } from "@earendil-works/pi-coding-agent";
 import { SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
 import type { Component, Focusable } from "@earendil-works/pi-tui";
 
-import { DEFAULT_JEV_TRANSPORT } from "../config/types.ts";
 import {
   rainbowGradient,
   SIMPLE_MODE_GRADIENT_INTERVAL_MS,
@@ -56,9 +55,11 @@ export class AdvisorSettingsSelector implements Component, Focusable {
             value: configuredContext,
           },
         ].toSorted((a, b) => a.value - b.value);
+
     if (this.settings.simpleMode) {
       this.startSimpleModeGradient();
     }
+
     this.settingsList = this.createSettingsList();
   }
 
@@ -75,6 +76,7 @@ export class AdvisorSettingsSelector implements Component, Focusable {
       "border",
       "─".repeat(Math.max(1, width))
     );
+
     return [border, ...this.settingsList.render(width), border].map((line) =>
       truncateToWidth(line, width)
     );
@@ -88,6 +90,7 @@ export class AdvisorSettingsSelector implements Component, Focusable {
     ) {
       this.settingsList.handleInput(keyData);
     }
+
     this.options.tui.requestRender();
   }
 
@@ -98,8 +101,10 @@ export class AdvisorSettingsSelector implements Component, Focusable {
       if (this.settings.simpleMode && text.startsWith("Simple mode")) {
         return `${rainbowGradient("Simple mode", this.simpleModeGradientStartedAt ?? 0)}${text.slice("Simple mode".length)}`;
       }
+
       return defaultLabel(text, selected);
     };
+
     const fallbackModel = advisorFallbackModelItem(
       this.settings,
       this.options.modelRefs,
@@ -107,6 +112,7 @@ export class AdvisorSettingsSelector implements Component, Focusable {
       this.options.theme,
       this.options.tui
     );
+
     const modelWhitelist = advisorModelWhitelistItem(
       this.settings,
       this.options.modelRefs,
@@ -114,14 +120,16 @@ export class AdvisorSettingsSelector implements Component, Focusable {
       this.options.theme,
       this.options.tui
     );
+
     const items = createSettingsItems({
-      afterJevSetup: () => {
-        this.settingsList = this.createSettingsList("jevFilter");
-        this.options.tui.requestRender();
-      },
       effortLevels: this.options.effortLevels,
       fallbackModel,
-      jevSetupDeps: this.options.jevSetupDeps,
+      jevClassifierRegistry: this.options.jevSetupDeps?.modelRegistry,
+      jevKeyDeps: {
+        persistClassifierKey: this.options.jevSetupDeps?.persistClassifierKey,
+        resolveClassifierKey: this.options.jevSetupDeps?.resolveClassifierKey,
+        restoreClassifierKey: this.options.jevSetupDeps?.restoreClassifierKey,
+      },
       modelWhitelist,
       onJevFilter: (selection) => this.applyJevFilter(selection),
       onJevProvider: (selection) => this.applyJevProvider(selection),
@@ -130,6 +138,7 @@ export class AdvisorSettingsSelector implements Component, Focusable {
       theme: this.options.theme,
       tui: this.options.tui,
     });
+
     const list = new SettingsList(
       items,
       10,
@@ -138,10 +147,13 @@ export class AdvisorSettingsSelector implements Component, Focusable {
       this.options.onCancel,
       { enableSearch: true }
     );
+
     const adapter = new SettingsListAdapter(list);
+
     if (selectedId) {
       adapter.setSelectedId(items, selectedId);
     }
+
     return adapter;
   }
 
@@ -155,60 +167,77 @@ export class AdvisorSettingsSelector implements Component, Focusable {
       showUsageDetails: this.settings.showUsageDetails ?? true,
       toolPolicies: { ...this.settings.toolPolicies },
     };
+
     try {
       const result = handler
         ? handler(updated)
         : (this.options.onChange ?? this.options.onSave)?.(updated);
+
       if (result === false) {
         return false;
       }
     } catch {
       return false;
     }
+
     Object.assign(this.settings, updated);
+
     return true;
   }
 
   private applyJevFilter(selection: JevFilterSelection): boolean {
     const patch = { jevFilterEnabled: selection.enabled };
     const handler = this.options.onJevFilter;
+
     if (handler) {
       return this.applyJevSelection(patch, (settings) =>
         handler(selection, settings)
       );
     }
+
     const legacy = this.options.onJevSetup;
+
     if (legacy) {
       return this.applyJevSelection(patch, (settings) =>
         legacy(
           {
             enabled: selection.enabled,
-            transport: settings.jevTransport ?? DEFAULT_JEV_TRANSPORT,
+            transport: settings.jevTransport ?? "auto",
           },
           settings
         )
       );
     }
+
     return this.applyJevSelection(patch);
   }
 
   private applyJevProvider(selection: JevProviderSelection): boolean {
-    const custom = selection.transport === "typesafe-compatible";
-    const patch = {
-      jevBaseUrl: custom ? selection.baseUrl : this.settings.jevBaseUrl,
-      jevKeyProvider: custom
-        ? selection.keyProvider
-        : this.settings.jevKeyProvider,
-      jevTransport: selection.transport,
-    };
+    let patch: Partial<AdvisorSettings>;
+
+    if (selection.classifier) {
+      patch = { jevClassifier: selection.classifier };
+    } else if (selection.transport) {
+      patch = {
+        jevBaseUrl: selection.baseUrl,
+        jevKeyProvider: selection.keyProvider,
+        jevTransport: selection.transport,
+      };
+    } else {
+      patch = {};
+    }
+
     const handler = this.options.onJevProvider;
+
     if (handler) {
       return this.applyJevSelection(patch, (settings) =>
         handler(selection, settings)
       );
     }
+
     const legacy = this.options.onJevSetup;
-    if (legacy) {
+
+    if (legacy && selection.transport) {
       return this.applyJevSelection(patch, (settings) =>
         legacy(
           {
@@ -219,6 +248,7 @@ export class AdvisorSettingsSelector implements Component, Focusable {
         )
       );
     }
+
     return this.applyJevSelection(patch);
   }
 
@@ -236,11 +266,13 @@ export class AdvisorSettingsSelector implements Component, Focusable {
       clearInterval(this.simpleModeGradientTimer);
       this.simpleModeGradientTimer = undefined;
     }
+
     this.simpleModeGradientStartedAt = undefined;
   }
 
   private change(id: string, value: string): void {
     mutateAdvisorSettings(this.settings, id, value, this.presets);
+
     if (id === "simpleMode") {
       if (this.settings.simpleMode) {
         this.startSimpleModeGradient();
@@ -248,11 +280,13 @@ export class AdvisorSettingsSelector implements Component, Focusable {
         this.stopSimpleModeGradient();
       }
     }
+
     (this.options.onChange ?? this.options.onSave)?.({
       ...this.settings,
       showUsageDetails: this.settings.showUsageDetails ?? true,
       toolPolicies: { ...this.settings.toolPolicies },
     });
+
     if (
       id === "context" ||
       id === "simpleMode" ||

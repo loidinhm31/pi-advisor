@@ -30,6 +30,7 @@ describe("Advisor file attachments", () => {
     ]);
     writeFileSync(join(cwd, "review.md"), "unstaged body");
     writeFileSync(join(cwd, "new.md"), "untracked body");
+
     try {
       expect(
         await readTrackedFiles(cwd, ["review.md", "new.md"], true, true)
@@ -56,6 +57,7 @@ describe("Advisor file attachments", () => {
       "-m",
       "initial",
     ]);
+
     try {
       expect(await readTrackedFiles(cwd, ["image.bin"], true, true)).toEqual(
         []
@@ -80,6 +82,7 @@ describe("Advisor file attachments", () => {
       "-m",
       "initial",
     ]);
+
     try {
       const attachments = await readTrackedFiles(
         cwd,
@@ -88,6 +91,7 @@ describe("Advisor file attachments", () => {
         true,
         10
       );
+
       expect(attachments).toHaveLength(1);
       expect(attachments[0]?.bytes).toBe(10);
     } finally {
@@ -99,6 +103,7 @@ describe("Advisor file attachments", () => {
     const cwd = mkdtempSync(join(tmpdir(), "pi-advisor-untracked-"));
     git(cwd, ["init"]);
     writeFileSync(join(cwd, "ü.md"), "content");
+
     try {
       const attachments = await readUntrackedFiles(cwd, ["./ü.md"], true, true);
       expect(attachments).toEqual([
@@ -118,6 +123,7 @@ describe("Advisor file attachments", () => {
         ADVISOR_FILE_MAX_BYTES + 1000
       )}\n-----END PRIVATE KEY-----`
     );
+
     try {
       const [attachment] = await readUntrackedFiles(
         cwd,
@@ -125,6 +131,7 @@ describe("Advisor file attachments", () => {
         true,
         true
       );
+
       expect(attachment?.text).toContain("[REDACTED SECRET]");
       expect(attachment?.text).not.toContain("AAAA");
       expect(attachment?.bytes).toBeLessThanOrEqual(ADVISOR_FILE_MAX_BYTES);
@@ -141,6 +148,7 @@ describe("Advisor file attachments", () => {
       join(cwd, "secret.txt"),
       `password="${secret.repeat(ADVISOR_FILE_MAX_BYTES)}"`
     );
+
     try {
       const [attachment] = await readUntrackedFiles(
         cwd,
@@ -148,6 +156,7 @@ describe("Advisor file attachments", () => {
         true,
         true
       );
+
       expect(attachment?.text).toContain("[REDACTED SECRET]");
       expect(attachment?.text).not.toContain(secret);
       expect(attachment?.bytes).toBeLessThanOrEqual(ADVISOR_FILE_MAX_BYTES);
@@ -161,11 +170,14 @@ describe("Advisor file attachments", () => {
     git(cwd, ["init"]);
     const prefix = 'password="';
     const secret = "trailing-backslash-secret";
+
     const text = `${prefix}${secret}${"x".repeat(
       ADVISOR_FILE_MAX_BYTES - prefix.length - secret.length
     )}\\`;
+
     expect(text.length).toBe(ADVISOR_FILE_MAX_BYTES + 1);
     writeFileSync(join(cwd, "secret.txt"), text);
+
     try {
       const [attachment] = await readUntrackedFiles(
         cwd,
@@ -173,6 +185,7 @@ describe("Advisor file attachments", () => {
         true,
         true
       );
+
       expect(attachment?.text).toContain("[REDACTED SECRET]");
       expect(attachment?.text).not.toContain(secret);
       expect(attachment?.bytes).toBeLessThanOrEqual(ADVISOR_FILE_MAX_BYTES);

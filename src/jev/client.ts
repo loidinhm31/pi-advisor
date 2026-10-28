@@ -23,10 +23,9 @@ import { JevFailureError } from "./failure.ts";
 import type { JevErrorCategory } from "./failure.ts";
 import type { JevCredentials, JevTransportKind } from "./transport.ts";
 
-export type { JevErrorCategory } from "./failure.ts";
 export { JevFailureError as JevFailure } from "./failure.ts";
 
-export interface JevUsage {
+interface JevUsage {
   cost?: number;
   inputTokens: number;
   outputTokens: number;
@@ -71,9 +70,11 @@ const errorDetail = (error: JsonValue | undefined): string => {
   if (isString(error)) {
     return error;
   }
+
   if (isRecordOf(error) && "message" in error) {
     return String(error.message);
   }
+
   return "";
 };
 
@@ -81,9 +82,11 @@ const statusCategory = (status: number): JevErrorCategory => {
   if (status === 401 || status === 403) {
     return "auth";
   }
+
   if (status === 400 || status === 422) {
     return "malformed";
   }
+
   return "error";
 };
 
@@ -103,11 +106,13 @@ const buildClientRequest = (
 ): ClientRequest => {
   if (transport === "openai-decisions") {
     const request = buildDecisionsRequest(state, questions);
+
     return {
       body: JSON.stringify(request),
       decisionQuestions: request.questions,
     };
   }
+
   return {
     body: JSON.stringify({ model, questions, state }),
   };
@@ -125,6 +130,7 @@ const connectionFailure = <E>(error: E) => {
   const message = redactSecrets(
     error instanceof Error ? error.message : String(error)
   );
+
   return {
     failure: new JevFailureError(
       "network",
@@ -137,6 +143,7 @@ const sleepWithAbort = (signal: AbortSignal, ms: number): Promise<void> => {
   if (signal.aborted) {
     return Promise.resolve();
   }
+
   // oxlint-disable-next-line promise/avoid-new -- unref-ed abortable retry timer cannot be expressed with async/await.
   return new Promise((resolve) => {
     const timer = setTimeout(resolve, ms);
@@ -172,6 +179,7 @@ export class JevClient {
     transport,
   }: JevClientOptions) {
     this.#apiKey = apiKey;
+
     if (transport === "typesafe-compatible") {
       if (!baseUrl) {
         throw new JevFailureError(
@@ -179,12 +187,15 @@ export class JevClient {
           "The System One–compatible endpoint has no Base URL."
         );
       }
+
       this.#endpoint = jevSystemOneEndpoint(baseUrl);
     } else {
       this.#endpoint = FIXED_ENDPOINTS[transport];
     }
+
     // SAFETY: the bound global fetch satisfies the SDK Fetch signature; binding keeps the receiver correct.
     this.#fetch = fetch ?? (globalThis.fetch.bind(globalThis) as Fetch);
+
     if (transport === "openai-decisions") {
       this.#model = OPENAI_DECISIONS_MODEL;
     } else if (transport === "openrouter") {
@@ -192,6 +203,7 @@ export class JevClient {
     } else {
       this.#model = model;
     }
+
     this.#pricePerMtok = pricePerMtok;
     this.#timeoutMs = timeoutMs;
     this.#transport = transport;
@@ -208,23 +220,31 @@ export class JevClient {
       state,
       questions
     );
+
     const deadline = new AbortController();
     const abortFromCaller = () => deadline.abort(signal?.reason);
     signal?.addEventListener("abort", abortFromCaller, { once: true });
+
     if (signal?.aborted) {
       abortFromCaller();
     }
+
     let deadlineHit = false;
+
     const timer = setTimeout(() => {
       deadlineHit = true;
       deadline.abort(new Error("Jev wall-time budget elapsed"));
     }, this.#timeoutMs);
+
     timer.unref?.();
+
     try {
       let outcome: AttemptOutcome = {};
+
       for (let attempt = 1; ; attempt += 1) {
         // The retry loop is bounded to one backoff by the deadline controller.
         outcome = await this.#attempt(body, deadline.signal, decisionQuestions);
+
         if (
           !outcome.retryable ||
           attempt >= MAX_ATTEMPTS ||
@@ -232,22 +252,28 @@ export class JevClient {
         ) {
           break;
         }
+
         await sleepWithAbort(deadline.signal, RETRY_BACKOFF_MS);
+
         if (deadline.signal.aborted) {
           break;
         }
       }
+
       return this.#settle(outcome, deadlineHit, signal);
     } catch (error) {
       if (signal?.aborted && !deadlineHit) {
         throw error;
       }
+
       if (error instanceof JevFailureError) {
         throw error;
       }
+
       const message = redactSecrets(
         error instanceof Error ? error.message : String(error)
       );
+
       throw deadlineHit
         ? new JevFailureError(
             "timeout",
@@ -268,18 +294,22 @@ export class JevClient {
     if (outcome.answers) {
       return this.#result(outcome);
     }
+
     if (deadlineHit && outcome.failure?.category !== "auth") {
       throw new JevFailureError(
         "timeout",
         `Jev call exceeded its ${this.#timeoutMs} ms wall-time budget.`
       );
     }
+
     if (signal?.aborted) {
       throw new Error("Jev call aborted by the caller.");
     }
+
     if (outcome.failure) {
       throw outcome.failure;
     }
+
     throw new JevFailureError("error", "Jev call failed.");
   }
 
@@ -291,7 +321,9 @@ export class JevClient {
     if (signal.aborted) {
       return { retryable: false };
     }
+
     let response: Response;
+
     try {
       response = await this.#fetch(this.#endpoint, {
         body,
@@ -306,15 +338,19 @@ export class JevClient {
       if (signal.aborted) {
         return { retryable: false };
       }
+
       return {
         retryable: true,
         ...connectionFailure(error),
       };
     }
+
     if (response.ok) {
       return this.#parseSuccess(response, decisionQuestions);
     }
+
     const failure = await this.#failureFromStatus(response);
+
     return {
       failure,
       retryable: RETRYABLE_STATUSES.has(response.status),
@@ -323,6 +359,7 @@ export class JevClient {
 
   async #failureFromStatus(response: Response): Promise<JevFailureError> {
     let detail = "";
+
     try {
       const parsed: unknown = await response.json();
       const error = isRecord(parsed) ? parsed.error : undefined;
@@ -330,9 +367,11 @@ export class JevClient {
     } catch {
       detail = "";
     }
+
     const message = redactSecrets(
       `Jev ${this.#transportLabel()} request failed with HTTP ${response.status}${detail ? `: ${detail}` : ""}.`
     );
+
     return new JevFailureError(statusCategory(response.status), message);
   }
 
@@ -340,9 +379,11 @@ export class JevClient {
     if (this.#transport === "openrouter") {
       return "OpenRouter";
     }
+
     if (this.#transport === "openai-decisions") {
       return "OpenAI Decisions";
     }
+
     return this.#transport === "typesafe" ? "TypeSafe" : "endpoint";
   }
 
@@ -355,6 +396,7 @@ export class JevClient {
         await parseDecisionsApiResponse(response),
         decisionQuestions ?? []
       );
+
       return {
         answers: normalized.answers,
         model: normalized.model,
@@ -364,7 +406,9 @@ export class JevClient {
         },
       };
     }
+
     let parsed: unknown;
+
     try {
       parsed = await response.json();
     } catch (error) {
@@ -375,6 +419,7 @@ export class JevClient {
         ),
       };
     }
+
     if (!isRecord(parsed) || !isRecord(parsed.answers)) {
       return {
         failure: new JevFailureError(
@@ -383,6 +428,7 @@ export class JevClient {
         ),
       };
     }
+
     return {
       answers: parsed.answers,
       model: isString(parsed.model) ? parsed.model : this.#model,
@@ -400,6 +446,7 @@ export class JevClient {
     const inputTokens = finiteTokens(usage?.input_tokens);
     const outputTokens = finiteTokens(usage?.output_tokens);
     const price = this.#pricePerMtok ?? advisorJevPricePerMtokRef;
+
     return {
       answers: outcome.answers ?? {},
       model: outcome.model ?? this.#model,

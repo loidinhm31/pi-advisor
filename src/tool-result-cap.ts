@@ -21,14 +21,18 @@ const collect = (
 ) => {
   const selected: string[] = [];
   let used = 0;
+
   for (const line of candidates.slice(0, maxEntries)) {
     const next = used + byteLength(line) + (selected.length ? 1 : 0);
+
     if (next > maxContentBytes) {
       break;
     }
+
     selected.push(line);
     used = next;
   }
+
   return selected;
 };
 
@@ -40,6 +44,7 @@ export const capToolResult = (
   const lines = value.split("\n");
   const totalLines = lines.length;
   const totalBytes = byteLength(value);
+
   if ((maxLines === 0 || maxBytes === 0) && value.length > 0) {
     return {
       content: "[Tool result omitted: configured limit is zero]",
@@ -49,6 +54,7 @@ export const capToolResult = (
       truncated: true,
     };
   }
+
   if (totalLines <= maxLines && totalBytes <= maxBytes) {
     return {
       content: value,
@@ -60,6 +66,7 @@ export const capToolResult = (
   }
 
   const markerBytes = byteLength(OMITTED_MARKER);
+
   if (maxBytes < markerBytes || maxLines === 1) {
     return {
       content: capUtf8Bytes(OMITTED_MARKER, maxBytes),
@@ -69,16 +76,20 @@ export const capToolResult = (
       truncated: true,
     };
   }
+
   const headCount = Math.floor((maxLines - 1) / 2);
   const tailCount = maxLines - 1 - headCount;
   const availableBytes = maxBytes - markerBytes - 2;
   const head = collect(lines, headCount, Math.floor(availableBytes / 2));
+
   const tail = collect(
     lines.slice(Math.max(head.length, lines.length - tailCount)),
     tailCount,
     availableBytes - byteLength(head.join("\n"))
   );
+
   const content = [...head, OMITTED_MARKER, ...tail].join("\n");
+
   return {
     content,
     omittedLines: Math.max(0, totalLines - head.length - tail.length),

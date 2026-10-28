@@ -9,11 +9,13 @@ import {
   setAdvisorEffortRef,
   setAdvisorFailureGateRef,
   setAdvisorFailureModeRef,
+  setAdvisorFallbackModelRef,
   setAdvisorGitContextMaxCharsRef,
   setAdvisorGitContextRef,
   setAdvisorHerdrIntegrationRef,
-  setAdvisorJevDigestMaxCharsRef,
   setAdvisorJevBaseUrlRef,
+  setAdvisorJevClassifierRef,
+  setAdvisorJevDigestMaxCharsRef,
   setAdvisorJevFilterEnabledRef,
   setAdvisorJevFilterNoulMarginRef,
   setAdvisorJevFilterOverrideWindowRef,
@@ -32,13 +34,13 @@ import {
   setAdvisorPlanGateRef,
   setAdvisorRedactSecretsRef,
   setAdvisorRef,
-  setAdvisorFallbackModelRef,
   setAdvisorScoutEnabledRef,
   setAdvisorScoutTimeoutMsRef,
   setAdvisorSessionSummaryRef,
   setAdvisorToolPoliciesRef,
   setAdvisorToolResultMaxBytesRef,
   setAdvisorToolResultMaxLinesRef,
+  setAdvisorToolsEnabledRef,
   setAdvisorTrackedFileContentRef,
   setAdvisorUntrackedContentRef,
   setAlwaysOnRef,
@@ -91,10 +93,12 @@ export const resetDefaults = () => {
   setAdvisorModelWhitelistRef([]);
   setAdvisorSessionSummaryRef(false);
   setSimpleModeRef(false);
+  setAdvisorToolsEnabledRef(true);
   setAlwaysOnRef(false);
   setAdvisorFailureModeRef("block-session");
   setAdvisorHerdrIntegrationRef(true);
   setAdvisorJevModelRef(DEFAULT_JEV_MODEL);
+  setAdvisorJevClassifierRef(undefined);
   setAdvisorJevBaseUrlRef(undefined);
   setAdvisorJevKeyProviderRef(undefined);
   setAdvisorJevFilterEnabledRef(false);
@@ -128,6 +132,7 @@ const applyOptionalConfig = <Key extends keyof AdvisorConfig>(
   apply: (value: NonNullable<AdvisorConfig[Key]>) => void
 ) => {
   const value = config[key];
+
   if (value !== undefined) {
     apply(value);
   }
@@ -214,6 +219,7 @@ export const applyConfig = (config: AdvisorConfig) => {
   applyOptionalConfig(config, "showUsageDetails", setShowUsageDetailsRef);
   applyOptionalConfig(config, "showUsageFooter", setShowUsageFooterRef);
   applyOptionalConfig(config, "simpleMode", setSimpleModeRef);
+  applyOptionalConfig(config, "advisorToolsEnabled", setAdvisorToolsEnabledRef);
   applyOptionalConfig(config, "alwaysOn", setAlwaysOnRef);
   applyOptionalConfig(config, "gateFailureMode", setAdvisorFailureModeRef);
   applyOptionalConfig(
@@ -242,6 +248,11 @@ export const applyConfig = (config: AdvisorConfig) => {
     setAdvisorJevFilterOverrideWindowRef
   );
   applyNonEmptyStringConfig(config.advisorJevModel, setAdvisorJevModelRef);
+  applyOptionalConfig(
+    config,
+    "advisorJevClassifier",
+    setAdvisorJevClassifierRef
+  );
   applyOptionalConfig(config, "advisorJevBaseUrl", setAdvisorJevBaseUrlRef);
   applyOptionalConfig(
     config,

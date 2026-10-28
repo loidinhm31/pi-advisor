@@ -33,20 +33,26 @@ export class ManualAdvisorProgressComponent implements Component {
 
   render(width: number): string[] {
     const box = renderAdvisorCallBox(this.question, this.theme);
+
     if (this.state.phase === "complete" || this.state.phase === "cancelled") {
       return box.render(width);
     }
 
     const { scout } = this.state;
+
     const scoutActive =
       scout?.status === "calling" || scout?.status === "streaming";
+
     if (scoutActive) {
       renderScoutDetails(box, scout, this.expanded, this.theme);
+
       return box.render(width);
     }
+
     if (scout?.status === "cancelled") {
       return box.render(width);
     }
+
     if (this.state.phase === "error") {
       box.addChild(
         new Text(
@@ -55,17 +61,21 @@ export class ManualAdvisorProgressComponent implements Component {
           0
         )
       );
+
       return box.render(width);
     }
 
     const frame =
       SPINNER_FRAMES[Math.floor(Date.now() / 80) % SPINNER_FRAMES.length];
+
     let status = "Working…";
+
     if (this.state.phase === "preparing") {
       status = "Preparing…";
     } else if (this.state.text?.trim()) {
       status = "Responding…";
     }
+
     box.addChild(
       new Text(
         `${this.theme.fg("warning", this.theme.bold(`◆ ADVISOR ${frame}`))} ${this.theme.fg("dim", `· ${status}`)}`,
@@ -73,11 +83,13 @@ export class ManualAdvisorProgressComponent implements Component {
         0
       )
     );
+
     if (this.state.thinking?.trim()) {
       box.addChild(
         renderThinkingMarkdown(this.state.thinking.slice(-200), this.theme)
       );
     }
+
     if (this.state.text) {
       box.addChild(
         new Markdown(
@@ -88,6 +100,7 @@ export class ManualAdvisorProgressComponent implements Component {
         )
       );
     }
+
     return box.render(width);
   }
 

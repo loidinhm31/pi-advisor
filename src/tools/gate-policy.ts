@@ -45,6 +45,7 @@ export const gateFailureEffectForMode = (mode: GateFailureMode) => {
   if (mode === "warn-and-continue") {
     return "continued" as const;
   }
+
   return mode === "block-tool"
     ? ("tool-blocked" as const)
     : ("session-blocked" as const);
@@ -57,6 +58,7 @@ export const gateDecisionEffect = (
   if (decision === "proceed") {
     return "continued" as const;
   }
+
   return decision === "blocked"
     ? gateFailureEffectForMode(failureMode)
     : ("tool-blocked" as const);
@@ -73,17 +75,22 @@ export const failureEffect = (
   const reason = `Advisor gate ${category}: ${message}`;
   notifyLocalFailure(ctx, message, failureMode === "block-session");
   notifyHerdrAdvisorFailure("Advisor gate failure", reason);
+
   if (failureMode === "warn-and-continue") {
     return { block: false, effect: "continued" as const, reason };
   }
+
   if (failureMode === "block-tool") {
     return { block: true, effect: "tool-blocked" as const, reason };
   }
+
   session.block(reason);
   herdrBlock.set(reason);
+
   if (advisorBlockOnBlockedRef) {
     ctx.abort();
   }
+
   return { block: true, effect: "session-blocked" as const, reason };
 };
 
@@ -101,16 +108,21 @@ export const blockedDecisionEffect = (
         "warning"
       );
     }
+
     return { block: false, effect: "continued" as const, reason };
   }
+
   if (failureMode === "block-tool") {
     return { block: true, effect: "tool-blocked" as const, reason };
   }
+
   session.block(reason);
   herdrBlock.set(reason);
+
   if (advisorBlockOnBlockedRef) {
     ctx.abort();
   }
+
   return { block: true, effect: "session-blocked" as const, reason };
 };
 
@@ -123,14 +135,20 @@ export const reserveAdvisorCall = (
   if (event.toolName !== "ask_advisor" || isSimpleMode()) {
     return;
   }
+
   if (!session.reserveCall(event.toolCallId, getAdvisorMaxCallsPerSession())) {
     const message = "Advisor call budget exhausted for this session.";
+
     if (ctx.hasUI) {
       ctx.ui.notify(message, "warning");
     }
+
     notifyHerdrAdvisorFailure("Advisor budget exhausted", message);
+
     return { block: true, reason: message };
   }
+
   reservedCalls.add(event.toolCallId);
+
   return {};
 };

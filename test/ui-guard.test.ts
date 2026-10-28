@@ -36,6 +36,7 @@ describe("ui-guard", () => {
         throw new Error("unrelated failure");
       },
     } as any;
+
     expect(() => uiAvailable(ctx)).toThrow("unrelated failure");
   });
 

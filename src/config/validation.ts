@@ -43,17 +43,22 @@ const validateValues = (
 ) => {
   for (const key of keysOfType(type)) {
     const value = config[key];
+
     if (value === undefined) {
       continue;
     }
+
     const schema = SCHEMA_BY_KEY[key];
+
     if (type === "string" || type === "boolean") {
       const matchesType =
         type === "string" ? isString(value) : isBoolean(value);
+
       if (!matchesType) {
         invalidConfigValue(path, key, schema.accepted);
       }
     }
+
     if (schema.validate && !schema.validate(value)) {
       invalidConfigValue(path, key, schema.accepted);
     }
@@ -69,11 +74,13 @@ export const validateConfig = (
       `Invalid advisor configuration at ${path}: expected a JSON object.`
     );
   }
+
   validateValues(value, path, "string");
   validateValues(value, path, "boolean");
   validateValues(value, path, "number");
   validateValues(value, path, "object");
   validateValues(value, path, "array");
   validateValues(value, path, "enum");
+
   return true;
 };

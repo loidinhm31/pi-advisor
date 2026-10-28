@@ -10,6 +10,7 @@ import { Box, Markdown, Text } from "@earendil-works/pi-tui";
 import { getAdvisorSettings } from "../config/state.ts";
 import { isString } from "../content-utils.ts";
 import { formatAdvisorUsage } from "../usage.ts";
+import type { TurnGateResultDetails as TurnGateResultRecord } from "./jev-turn-gate.ts";
 import { adviceForDisplay, renderAdvisorCallBox } from "./render-common.ts";
 import { renderScoutDetails } from "./scout-status.ts";
 import type { GateDecision, ScoutToolDetails } from "./types.ts";
@@ -18,12 +19,8 @@ interface CallMessageDetails {
   question?: string;
 }
 
-interface TurnGateResultDetails {
-  advisor?: string;
-  agentRulesBytes?: number;
-  text?: string;
-  usage?: unknown;
-}
+// Renderers must tolerate partial details from replayed or older messages.
+type TurnGateResultDetails = Partial<TurnGateResultRecord>;
 
 interface LoopResultDetails {
   advisor?: string;
@@ -37,12 +34,15 @@ const formatByteSize = (bytes: number) => {
   if (bytes >= 1024 ** 3) {
     return `${(bytes / 1024 ** 3).toFixed(1)} GiB`;
   }
+
   if (bytes >= 1024 ** 2) {
     return `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
   }
+
   if (bytes >= 1024) {
     return `${Math.round(bytes / 1024)} KiB`;
   }
+
   return `${bytes} B`;
 };
 
@@ -72,10 +72,12 @@ const addUsageLine = (
 ) => {
   if (getAdvisorSettings().showUsageDetails) {
     const usageText = formatAdvisorUsage(details?.usage);
+
     if (usageText) {
       box.addChild(new Text(theme.fg("dim", `  Usage: ${usageText}`), 0, 0));
     }
   }
+
   addAttachmentLine(box, details, theme);
 };
 
@@ -98,6 +100,7 @@ const scoutResultRenderer: EntryRenderer<ScoutToolDetails> = (
     Boolean(expanded),
     theme
   );
+
   return box;
 };
 
@@ -111,10 +114,13 @@ const turnGateResultRenderer: MessageRenderer<TurnGateResultDetails> = (
   box.addChild(
     new Text(theme.fg("warning", theme.bold("◆ ADVISOR · TURN REVIEW")), 0, 0)
   );
+
   if (details?.advisor) {
     box.addChild(new Text(theme.fg("dim", `  ${details.advisor}`), 0, 0));
   }
+
   addUsageLine(box, details, theme);
+
   if (details?.text) {
     box.addChild(
       new Markdown(
@@ -138,6 +144,7 @@ const turnGateResultRenderer: MessageRenderer<TurnGateResultDetails> = (
       )
     );
   }
+
   return box;
 };
 
@@ -158,10 +165,13 @@ const loopResultRenderer: MessageRenderer<LoopResultDetails> = (
       0
     )
   );
+
   if (details?.advisor) {
     box.addChild(new Text(theme.fg("dim", `  ${details.advisor}`), 0, 0));
   }
+
   addUsageLine(box, details, theme);
+
   if (details?.text) {
     box.addChild(
       new Markdown(
@@ -183,6 +193,7 @@ const loopResultRenderer: MessageRenderer<LoopResultDetails> = (
       )
     );
   }
+
   return box;
 };
 

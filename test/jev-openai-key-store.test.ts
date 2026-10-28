@@ -17,17 +17,21 @@ const keyOf = (options: { name: string; service: string }) =>
 
 const memorySecrets = (initial = new Map<string, string>()) => {
   const stored = initial;
+
   const api: JevSecretsLike = {
     delete: (options) => {
       stored.delete(keyOf(options));
+
       return Promise.resolve(true);
     },
     get: (options) => Promise.resolve(stored.get(keyOf(options))),
     set: (options) => {
       stored.set(keyOf(options), options.value);
+
       return Promise.resolve();
     },
   };
+
   return { api, stored };
 };
 
@@ -35,6 +39,7 @@ describe("OpenAI Decisions key store", () => {
   test("stores a dedicated Bun secret without overwriting TypeSafe credentials", async () => {
     const initial = new Map([["pi-advisor/typesafe-api-key", "typesafe-key"]]);
     const secrets = memorySecrets(initial);
+
     const result = await writeOpenAIDecisionsKey("  platform-key  ", {
       secrets: secrets.api,
       writeFileStore: () => {
@@ -65,14 +70,19 @@ describe("OpenAI Decisions key store", () => {
       const result = await writeOpenAIDecisionsKey("platform-key", {
         secrets: null,
       });
+
       const path = join(agentDir, "openai_api_key");
       expect(result.ok).toBe(true);
       expect(readFileSync(path, "utf-8").trim()).toBe("platform-key");
+
       const mode = Number.parseInt(
         statSync(path).mode.toString(8).slice(-3),
         8
       );
-      expect(mode).toBe(0o600);
+
+      if (process.platform !== "win32") {
+        expect(mode).toBe(0o600);
+      }
       expect(await resolveOpenAIDecisionsKey({ secrets: null })).toEqual({
         key: "platform-key",
         source: "openai-file",
@@ -104,6 +114,7 @@ describe("OpenAI Decisions key store", () => {
       get: () => Promise.reject(new Error("keychain locked")),
       set: () => Promise.reject(new Error("keychain locked")),
     };
+
     expect(
       await resolveOpenAIDecisionsKey({
         readFileStore: () => "file-key",
@@ -117,6 +128,7 @@ describe("OpenAI Decisions key store", () => {
       const typesafePath = join(agentDir, "typesafe_api_key");
       writeFileSync(typesafePath, "typesafe-key\n", { mode: 0o600 });
       await writeOpenAIDecisionsKey("platform-key", { secrets: null });
+
       const secrets = memorySecrets(
         new Map([
           ["pi-advisor/typesafe-api-key", "typesafe-key"],
@@ -144,11 +156,13 @@ describe("OpenAI Decisions key store", () => {
     expect(
       await writeOpenAIDecisionsKey("  ", { secrets: memorySecrets().api })
     ).toMatchObject({ ok: false });
+
     const secrets: JevSecretsLike = {
       delete: () => Promise.resolve(true),
       get: () => Promise.resolve(undefined),
       set: () => Promise.reject(new Error("keychain locked")),
     };
+
     const result = await writeOpenAIDecisionsKey("platform-key", { secrets });
     expect(result.ok).toBe(false);
     expect(result.message).toContain("keychain locked");

@@ -40,6 +40,7 @@ interface BunGlobal {
 const runtimeSecrets = (): JevSecretsLike | undefined => {
   // SAFETY: only Bun runtimes expose Bun.secrets; other hosts leave it absent.
   const bun = globalThis as BunGlobal;
+
   return bun.Bun?.secrets;
 };
 
@@ -72,6 +73,7 @@ export const resolveJevEndpointKey = async (
   deps: JevEndpointKeyStoreDeps = {}
 ): Promise<JevEndpointKeyResolution> => {
   const secrets = deps.secrets === undefined ? runtimeSecrets() : deps.secrets;
+
   if (secrets) {
     try {
       const stored = normalizeKey(
@@ -80,6 +82,7 @@ export const resolveJevEndpointKey = async (
           service: JEV_ENDPOINT_KEY_SERVICE,
         })
       );
+
       if (stored) {
         return { key: stored, source: "jev-bun-secrets" };
       }
@@ -87,12 +90,16 @@ export const resolveJevEndpointKey = async (
       // An unavailable secret store falls through to the next source.
     }
   }
+
   const env = deps.env ?? process.env;
   const fromEnv = normalizeKey(env[JEV_ENDPOINT_KEY_ENV_VAR]);
+
   if (fromEnv) {
     return { key: fromEnv, source: "jev-env" };
   }
+
   const fromFile = normalizeKey((deps.readFileStore ?? readDefaultFileStore)());
+
   return fromFile ? { key: fromFile, source: "jev-file" } : {};
 };
 
@@ -101,10 +108,13 @@ export const writeJevEndpointKey = async (
   deps: JevEndpointKeyStoreDeps = {}
 ): Promise<JevKeyStoreResult> => {
   const normalized = normalizeKey(key);
+
   if (!normalized) {
     return { message: "The endpoint API key is empty.", ok: false };
   }
+
   const secrets = deps.secrets === undefined ? runtimeSecrets() : deps.secrets;
+
   if (secrets) {
     try {
       await secrets.set({
@@ -112,6 +122,7 @@ export const writeJevEndpointKey = async (
         service: JEV_ENDPOINT_KEY_SERVICE,
         value: normalized,
       });
+
       return {
         message: "Endpoint API key stored in Bun.secrets.",
         ok: true,
@@ -123,8 +134,10 @@ export const writeJevEndpointKey = async (
       };
     }
   }
+
   try {
     (deps.writeFileStore ?? writeDefaultFileStore)(normalized);
+
     return {
       message: "Endpoint API key stored in the Pi agent directory (mode 0600).",
       ok: true,
@@ -143,6 +156,7 @@ export const clearJevEndpointKey = async (
   let clearedSomething = false;
   let firstError: string | undefined;
   const secrets = deps.secrets === undefined ? runtimeSecrets() : deps.secrets;
+
   if (secrets) {
     try {
       await secrets.delete({
@@ -154,22 +168,26 @@ export const clearJevEndpointKey = async (
       firstError = messageOf(error);
     }
   }
+
   try {
     if (deps.deleteFileStore) {
       deps.deleteFileStore();
     } else if (existsSync(keyFilePath())) {
       deleteDefaultFileStore();
     }
+
     clearedSomething = true;
   } catch (error) {
     firstError ??= messageOf(error);
   }
+
   if (firstError) {
     return {
       message: `Clearing the stored endpoint API key failed: ${firstError}.`,
       ok: false,
     };
   }
+
   return {
     message: `Stored endpoint API key cleared.${clearedSomething ? "" : ` Nothing was stored; unset ${JEV_ENDPOINT_KEY_ENV_VAR} yourself if you use it.`}`,
     ok: true,

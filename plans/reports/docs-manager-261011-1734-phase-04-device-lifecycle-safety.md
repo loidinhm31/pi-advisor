@@ -35,14 +35,14 @@ Phase 04 addresses runtime, accounting, privacy, and subagent isolation safety a
 
 ## OMP Compatibility Guarantees
 
-| Area | Pi 1.x Behavior | OMP Compatible Behavior |
-| --- | --- | --- |
-| **Tool Invocations** | Direct `ask_advisor` and `record_advisor_outcome` tool calls | Dual-event dispatch normalized: outer `write` envelope bypassed in loop gate and follow-up decrement; inner canonical tool remains authoritative |
-| **Follow-Up Cache** | Survives 2 non-Advisor tool results, expires on 3rd | Outer `write` envelope does not advance `toolCallsSince`; 2-result survival / 3rd-result expiry window preserved |
-| **Loop Gates** | Evaluates repetitive tool calls by signature | Outer `write xd://` does not reset streaks or trigger false loop gates; inner/direct `record_advisor_outcome` counts as 1 logical tool call |
-| **Consultation Budget** | Pre-execution help/schema aborts consume 0 budget; provider start commits 1 slot | Identical: pre-execution help/malformed JSON/abort uses 0 budget slots; post-`consumeCall` provider start preserves consumption |
-| **Settlement** | `agent_settled` triggers reservation cleanup and local summary | `agent_end` with `willContinue: true` retains reservations; final settlement (`!willContinue` or `agent_settled`) cleans abandoned reservations and emits summary once |
-| **Tool Registry** | Synchronous or asynchronous `setActiveTools` | `await pi.setActiveTools(...)` in `/advisor` and `/advisor-off` ensures prompt rebuild and registry synchronization |
+| Area                    | Pi 1.x Behavior                                                                  | OMP Compatible Behavior                                                                                                                                                |
+| ----------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Tool Invocations**    | Direct `ask_advisor` and `record_advisor_outcome` tool calls                     | Dual-event dispatch normalized: outer `write` envelope bypassed in loop gate and follow-up decrement; inner canonical tool remains authoritative                       |
+| **Follow-Up Cache**     | Survives 2 non-Advisor tool results, expires on 3rd                              | Outer `write` envelope does not advance `toolCallsSince`; 2-result survival / 3rd-result expiry window preserved                                                       |
+| **Loop Gates**          | Evaluates repetitive tool calls by signature                                     | Outer `write xd://` does not reset streaks or trigger false loop gates; inner/direct `record_advisor_outcome` counts as 1 logical tool call                            |
+| **Consultation Budget** | Pre-execution help/schema aborts consume 0 budget; provider start commits 1 slot | Identical: pre-execution help/malformed JSON/abort uses 0 budget slots; post-`consumeCall` provider start preserves consumption                                        |
+| **Settlement**          | `agent_settled` triggers reservation cleanup and local summary                   | `agent_end` with `willContinue: true` retains reservations; final settlement (`!willContinue` or `agent_settled`) cleans abandoned reservations and emits summary once |
+| **Tool Registry**       | Synchronous or asynchronous `setActiveTools`                                     | `await pi.setActiveTools(...)` in `/advisor` and `/advisor-off` ensures prompt rebuild and registry synchronization                                                    |
 
 ---
 

@@ -31,7 +31,7 @@ Keep implementation on a fast model and borrow frontier reasoning only when deci
 - **Dual-host support for Pi 1.x and Oh-My-Pi (OMP)** with conditional `xd://ask_advisor` device routing and review gates.
 - **Compact searchable `/advisor-settings`** that matches host settings lists and saves changes immediately.
 - **Experimental Advisor Scout** that uses the configured Executor model to curate conversation evidence before every Advisor call.
-- **Optional Jev/Decisions consultation filter and proactive turn gate**: typed screening can skip low-stakes, self-answerable consultations or proactively pull in the Advisor. The **Jev provider** row in `/advisor-settings` chooses TypeSafe, an existing OpenRouter login, OpenAI Decisions (`gpt-6-luna`; `advisorJevTransport: "openai-decisions"`), or any System One–compatible endpoint of your own (`advisorJevBaseUrl`) — a corporate gateway, a compatible third-party host, or a decision model on `localhost`. Every provider is live-verified before it is saved, and `auto` never picks the custom endpoint; OpenAI Decisions requires an OpenAI Platform API key, not ChatGPT subscription OAuth. Guided setup stores entered keys securely. Both features are off by default.
+- **Optional Jev classifier screening and proactive turn gate**: typed Pi classifiers can skip low-stakes, self-answerable consultations or proactively pull in the Advisor. `/advisor-settings` offers available Pi-authenticated classifiers plus an explicit **Jev API Key** option. The API-key option is independently masked, live-verified, and stored only in a Jev-classifier-specific secure store; legacy keys are not migrated. Custom classifiers must be registered by a Pi provider extension. Both features remain off by default.
 
 ## How it works
 
@@ -42,6 +42,8 @@ Keep implementation on a fast model and borrow frontier reasoning only when deci
 5. The Executor decides what to adopt, changes the code, and validates it.
 
 Regular consultations never block execution. Automatic loop gates are different: they evaluate repeated tool calls and can stop a tool action or session based on your configured failure policy.
+
+Herdr status reports refresh their sequence numbers so later consultation cleanup can recover from earlier reports as time advances. Recovery still requires a new clear request; ordinary turns do not clear existing labels automatically. See [Herdr integration](docs/herdr.md) for ordering and delivery limits.
 
 ## Install
 
@@ -105,7 +107,7 @@ In Oh-My-Pi, the host's built-in `/advisor` command toggles OMP's native advisor
 /advisor-stats      # Show retained outcome adoption and validation stats
 ```
 
-On first use, or whenever a saved model is unavailable, `/advisor-on` (or `/advisor` in Pi 1.x) opens the same available-model picker as `/advisor-models`; it never silently chooses an unconfigured model. If the active Executor and Advisor use the same provider/model, calls and automatic gates are skipped with a notice; switching either model resumes consultations. Turn off **Disable same-model Advisor** in `/advisor-settings` (or set `"advisorDisableSameModel": false` globally) if you intentionally want a higher-effort review from that same model. You can also enable the flow and select both models at once:
+The Executor is whichever model your Pi session is using; `/advisor-on` (or `/advisor` in Pi 1.x) never switches it unless you pin one with `executor=` or `/advisor-models`. On first use, or whenever the saved Advisor is unavailable, `/advisor-on` (or `/advisor` in Pi 1.x) opens the available-model picker; it never silently chooses an unconfigured Advisor. If the active Executor and Advisor use the same provider/model, calls and automatic gates are skipped with a notice; switching either model resumes consultations. Turn off **Disable same-model Advisor** in `/advisor-settings` (or set `"advisorDisableSameModel": false` globally) if you intentionally want a higher-effort review from that same model. You can also enable the flow and select both models at once:
 
 ```text
 /advisor-on executor=openai-codex/gpt-5.6-luna advisor=openai-codex/gpt-5.6-sol
@@ -148,13 +150,17 @@ Gather and filter deterministic results before paying for Advisor reasoning. Nes
 
 Codemode receives `{ text, adviceId?, advisor?, followUp?, usage?, jev?, skipReason? }`. `text` preserves Advisor Markdown or the existing skip notice; `usage` is the same normalized snapshot shown in response details. Skipped calls have no new `adviceId`. Provider failures and blocked calls reject. Regular consultations never become loop-gate decisions. Interactive responses and usage accounting are unchanged.
 
-Draft text is explicit disclosure: it does **not** inherit the policies of the tools that produced it. Do not copy excluded tool output, secrets, or unconsented file bodies into `draft` or `question`. The selected Jev/Decisions provider may also receive the draft when screening is enabled. See [Privacy and data handling](docs/privacy.md).
+Draft text is explicit disclosure: it does **not** inherit the policies of the tools that produced it. Do not copy excluded tool output, secrets, or unconsented file bodies into `draft` or `question`. The selected Jev classifier may also receive the draft when screening is enabled. See [Privacy and data handling](docs/privacy.md).
 
 ## Usage and accounting
 
+The Executor receives the current Advisor call allowance in hidden conversation messages at the start of each run and after turns that change it. Invocation rules stay in a stable system-prompt section, so spending budget does not rewrite the leading prompt, including on providers with `supportsMidConvoSystemMessages: false`. The latest budget report already accounts for consumed and reserved calls; unlimited budgets and Simple mode are reported explicitly. Programmatic limits still enforce the shared allowance across consultations and gates.
+
+When using an older pi-advisor version, a model-level `"compat": { "supportsMidConvoSystemMessages": true }` in Pi's `models.json` can avoid this budget-related prefix rewrite if the endpoint has been verified to support mid-conversation developer/system messages. Refresh the model catalog and reselect the model, or restart Pi, after changing it. The current budget feedback does not require this workaround. Other prompt/tool changes, routing, and cache expiry can still cause cache misses.
+
 Advisor responses show provider-reported input, output, cache, and cost details when available. Successful `ask_advisor` calls also carry normalized usage into Pi's built-in `/cost` totals. Manual consultations and automatic gates keep their own session-local accounting instead, so nothing is double-counted. Missing or partial provider usage is shown as unavailable rather than fabricated as zero. `/advisor-settings` controls both the per-response details and the optional cumulative footer independently. Configure `advisorFallbackModel` or choose **Fallback Advisor model** in the model/settings pickers to retry one failed primary request; the final response is labelled with the model that answered, and both failures are shown together.
 
-Jev/Decisions token usage stays in local session summaries. TypeSafe/OpenRouter/System One–compatible costs use the configurable estimate; OpenAI Decisions token counts are recorded with cost shown as unavailable until endpoint-specific billing is confirmed.
+Classifier token usage and catalog-priced input cost appear in the local Jev session summary. Pi's catalog input/cache rates are authoritative; JEV output tokens are always free and native classifier usage is normalized to zero output cost even when a catalog carries an output rate. During `ask_advisor` screening, classifier usage is combined with Advisor usage once in the tool result and included in Pi cost totals (under the generic tools bucket). Manual and turn-gate classifier calls remain local-only for Pi totals because Pi exposes no supported lifecycle usage-attribution API.
 
 A follow-up reuses only the original post-redaction payload in memory. It expires after five minutes, is cleared by a new user turn or three subsequent non-Advisor tool results, and allows at most three chained follow-ups. Use a fresh consultation when it expires or when you need new repository context or attachments.
 
@@ -164,15 +170,15 @@ Successful calls return an opaque `adviceId`. If global outcome logging is enabl
 
 ## Commands
 
-| Command | What it does |
-| --- | --- |
-| `/advisor-on` | Enable the flow; choose available models when needed. |
-| `/advisor` | Backward-compatible alias for `/advisor-on` in Pi 1.x (in OMP, `/advisor` is reserved for native advisor). |
-| `/advisor-manual [focus]` | Ask for an immediate second opinion. |
-| `/advisor-models` | Choose the Executor, Advisor, and optional fallback models. |
-| `/advisor-settings` | Configure behavior, models, context, privacy, and limits. |
-| `/advisor-stats` | Show retained outcome adoption and validation stats. |
-| `/advisor-off` | Disable the flow and persistent activation. |
+| Command                   | What it does                                                                                               |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `/advisor-on`             | Enable the flow; choose available models when needed.                                                      |
+| `/advisor`                | Backward-compatible alias for `/advisor-on` in Pi 1.x (in OMP, `/advisor` is reserved for native advisor). |
+| `/advisor-manual [focus]` | Ask for an immediate second opinion.                                                                       |
+| `/advisor-models`         | Choose the Executor, Advisor, and optional fallback models.                                                |
+| `/advisor-settings`       | Configure behavior, models, context, privacy, and limits.                                                  |
+| `/advisor-stats`          | Show retained outcome adoption and validation stats.                                                       |
+| `/advisor-off`            | Disable model-facing Advisor tools across sessions and turn off persistent activation.                     |
 
 In the interactive TUI, `/advisor-manual [focus]` opens a centered overlay with the focus text prefilled, a choice of permitted Git-context level, and live progress in the transcript. Canceling has no side effects.
 

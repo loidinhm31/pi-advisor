@@ -62,9 +62,11 @@ const sendAutomaticGateFailure = (
   usage?: AdvisorUsageSnapshot
 ) => {
   const details: LoopResultDetails = { text: markdown };
+
   if (usage) {
     details.usage = usage;
   }
+
   pi.sendMessage(
     {
       content: markdown,
@@ -86,10 +88,13 @@ const sendAutomaticGateResult = (
     decision: result.decision,
     text: result.markdown,
   };
+
   const normalizedUsage = snapshotAdvisorUsage(result.usage);
+
   if (normalizedUsage) {
     details.usage = normalizedUsage;
   }
+
   pi.sendMessage(
     {
       content: adviceForGateText(result),
@@ -122,6 +127,7 @@ const applyGateDecision = (
       usage: result.usage,
     });
     updateAdvisorUsageStatus(ctx, session);
+
     const failure = failureEffect(
       result.category,
       result.message,
@@ -130,15 +136,18 @@ const applyGateDecision = (
       failureMode,
       herdrBlock
     );
+
     sendAutomaticGateFailure(
       pi,
       `**Advisor gate failure (${result.category}):** ${result.message}`,
       snapshotAdvisorUsage(result.usage)
     );
+
     return failure.block
       ? { block: true, reason: `${reason}\n${failure.reason}` }
       : undefined;
   }
+
   session.recordInvocation({
     cost: advisorUsageCost(result.usage),
     decision: result.decision,
@@ -150,11 +159,15 @@ const applyGateDecision = (
   });
   updateAdvisorUsageStatus(ctx, session);
   sendAutomaticGateResult(pi, result);
+
   if (result.decision === "proceed") {
     session.resetRepetition();
+
     return;
   }
+
   const gateReason = `Advisor loop review: ${result.markdown}`;
+
   if (result.decision === "blocked") {
     const effect = blockedDecisionEffect(
       gateReason,
@@ -163,8 +176,10 @@ const applyGateDecision = (
       failureMode,
       herdrBlock
     );
+
     return effect.block ? { block: true, reason: effect.reason } : undefined;
   }
+
   return { block: true, reason: gateReason };
 };
 
@@ -191,8 +206,10 @@ export const handleAutomaticGate = async (
   ) {
     return;
   }
+
   const reason = `Advisor loop gate: normalized signature for ${event.toolName} repeated ${advisorLoopThresholdRef} times without a materially different tool action.`;
   const failureMode = advisorFailureModeRef;
+
   if (!session.canConsult(getAdvisorMaxCallsPerSession())) {
     const failure = failureEffect(
       "budget-exhausted",
@@ -202,8 +219,10 @@ export const handleAutomaticGate = async (
       failureMode,
       herdrBlock
     );
+
     return failure.block ? { block: true, reason: failure.reason } : undefined;
   }
+
   session.consumeCall();
   session.resetTurnsSinceConsultation();
   const finishHerdrActivity = herdrActivity.start();
@@ -211,16 +230,19 @@ export const handleAutomaticGate = async (
   const scoutStatusToken = Symbol("automatic-gate-scout");
   scoutStatus.register(scoutStatusToken);
   let gateCallSent = false;
+
   const ensureGateCall = () => {
     if (!gateCallSent) {
       sendAutomaticGateCall(pi, event);
       gateCallSent = true;
     }
   };
+
   try {
     if (!advisorScoutEnabledRef) {
       ensureGateCall();
     }
+
     const result = await runGate(
       ctx,
       `${reason} Review the repeated actions and recommend the smallest safe next step.`,
@@ -230,13 +252,16 @@ export const handleAutomaticGate = async (
       (scoutEvent) => {
         scoutStatus.update(ctx, scoutStatusToken, scoutEvent);
         scoutDetails = appendScoutLifecycleEntry(pi, scoutEvent, scoutDetails);
+
         if (scoutEvent.type === "success" || scoutEvent.type === "fallback") {
           ensureGateCall();
         }
       },
       event.toolCallId
     );
+
     ensureGateCall();
+
     return applyGateDecision(
       pi,
       ctx,

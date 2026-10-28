@@ -104,6 +104,7 @@ const defaultDependencies: ScoutDependencies = {
   collect: collectTextStream,
   resolve: resolveConfiguredModel,
 };
+
 const byteLength = (value: string) => Buffer.byteLength(value, "utf-8");
 const AUTH_ERROR_PATTERN = /api key|auth|login|credential/iu;
 
@@ -134,16 +135,21 @@ export const parseScoutSelection = (
   if (!text.trim()) {
     throw new Error("Scout returned an empty response.");
   }
+
   let value: unknown;
+
   try {
     value = JSON.parse(text);
   } catch (error) {
     throw new Error("Scout response is not a JSON object.", { cause: error });
   }
+
   if (!isRecord(value)) {
     throw new Error("Scout response must be a JSON object.");
   }
+
   const keys = Object.keys(value).toSorted();
+
   if (
     keys.length !== 2 ||
     keys[0] !== "selectedIds" ||
@@ -153,39 +159,52 @@ export const parseScoutSelection = (
       "Scout response must contain only selectedIds and synthesis."
     );
   }
+
   if (!isStringArray(value.selectedIds)) {
     throw new Error("Scout selectedIds must be an array of strings.");
   }
+
   const { selectedIds } = value;
+
   if (new Set(selectedIds).size !== selectedIds.length) {
     throw new Error("Scout selected duplicate group IDs.");
   }
+
   const known = new Set(manifest.groups.map((group) => group.id));
   const knownSelectedIds = selectedIds.filter((id) => known.has(id));
+
   const requiredIds = manifest.groups
     .filter((group) => group.required)
     .map((group) => group.id);
+
   if (requiredIds.length > SCOUT_SELECTION_MAX_IDS) {
     throw new Error(
       `Manifest contains more than ${SCOUT_SELECTION_MAX_IDS} required groups.`
     );
   }
+
   const required = new Set(requiredIds);
+
   const optionalIds = knownSelectedIds
     .filter((id) => !required.has(id))
     .slice(0, SCOUT_SELECTION_MAX_IDS - requiredIds.length);
+
   const retained = new Set([...requiredIds, ...optionalIds]);
+
   const normalizedIds = manifest.groups
     .filter((group) => retained.has(group.id))
     .map((group) => group.id);
+
   if (!isString(value.synthesis)) {
     throw new TypeError("Scout synthesis must be a string.");
   }
+
   if (byteLength(value.synthesis) > SCOUT_SYNTHESIS_MAX_BYTES) {
     throw new Error(
       `Scout synthesis exceeds ${SCOUT_SYNTHESIS_MAX_BYTES} UTF-8 bytes.`
     );
   }
+
   return {
     selectedIds: normalizedIds,
     synthesis: knownSelectedIds.length > 0 ? value.synthesis : "",
@@ -207,9 +226,11 @@ const classifyResolutionError = (message: string): ScoutFallbackCategory => {
   if (message.startsWith("Scout model not found:")) {
     return "missing-model";
   }
+
   if (AUTH_ERROR_PATTERN.test(message)) {
     return "auth-error";
   }
+
   return "provider-error";
 };
 
@@ -221,18 +242,24 @@ const setupAbortWatch = (
   let timedOut = false;
   const abortFromParent = () => controller.abort(parentSignal?.reason);
   parentSignal?.addEventListener("abort", abortFromParent, { once: true });
+
   const timer = setTimeout(() => {
     timedOut = true;
     controller.abort(new Error("Scout timed out."));
   }, timeoutMs);
+
   timer.unref?.();
+
   const { promise: abortPromise, reject: rejectOnAbort } =
     Promise.withResolvers<never>();
+
   const onControllerAbort = () =>
     rejectOnAbort(controller.signal.reason ?? new Error("Scout aborted."));
+
   controller.signal.addEventListener("abort", onControllerAbort, {
     once: true,
   });
+
   return {
     abortPromise,
     controller,
@@ -263,6 +290,7 @@ const streamScoutResponse = async (
     parentSignal,
     timeoutMs
   );
+
   try {
     const collection = dependencies.collect(resolved, {
       messages: [manifestMessage(manifest)],
@@ -275,12 +303,14 @@ const streamScoutResponse = async (
       signal: controller.signal,
       systemPrompt: SCOUT_SYSTEM,
     });
+
     return {
       ok: true,
       streamed: await Promise.race([collection, abortPromise]),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+
     return wasTimedOut()
       ? {
           category: "timeout",
@@ -302,13 +332,17 @@ export const runAdvisorScout = async (
   dependencies: ScoutDependencies = defaultDependencies
 ): Promise<ScoutOutcome> => {
   const startedAt = Date.now();
+
   const publish = (event: ScoutLifecycleEvent) => {
     onEvent?.(event);
   };
+
   const cancelled = (): ScoutOutcome => {
     publish({ type: "cancelled" });
+
     return { cancelled: true, ok: false };
   };
+
   const fallback = (
     category: ScoutFallbackCategory,
     message: string,
@@ -324,7 +358,9 @@ export const runAdvisorScout = async (
       model: effectiveExecutorRef(ctx),
       ok: false as const,
     };
+
     publish({ outcome, type: "fallback" });
+
     return outcome;
   };
 
@@ -335,19 +371,23 @@ export const runAdvisorScout = async (
   const executorModel = effectiveExecutorRef(ctx);
   const executorEffort = effectiveExecutorEffort(ctx);
   let resolved: ResolvedConfiguredModel;
+
   try {
     resolved = await dependencies.resolve(ctx, executorModel, "Scout");
   } catch (error) {
     if (parentSignal?.aborted) {
       return cancelled();
     }
+
     const message = error instanceof Error ? error.message : String(error);
+
     return fallback(classifyResolutionError(message), message);
   }
 
   if (parentSignal?.aborted) {
     return cancelled();
   }
+
   publish({ model: executorModel, type: "call" });
 
   const streamed = await streamScoutResponse(
@@ -360,21 +400,26 @@ export const runAdvisorScout = async (
     timeoutMs,
     publish
   );
+
   if (!streamed.ok) {
     if (parentSignal?.aborted) {
       return cancelled();
     }
+
     return fallback(streamed.category, streamed.message);
   }
+
   if (parentSignal?.aborted) {
     return cancelled();
   }
 
   let selection: ScoutSelection;
+
   try {
     selection = parseScoutSelection(streamed.streamed.text, manifest);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+
     return fallback(
       streamed.streamed.text.trim() ? "invalid-selection" : "empty-response",
       message,
@@ -407,6 +452,8 @@ export const runAdvisorScout = async (
       .map((group) => group.label),
     selection,
   };
+
   publish({ outcome, type: "success" });
+
   return outcome;
 };

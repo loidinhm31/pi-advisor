@@ -19,6 +19,7 @@ describe("Command configuration errors", () => {
       resetConfigCache();
       const commands = new Map<string, any>();
       const notifications: { message: string; level: string }[] = [];
+
       const context = asExtensionContext({
         cwd: tmpdir(),
         hasUI: true,
@@ -39,6 +40,7 @@ describe("Command configuration errors", () => {
         )
       );
       expect(notifications).toHaveLength(4);
+
       for (const notification of notifications) {
         expect(notification.level).toBe("error");
         expect(notification.message).toContain("advisor.json");
@@ -70,6 +72,7 @@ describe("Tool lifecycle configuration errors", () => {
         {
           runGate: async (): Promise<AdvisorGateOutcome> => {
             gateRuns += 1;
+
             return {
               decision: "proceed",
               markdown: "Decision: proceed\nContinue.",
@@ -82,6 +85,7 @@ describe("Tool lifecycle configuration errors", () => {
         }
       );
       const toolCall = events.get("tool_call");
+
       const ctx = asExtensionContext({
         cwd: tmpdir(),
         hasUI: true,
@@ -93,6 +97,7 @@ describe("Tool lifecycle configuration errors", () => {
           setStatus: () => {},
         },
       });
+
       const readEvent = {
         input: { path: "src/foo.ts" },
         toolCallId: "read-1",

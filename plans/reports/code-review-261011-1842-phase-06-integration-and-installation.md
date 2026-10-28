@@ -56,15 +56,15 @@ Phase 06 delivers complete integration, dual-host verification, safe plugin link
 
 ## Validation Commands & Results
 
-| Command | Status | Result / Notes |
-| --- | --- | --- |
-| `bun test` | **PASS** | 589 pass, 0 fail, 5,599 `expect()` calls across 62 files (18.05s) |
-| `bun run test:node-loader` | **PASS** | 1 pass, 0 fail under Node `DefaultResourceLoader` (0.83s) |
-| `bun run typecheck` | **PASS** | 0 type errors across 232 files (`bun check`, 0.57s) |
-| `bun run check:boundaries` | **PASS** | Production leaves do not import facades (0.07s) |
-| `bun run lint` | **PASS** | 0 errors, 0 warnings (`oxlint`, 0.76s) |
-| `bun run format:check` | **PASS** | 439 matched files correctly formatted (`oxfmt --check`, 0.05s) |
-| `bun run package:check` | **PASS** | `prepack` bundle build + asset manifest (121 files) verified (0.53s) |
+| Command                    | Status   | Result / Notes                                                       |
+| -------------------------- | -------- | -------------------------------------------------------------------- |
+| `bun test`                 | **PASS** | 589 pass, 0 fail, 5,599 `expect()` calls across 62 files (18.05s)    |
+| `bun run test:node-loader` | **PASS** | 1 pass, 0 fail under Node `DefaultResourceLoader` (0.83s)            |
+| `bun run typecheck`        | **PASS** | 0 type errors across 232 files (`bun check`, 0.57s)                  |
+| `bun run check:boundaries` | **PASS** | Production leaves do not import facades (0.07s)                      |
+| `bun run lint`             | **PASS** | 0 errors, 0 warnings (`oxlint`, 0.76s)                               |
+| `bun run format:check`     | **PASS** | 439 matched files correctly formatted (`oxfmt --check`, 0.05s)       |
+| `bun run package:check`    | **PASS** | `prepack` bundle build + asset manifest (121 files) verified (0.53s) |
 
 ## Unresolved Questions
 

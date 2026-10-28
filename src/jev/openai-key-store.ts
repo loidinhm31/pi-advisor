@@ -16,7 +16,7 @@ export const OPENAI_DECISIONS_KEY_SERVICE = "pi-advisor";
 export const OPENAI_DECISIONS_KEY_NAME = "openai-decisions-api-key";
 const KEY_FILE_MODE = 0o600;
 
-export type OpenAIDecisionsKeySource = "openai-bun-secrets" | "openai-file";
+type OpenAIDecisionsKeySource = "openai-bun-secrets" | "openai-file";
 
 export interface OpenAIDecisionsKeyResolution {
   key?: string;
@@ -37,10 +37,12 @@ interface BunGlobal {
 const runtimeSecrets = (): JevSecretsLike | undefined => {
   // SAFETY: only Bun runtimes expose Bun.secrets; other hosts leave the property absent.
   const bun = globalThis as BunGlobal;
+
   return bun.Bun?.secrets;
 };
 
 const keyFilePath = () => join(getAgentDir(), "openai_api_key");
+
 const normalizeKey = (value: string | null | undefined) =>
   value?.trim() || undefined;
 
@@ -67,8 +69,10 @@ export const resolveOpenAIDecisionsKey = async (
   deps: OpenAIDecisionsKeyStoreDeps = {}
 ): Promise<OpenAIDecisionsKeyResolution> => {
   const secrets = deps.secrets === undefined ? runtimeSecrets() : deps.secrets;
+
   if (secrets) {
     let secretKey: string | undefined;
+
     try {
       secretKey = normalizeKey(
         await secrets.get({
@@ -79,11 +83,14 @@ export const resolveOpenAIDecisionsKey = async (
     } catch {
       secretKey = undefined;
     }
+
     if (secretKey) {
       return { key: secretKey, source: "openai-bun-secrets" };
     }
   }
+
   const key = normalizeKey((deps.readFileStore ?? readDefaultFileStore)());
+
   return key ? { key, source: "openai-file" } : {};
 };
 
@@ -92,10 +99,13 @@ export const writeOpenAIDecisionsKey = async (
   deps: OpenAIDecisionsKeyStoreDeps = {}
 ): Promise<JevKeyStoreResult> => {
   const normalized = normalizeKey(key);
+
   if (!normalized) {
     return { message: "The OpenAI API key is empty.", ok: false };
   }
+
   const secrets = deps.secrets === undefined ? runtimeSecrets() : deps.secrets;
+
   if (secrets) {
     try {
       await secrets.set({
@@ -103,6 +113,7 @@ export const writeOpenAIDecisionsKey = async (
         service: OPENAI_DECISIONS_KEY_SERVICE,
         value: normalized,
       });
+
       return { message: "OpenAI API key stored in Bun.secrets.", ok: true };
     } catch (error) {
       return {
@@ -111,8 +122,10 @@ export const writeOpenAIDecisionsKey = async (
       };
     }
   }
+
   try {
     (deps.writeFileStore ?? writeDefaultFileStore)(normalized);
+
     return {
       message: "OpenAI API key stored in the Pi agent directory (mode 0600).",
       ok: true,
@@ -130,6 +143,7 @@ export const clearOpenAIDecisionsKey = async (
 ): Promise<JevKeyStoreResult> => {
   let firstError: string | undefined;
   const secrets = deps.secrets === undefined ? runtimeSecrets() : deps.secrets;
+
   if (secrets) {
     try {
       await secrets.delete({
@@ -140,6 +154,7 @@ export const clearOpenAIDecisionsKey = async (
       firstError = messageOf(error);
     }
   }
+
   try {
     if (deps.deleteFileStore) {
       deps.deleteFileStore();
@@ -149,11 +164,13 @@ export const clearOpenAIDecisionsKey = async (
   } catch (error) {
     firstError ??= messageOf(error);
   }
+
   if (firstError) {
     return {
       message: `Clearing the OpenAI API key failed: ${firstError}.`,
       ok: false,
     };
   }
+
   return { message: "Stored OpenAI API key cleared.", ok: true };
 };

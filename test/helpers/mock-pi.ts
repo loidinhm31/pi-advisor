@@ -24,9 +24,7 @@ type ValueHandler = (
 ) => MockHandlerOutcome | Promise<MockHandlerOutcome>;
 
 export type MockEventHandler =
-  | AsyncVoidHandler
-  | SyncVoidHandler
-  | ValueHandler;
+  AsyncVoidHandler | SyncVoidHandler | ValueHandler;
 
 export interface MockPiCapture {
   /** Tool names returned by getActiveTools; mutable when passed in. */
@@ -202,6 +200,7 @@ export const mockPi = <TOverrides extends object>(
     },
     ...overrides,
   };
+
   // SAFETY: mock implements the ExtensionAPI registration surface tests consume; overrides replace members.
   return api as ExtensionAPI;
 };

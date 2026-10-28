@@ -1,3 +1,10 @@
+import type {
+  ClassifierApi,
+  ClassifierContext,
+  ClassifierModel,
+  ClassifierResult,
+  ModelsClassifierOptions,
+} from "@earendil-works/pi-ai";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type {
   Component,
@@ -8,6 +15,7 @@ import type {
 
 import type { GateFailureMode, JevTransport } from "../config/types.ts";
 import type { GitContextLevel } from "../git.ts";
+import type { JevClassifierKeySnapshot } from "../jev/classifier-key-store.ts";
 import type { JevKeyStoreResult } from "../jev/key-store.ts";
 import type {
   JevCredentials,
@@ -41,9 +49,7 @@ export interface SearchableModelMultiSelectorOptions extends Omit<
 }
 
 export interface ManualAdvisorRequest {
-  /** The repository disclosure level selected for this consultation. */
   gitContext: GitContextLevel;
-  /** The unnormalized message entered in the dialog, when one was supplied. */
   message?: string;
 }
 
@@ -79,7 +85,11 @@ export interface ContextPreset {
 
 export const FALLBACK_ADVISOR_MODEL_DISABLED = "Disabled (no fallback)";
 
+export const EXECUTOR_FOLLOWS_SESSION_MODEL =
+  "Current session model (no override)";
+
 export interface AdvisorSettings {
+  advisorToolsEnabled?: boolean;
   agentsMdContext?: boolean;
   fallbackModel?: string;
   alwaysOn?: boolean;
@@ -97,6 +107,7 @@ export interface AdvisorSettings {
   gitContextMaxChars?: number;
   herdrIntegration?: boolean;
   jevBaseUrl?: string;
+  jevClassifier?: string;
   jevDigestMaxChars?: number;
   jevFilterEnabled?: boolean;
   jevFilterNoulMargin?: number;
@@ -140,16 +151,43 @@ export interface JevFilterSelection {
 
 export interface JevProviderSelection {
   baseUrl?: string;
+  classifier?: string;
   keyProvider?: string;
   transport: JevTransport;
 }
 
-export interface JevSetupResult {
+interface JevSetupResult {
   message?: string;
   ok: boolean;
 }
 
+export interface JevClassifierRegistryAccess {
+  classify: (
+    model: ClassifierModel<ClassifierApi>,
+    context: ClassifierContext,
+    options?: ModelsClassifierOptions
+  ) => Promise<ClassifierResult>;
+  findOfType: (
+    type: "classifier",
+    provider: string,
+    modelId: string
+  ) => ClassifierModel<ClassifierApi> | undefined;
+  getAvailableOfType: (
+    type: "classifier",
+    provider?: string
+  ) => Promise<readonly ClassifierModel<ClassifierApi>[]>;
+  getProviderDisplayName: (provider: string) => string;
+}
+
 export interface JevSetupDeps {
+  modelRegistry?: JevClassifierRegistryAccess;
+  resolveClassifierKey?: () => Promise<JevClassifierKeySnapshot>;
+  persistClassifierKey?: (
+    key: string
+  ) => Promise<{ ok: boolean; message: string }>;
+  restoreClassifierKey?: (
+    previous: JevClassifierKeySnapshot
+  ) => Promise<boolean>;
   clearStoredKey?: (transport: JevTransportKind) => Promise<JevKeyStoreResult>;
   removePlaintextKey?: () => JevKeyStoreResult;
   resolveEndpoint?: (
@@ -202,9 +240,6 @@ export interface TextSettingSubmenuOptions {
   title: string;
   tui: RenderRequester;
 }
-
-export type SettingValue = string | undefined;
-
 export interface HostRoundedBoxSymbols {
   bottomLeft: string;
   bottomRight: string;

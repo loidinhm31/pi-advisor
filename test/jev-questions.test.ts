@@ -21,9 +21,11 @@ const scoreAnswer = (
     score,
     type: "score",
   };
+
   if (legend) {
     answer.legend = legend;
   }
+
   return answer;
 };
 
@@ -179,11 +181,39 @@ describe("composeScreeningVerdict", () => {
         stakes: { legend: { "0": L0 }, probabilities: { "0": "not a number" } },
       },
     ];
+
     for (const invalid of invalidAnswers) {
       expect(composeScreeningVerdict(invalid, criteria)).toEqual({
         skip: false,
       });
     }
+  });
+
+  test("rejects probabilities outside the normalized range", () => {
+    expect(
+      composeScreeningVerdict(
+        {
+          self_answerable: { noul: 1.1 },
+          stakes: { probabilities: { negligible: 0.95 } },
+        },
+        criteria
+      )
+    ).toEqual({ skip: false });
+    expect(
+      composeScreeningVerdict(
+        {
+          self_answerable: { noul: 0.9 },
+          stakes: { probabilities: { negligible: -0.1 } },
+        },
+        criteria
+      )
+    ).toEqual({ skip: false });
+    expect(
+      composeTurnGateVerdict({ should_consult: { noul: 1.01 } }, 0.8)
+    ).toBe(false);
+    expect(
+      composeTurnGateVerdict({ should_consult: { noul: -0.01 } }, 0.8)
+    ).toBe(false);
   });
 
   test("the noul margin rule requires clearance over a coin flip", () => {
@@ -195,9 +225,11 @@ describe("composeScreeningVerdict", () => {
 
 const turnGateAnswers = (noul?: number) => {
   const answer: RecordValue = {};
+
   if (noul !== undefined) {
     answer.noul = noul;
   }
+
   return { should_consult: answer };
 };
 

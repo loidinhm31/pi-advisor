@@ -28,12 +28,12 @@ No product files created/deleted. Do not change `activation.ts`, parsing, config
 
 ## Test design and failure modes
 
-| Behavior/risk | Existing evidence and gap | Layer/oracle | Candidate defect rejected |
-| --- | --- | --- | --- |
-| Alternate command exported | Six names asserted; new name absent | Extension registration inventory: exactly seven, old names retained | Missing alias or removed backward-compatible command |
-| Real activation | Legacy picker/saved-model coverage; alias not exercised | Registered handler invokes real activation; selected model, active tools, notices and persisted config | Alias wired to wrong/no-op handler |
-| Forwarding and completion | Legacy context/deferred-tool tests only | Explicit expected arguments/state after awaited handler | Dropped args or unreturned asynchronous activation |
-| Cancellation isolation | Legacy cancellation test | Empty initial config/tools remain unchanged | Alias bypasses picker or enables prematurely |
+| Behavior/risk              | Existing evidence and gap                               | Layer/oracle                                                                                           | Candidate defect rejected                            |
+| -------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| Alternate command exported | Six names asserted; new name absent                     | Extension registration inventory: exactly seven, old names retained                                    | Missing alias or removed backward-compatible command |
+| Real activation            | Legacy picker/saved-model coverage; alias not exercised | Registered handler invokes real activation; selected model, active tools, notices and persisted config | Alias wired to wrong/no-op handler                   |
+| Forwarding and completion  | Legacy context/deferred-tool tests only                 | Explicit expected arguments/state after awaited handler                                                | Dropped args or unreturned asynchronous activation   |
+| Cancellation isolation     | Legacy cancellation test                                | Empty initial config/tools remain unchanged                                                            | Alias bypasses picker or enables prematurely         |
 
 Mocks remain at host/model-registry/UI boundaries; never replace `activateAdvisor` with a stub. Isolate fixture state per invocation; do not run cases concurrently against global configuration refs. No provider requests or real user config mutations needed.
 

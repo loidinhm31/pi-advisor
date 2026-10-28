@@ -26,28 +26,36 @@ export const formatAdvisorStats = ({
   if (error) {
     return `**Could not read Advisor outcomes.**\n\n${error}`;
   }
+
   if (!stats || stats.total === 0) {
     const ignored = malformedLines
       ? `\n\nIgnored ${malformedLines} malformed ledger line${malformedLines === 1 ? "" : "s"}.`
       : "";
+
     return `**No Advisor outcomes recorded yet.**\n\nEnable outcome logging and record an outcome after an Advisor response to build this report.${ignored}`;
   }
+
   const { validationByAdoption } = stats;
   const { followed } = validationByAdoption;
   const notFollowed = validationByAdoption["not-followed"];
+
   const triggerLines = Object.entries(stats.byTrigger).map(
     ([trigger, count]) => `- ${trigger}: ${count}`
   );
+
   const adoptionLines = Object.entries(stats.adoption).map(
     ([adoption, count]) => `- ${adoption}: ${count}`
   );
+
   const validationLines = [
     `- followed: ${percent(followed.passRate)} passed (${followed.passed}/${validatedCount(followed)})`,
     `- not-followed: ${percent(notFollowed.passRate)} passed (${notFollowed.passed}/${validatedCount(notFollowed)})`,
   ];
+
   const ignored = malformedLines
     ? `\n\nIgnored ${malformedLines} malformed ledger line${malformedLines === 1 ? "" : "s"}.`
     : "";
+
   return [
     `**${stats.total} Advisor outcome${stats.total === 1 ? "" : "s"}**`,
     "",
@@ -70,6 +78,7 @@ const readAdvisorStats = async (): Promise<AdvisorStatsDetails> => {
   try {
     const log = await readOutcomeLog();
     const stats = aggregateOutcomeRecords(log.records, log.malformedLines);
+
     return { malformedLines: log.malformedLines, stats };
   } catch (error) {
     return {

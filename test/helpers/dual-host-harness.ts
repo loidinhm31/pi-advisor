@@ -33,7 +33,11 @@ export type {
 } from "./dual-host-probes.ts";
 
 const PACKAGE_ROOT = resolvePath(import.meta.dirname, "../..");
-const OMP_ROOT = process.env.OMP_ROOT ?? "/home/loidinh/WS/oh-my-pi";
+const OMP_ROOT =
+  process.env.OMP_ROOT ??
+  (existsSync("G:/ws/sharing/oh-my-pi")
+    ? "G:/ws/sharing/oh-my-pi"
+    : "/home/loidinh/WS/oh-my-pi");
 
 const ROUND_BOX_KEYS: (keyof HostRoundedBoxSymbols)[] = [
   "bottomLeft",
@@ -140,6 +144,9 @@ export const createIsolatedEnv = (prefix: string) => {
     env[key] = value;
   }
   env.HOME = home;
+  env.USERPROFILE = home;
+  env.APPDATA = join(home, "AppData", "Roaming");
+  env.LOCALAPPDATA = join(home, "AppData", "Local");
   env.PI_CODING_AGENT_DIR = agentDir;
   return {
     agentDir,

@@ -87,14 +87,14 @@
 
 ## Related Code Files
 
-| File Path | Action | Role / Ownership |
-| --- | --- | --- |
-| `/home/loidinh/WS/pi-advisor/src/ui/manual-dialog.ts` | Modify | Add private `isHostSymbolTheme` and `createManualDialogEditor` using complete `HostSymbolTheme` and `"pi"` border style |
-| `/home/loidinh/WS/pi-advisor/src/ui/settings-list-adapter.ts` | Modify | Implement `SettingsListPublicAdapterContract` branch with early `return` before `privateFields()` fallback |
-| `/home/loidinh/WS/pi-advisor/src/ui/masked-input.ts` | Modify | Implement private `resolveInputCursor` preferring `getCursor()` with finite `[0, value.length]` clamping |
-| `/home/loidinh/WS/pi-advisor/test/ui.test.ts` | Modify | Add real Pi 1.x and isolated-process real OMP `ManualAdvisorDialog`, `SettingsListAdapter`, and `MaskedInput` boundary tests |
-| `/home/loidinh/WS/pi-advisor/test/manual-dialog.test.ts` | Modify | Verify `/advisor-manual` overlay open, edit, Git context selection, cancel, and submit across both hosts |
-| `/home/loidinh/WS/pi-advisor/test/settings-navigation.test.ts` | Modify | Verify `/advisor-settings` arrow cycling, `Simple mode` toggle rebuild, and search/submenu guards across both hosts |
+| File Path                                                      | Action | Role / Ownership                                                                                                             |
+| -------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `/home/loidinh/WS/pi-advisor/src/ui/manual-dialog.ts`          | Modify | Add private `isHostSymbolTheme` and `createManualDialogEditor` using complete `HostSymbolTheme` and `"pi"` border style      |
+| `/home/loidinh/WS/pi-advisor/src/ui/settings-list-adapter.ts`  | Modify | Implement `SettingsListPublicAdapterContract` branch with early `return` before `privateFields()` fallback                   |
+| `/home/loidinh/WS/pi-advisor/src/ui/masked-input.ts`           | Modify | Implement private `resolveInputCursor` preferring `getCursor()` with finite `[0, value.length]` clamping                     |
+| `/home/loidinh/WS/pi-advisor/test/ui.test.ts`                  | Modify | Add real Pi 1.x and isolated-process real OMP `ManualAdvisorDialog`, `SettingsListAdapter`, and `MaskedInput` boundary tests |
+| `/home/loidinh/WS/pi-advisor/test/manual-dialog.test.ts`       | Modify | Verify `/advisor-manual` overlay open, edit, Git context selection, cancel, and submit across both hosts                     |
+| `/home/loidinh/WS/pi-advisor/test/settings-navigation.test.ts` | Modify | Verify `/advisor-settings` arrow cycling, `Simple mode` toggle rebuild, and search/submenu guards across both hosts          |
 
 ## Implementation Steps
 
@@ -134,11 +134,11 @@
 
 ## Risk Assessment
 
-| Risk | Impact | Mitigation |
-| --- | --- | --- |
-| Public-method branch in `SettingsListAdapter` falls through into `privateFields()` | High | Enforce explicit early `return` in every `hasSettingsListPublicContract(this.list)` branch. |
-| Incomplete `symbols` object breaks nested `SelectList` inside OMP `Editor` | High | Validate the complete `HostSymbolTheme` object from `getSelectListTheme().symbols` and assign it to both `editorTheme.symbols` and `editorTheme.selectList.symbols`. |
-| Cosmetic cursor differences between Pi and OMP | Low | Assert bounded width, masked bullets, and functional navigation/submission rather than hardcoded host cursor glyphs. |
+| Risk                                                                               | Impact | Mitigation                                                                                                                                                           |
+| ---------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public-method branch in `SettingsListAdapter` falls through into `privateFields()` | High   | Enforce explicit early `return` in every `hasSettingsListPublicContract(this.list)` branch.                                                                          |
+| Incomplete `symbols` object breaks nested `SelectList` inside OMP `Editor`         | High   | Validate the complete `HostSymbolTheme` object from `getSelectListTheme().symbols` and assign it to both `editorTheme.symbols` and `editorTheme.selectList.symbols`. |
+| Cosmetic cursor differences between Pi and OMP                                     | Low    | Assert bounded width, masked bullets, and functional navigation/submission rather than hardcoded host cursor glyphs.                                                 |
 
 ## Security Considerations
 

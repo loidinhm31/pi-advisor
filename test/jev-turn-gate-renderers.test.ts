@@ -17,6 +17,7 @@ describe("Jev turn-gate steer renderers", () => {
     setShowUsageDetailsRef(true);
     const messageRenderers = new Map<string, any>();
     registerToolRenderers(mockPi({ messageRenderers }));
+
     for (const customType of [
       "advisor-turn-gate-call",
       "advisor-turn-gate-result",
@@ -25,6 +26,7 @@ describe("Jev turn-gate steer renderers", () => {
     }
 
     const theme = plainThemeMock;
+
     const callBox = messageRenderers.get("advisor-turn-gate-call")(
       {
         content: "Proactive Advisor turn review",
@@ -34,9 +36,11 @@ describe("Jev turn-gate steer renderers", () => {
       { expanded: false },
       theme
     );
+
     const callLines = callBox
       .render(100)
-      .map((line: string) => line.replace(SGR_CODE, ""));
+      .map((line: string) => line.replaceAll(SGR_CODE, ""));
+
     expect(callLines.join("\n")).toContain("[advisor]");
     expect(callLines.join("\n")).toContain(
       "Turn gate: 2 turns without a consultation"
@@ -55,9 +59,11 @@ describe("Jev turn-gate steer renderers", () => {
       { expanded: false },
       theme
     );
+
     const resultLines = resultBox
       .render(100)
-      .map((line: string) => line.replace(SGR_CODE, ""));
+      .map((line: string) => line.replaceAll(SGR_CODE, ""));
+
     expect(resultLines.join("\n")).toContain("ADVISOR · TURN REVIEW");
     expect(resultLines.join("\n")).toContain("test/advisor");
     expect(resultLines.join("\n")).toContain("Usage:");

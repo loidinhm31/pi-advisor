@@ -45,17 +45,20 @@ const runModelsCommand = async (agentDir: string) => {
               { matches: () => false },
               resolve
             );
+
             selector.render(100);
             selector.handleInput("\r");
           }),
         notify: () => {},
         select: (_title: string, choices: string[]) => {
           effortChoicesSeen.push(choices);
+
           return Promise.resolve(choices[0]);
         },
       },
     })
   );
+
   return {
     effortChoicesSeen,
     saved: JSON.parse(readFileSync(join(agentDir, "advisor.json"), "utf-8")),
@@ -79,6 +82,7 @@ describe("Searchable model selector", () => {
         },
       })
     );
+
     expect(refs).toEqual(["provider/first", "provider/second"]);
   });
 
@@ -102,6 +106,7 @@ describe("Searchable model selector", () => {
 
   test("does not show a configured model that is unavailable", () => {
     let selected: string | undefined;
+
     const selector = new SearchableModelSelector({
       allOptions: ["provider/available"],
       currentOption: "provider/unavailable",
@@ -123,6 +128,7 @@ describe("Searchable model selector", () => {
 
   test("keeps saved and stale whitelist entries checked without duplicates", () => {
     let selected: string[] | undefined;
+
     const selector = new SearchableModelMultiSelector({
       allOptions: [
         "provider/alpha",
@@ -152,6 +158,7 @@ describe("Searchable model selector", () => {
 
   test("fuzzy-filters and toggles multiple models", () => {
     let selected: string[] | undefined;
+
     const selector = new SearchableModelMultiSelector({
       allOptions: [
         "anthropic/claude-sonnet-5",
@@ -186,6 +193,7 @@ describe("Searchable model selector", () => {
 
   test("applies selected models when the current search has no matches", () => {
     let selected: string[] | undefined;
+
     const selector = new SearchableModelMultiSelector({
       allOptions: ["provider/alpha", "provider/beta"],
       currentOptions: [],
@@ -201,9 +209,11 @@ describe("Searchable model selector", () => {
     });
 
     selector.handleInput(" ");
+
     for (const character of "no-match") {
       selector.handleInput(character);
     }
+
     expect(selector.render(100).join("\n")).toContain(
       "No matching models found."
     );
@@ -214,6 +224,7 @@ describe("Searchable model selector", () => {
 
   test("keeps the current model when Enter is pressed immediately", () => {
     let selected: string | undefined;
+
     const selector = new SearchableModelSelector({
       allOptions: ["provider/other", "provider/current"],
       currentOption: "provider/current",

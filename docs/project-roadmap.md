@@ -6,14 +6,14 @@ The `omp/compatibility` roadmap adapts `pi-advisor` to run seamlessly on both Pi
 
 Implementation is executed in six dependency-gated phases:
 
-| Phase | Deliverable | Scope | Status | Completed |
-| --- | --- | --- | --- | --- |
-| [Phase 01](#phase-01-host-contracts-capability-boundaries--test-harness) | Host Contracts & Harness | Capability interfaces, isolated subprocess test harness | DONE | 2026-10-11 |
-| [Phase 02](#phase-02-tui-compatibility-manual-dialog-settings-adapter--masked-input) | TUI Compatibility | Manual dialog overlay, settings adapter, masked input | DONE | 2026-10-11 |
-| [Phase 03](#phase-03-prompt-injection-preserved-prompt--route-rules) | Prompt Injection (`phase-03-prompt-injection.md`) | System prompt section preservation and tool route alignment | DONE (2026-10-11) / 100% | 2026-10-11 |
-| [Phase 04](#phase-04-device-lifecycle-safety) | Device Lifecycle Safety (`phase-04-device-lifecycle-safety.md`) | Accounting normalization, disclosure safety, child session isolation | DONE (2026-10-11) / 100% | 2026-10-11 |
-| [Phase 05](#phase-05-full-gate-settings) | Full-Gate Settings (`phase-05-full-gate-settings.md`) | Verification and documentation of settings and loop gates | DONE (2026-10-11) / 100% | 2026-10-11 |
-| [Phase 06](#phase-06-integration-dual-host-verification--release) | Integration & Installation (`phase-06-integration-and-installation.md`) | Dual-host end-to-end verification, packaging, and release docs | DONE (2026-10-11) / 100% | 2026-10-11 |
+| Phase                                                                                | Deliverable                                                             | Scope                                                                | Status                   | Completed  |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------ | ---------- |
+| [Phase 01](#phase-01-host-contracts-capability-boundaries--test-harness)             | Host Contracts & Harness                                                | Capability interfaces, isolated subprocess test harness              | DONE                     | 2026-10-11 |
+| [Phase 02](#phase-02-tui-compatibility-manual-dialog-settings-adapter--masked-input) | TUI Compatibility                                                       | Manual dialog overlay, settings adapter, masked input                | DONE                     | 2026-10-11 |
+| [Phase 03](#phase-03-prompt-injection-preserved-prompt--route-rules)                 | Prompt Injection (`phase-03-prompt-injection.md`)                       | System prompt section preservation and tool route alignment          | DONE (2026-10-11) / 100% | 2026-10-11 |
+| [Phase 04](#phase-04-device-lifecycle-safety)                                        | Device Lifecycle Safety (`phase-04-device-lifecycle-safety.md`)         | Accounting normalization, disclosure safety, child session isolation | DONE (2026-10-11) / 100% | 2026-10-11 |
+| [Phase 05](#phase-05-full-gate-settings)                                             | Full-Gate Settings (`phase-05-full-gate-settings.md`)                   | Verification and documentation of settings and loop gates            | DONE (2026-10-11) / 100% | 2026-10-11 |
+| [Phase 06](#phase-06-integration-dual-host-verification--release)                    | Integration & Installation (`phase-06-integration-and-installation.md`) | Dual-host end-to-end verification, packaging, and release docs       | DONE (2026-10-11) / 100% | 2026-10-11 |
 
 ---
 

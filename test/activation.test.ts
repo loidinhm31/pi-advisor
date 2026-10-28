@@ -22,6 +22,10 @@ import {
   plainTheme,
 } from "./helpers/harness.ts";
 import { mockPi } from "./helpers/mock-pi.ts";
+import {
+  changeSetting,
+  focusSettingsRow,
+} from "./helpers/settings-navigation.ts";
 
 initTheme();
 
@@ -58,9 +62,11 @@ const typingSelectorUi = (
     onOpen?: () => void;
     onValue?: (value: string | undefined) => void;
     search?: string;
+    searchAt?: number;
   } = {}
 ) => {
   let customCall = 0;
+
   return {
     custom: (factory: any) =>
       new Promise((resolve) => {
@@ -73,14 +79,18 @@ const typingSelectorUi = (
             resolve(value);
           }
         );
+
         options.onOpen?.();
         selector.render(100);
-        if (customCall === 1 && options.search) {
+
+        if (customCall === (options.searchAt ?? 1) && options.search) {
           for (const character of options.search) {
             selector.handleInput(character);
           }
+
           selector.render(100);
         }
+
         customCall += 1;
         selector.handleInput("\r");
       }),
@@ -95,14 +105,17 @@ describe("Advisor activation flow", () => {
       const commands = new Map<string, any>();
       let activeTools: string[] = [];
       let selectedModel: unknown;
+
       const models = [
         { id: "executor", provider: "provider" },
         { id: "advisor", provider: "provider" },
       ];
+
       const theme: SelectorTheme = {
         bold: (value: string) => value,
         fg: (_color: string, value: string) => value,
       };
+
       const ctx = asExtensionContext({
         cwd: agentDir,
         hasUI: true,
@@ -121,6 +134,7 @@ describe("Advisor activation flow", () => {
             },
             setModel(model: RegistryModel) {
               selectedModel = model;
+
               return Promise.resolve(true);
             },
             setThinkingLevel: () => {},
@@ -130,14 +144,11 @@ describe("Advisor activation flow", () => {
       await commands.get("advisor-models").handler("", ctx);
       expect(savedConfig(agentDir)).toMatchObject({
         advisor: "provider/advisor",
-        executor: "provider/executor",
       });
+      expect(savedConfig(agentDir)).not.toHaveProperty("executor");
 
       await commands.get("advisor").handler("", ctx);
-      expect(selectedModel).toMatchObject({
-        id: "executor",
-        provider: "provider",
-      });
+      expect(selectedModel).toBeUndefined();
       expect(activeTools).toContain("ask_advisor");
     });
   });
@@ -146,12 +157,15 @@ describe("Advisor activation flow", () => {
     await withAgentDir({}, async (agentDir) => {
       const { commands, pi, setActiveTools } = activationHarness();
       setActiveTools([]);
+
       const models = [
         { id: "chosen-executor", provider: "provider" },
         { id: "chosen-advisor", provider: "provider" },
       ];
+
       const selectedModels: string[] = [];
       const notices: string[] = [];
+
       const ctx = asExtensionContext({
         cwd: agentDir,
         hasUI: true,
@@ -165,6 +179,7 @@ describe("Advisor activation flow", () => {
               }
             },
             search: "chosen-advisor",
+            searchAt: 0,
           }),
           notify: (message: string) => notices.push(message),
         },
@@ -174,18 +189,19 @@ describe("Advisor activation flow", () => {
       await commands.get("advisor").handler("", ctx);
 
       expect(selectedModels).toEqual([
-        "provider/chosen-executor",
         "provider/chosen-advisor",
         "Disabled (no fallback)",
       ]);
       expect(savedConfig(agentDir)).toMatchObject({
         advisor: "provider/chosen-advisor",
-        executor: "provider/chosen-executor",
       });
+      expect(savedConfig(agentDir)).not.toHaveProperty("executor");
       expect(pi.getActiveTools()).toContain("ask_advisor");
+
       const explanation = notices.find((message) =>
         message.startsWith("The Advisor is")
       );
+
       expect(explanation).toContain(
         "The Advisor is a second-opinion model that reviews the Executor's context and returns risks, alternatives, and verification steps without changing files or running tools."
       );
@@ -206,11 +222,14 @@ describe("Advisor activation flow", () => {
       async (agentDir) => {
         const { commands, pi, setActiveTools } = activationHarness();
         setActiveTools([]);
+
         const models = [
           { id: "executor", provider: "provider" },
           { id: "advisor", provider: "provider" },
         ];
+
         let customCalls = 0;
+
         const ctx = asExtensionContext({
           cwd: agentDir,
           hasUI: true,
@@ -219,6 +238,7 @@ describe("Advisor activation flow", () => {
           ui: {
             custom: () => {
               customCalls += 1;
+
               return Promise.resolve();
             },
             notify: () => {},
@@ -242,11 +262,14 @@ describe("Advisor activation flow", () => {
       },
       async (agentDir) => {
         const { commands, pi } = activationHarness();
+
         const models = [
           { id: "replacement", provider: "provider" },
           { id: "executor", provider: "provider" },
         ];
+
         let customCalls = 0;
+
         const ctx = asExtensionContext({
           cwd: agentDir,
           hasUI: true,
@@ -275,10 +298,11 @@ describe("Advisor activation flow", () => {
     );
   });
 
-  test("cancels first activation without persisting or enabling the flow", async () => {
-    await withAgentDir({}, async (agentDir) => {
-      const { commands, pi, setActiveTools } = activationHarness();
-      setActiveTools([]);
+  test("cancelled activation does not clear a persistent Advisor-tools opt-out", async () => {
+    await withAgentDir({ advisorToolsEnabled: false }, async (agentDir) => {
+      const { commands, events, pi, setActiveTools } = activationHarness();
+      setActiveTools(["ask_advisor", "record_advisor_outcome"]);
+
       const ctx = asExtensionContext({
         cwd: agentDir,
         hasUI: true,
@@ -299,9 +323,10 @@ describe("Advisor activation flow", () => {
       });
 
       registerCommands(pi);
+      await events.get("session_start")?.({ reason: "startup" }, ctx);
       await commands.get("advisor").handler("", ctx);
 
-      expect(savedConfig(agentDir)).toEqual({});
+      expect(savedConfig(agentDir)).toEqual({ advisorToolsEnabled: false });
       expect(pi.getActiveTools()).toEqual([]);
     });
   });
@@ -311,15 +336,19 @@ describe("Advisor activation flow", () => {
       { advisor: "provider/sonnet", executor: "provider/sonnet" },
       async (agentDir) => {
         const { commands, events, pi, setActiveTools } = activationHarness();
+
         const models = [
           { id: "sonnet", provider: "provider" },
           { id: "luna", provider: "provider" },
         ];
+
         const selectedModels: string[] = [];
+
         const theme: SelectorTheme = {
           bold: (value: string) => value,
           fg: (_color: string, value: string) => value,
         };
+
         const ctx = asExtensionContext({
           cwd: agentDir,
           hasUI: true,
@@ -377,6 +406,7 @@ describe("Advisor activation flow", () => {
   test("activates silently for always-on sessions but announces /advisor", async () => {
     const previousChildMarker = process.env.PI_SUBAGENT_CHILD;
     delete process.env.PI_SUBAGENT_CHILD;
+
     try {
       await withAgentDir(
         {
@@ -393,6 +423,7 @@ describe("Advisor activation flow", () => {
             thinkingLevels,
             setActiveTools,
           } = activationHarness();
+
           registerCommands(pi);
           const automatic: string[] = [];
           setActiveTools([]);
@@ -426,6 +457,7 @@ describe("Advisor activation flow", () => {
   test("preserves the host model for marked subagent sessions", async () => {
     const previousChildMarker = process.env.PI_SUBAGENT_CHILD;
     process.env.PI_SUBAGENT_CHILD = "1";
+
     try {
       await withAgentDir(
         {
@@ -437,6 +469,7 @@ describe("Advisor activation flow", () => {
         async (agentDir) => {
           const { events, pi, selectedModels, thinkingLevels, setActiveTools } =
             activationHarness();
+
           registerCommands(pi);
           setActiveTools([]);
           await events.get("session_start")?.(
@@ -460,6 +493,7 @@ describe("Advisor activation flow", () => {
   test("preserves the host model for explicit activation in marked subagents", async () => {
     const previousChildMarker = process.env.PI_SUBAGENT_CHILD;
     process.env.PI_SUBAGENT_CHILD = "1";
+
     try {
       await withAgentDir(
         {
@@ -470,6 +504,7 @@ describe("Advisor activation flow", () => {
         async (agentDir) => {
           const { commands, pi, selectedModels, thinkingLevels } =
             activationHarness();
+
           registerCommands(pi);
           await commands
             .get("advisor")
@@ -491,6 +526,7 @@ describe("Advisor activation flow", () => {
   test("does not persist marked child model selections", async () => {
     const previousChildMarker = process.env.PI_SUBAGENT_CHILD;
     process.env.PI_SUBAGENT_CHILD = "1";
+
     try {
       await withAgentDir(
         {
@@ -588,6 +624,7 @@ describe("Advisor activation flow", () => {
     setShowUsageDetailsRef(true);
     const { pi, renderers } = activationHarness();
     registerAdvisorTool(pi);
+
     const render = () =>
       renderers
         .get("advisor-loop-result")(
@@ -608,6 +645,7 @@ describe("Advisor activation flow", () => {
 
     expect(render()).toContain("Usage: ↑50 · ↓10 · $0.0042");
     setShowUsageDetailsRef(false);
+
     try {
       expect(render()).not.toContain("Usage:");
     } finally {
@@ -615,7 +653,491 @@ describe("Advisor activation flow", () => {
     }
   });
 
+  test("settings toggle disables and re-enables model-facing Advisor tools", async () => {
+    await withAgentDir({}, async (agentDir) => {
+      const { commands, pi, setActiveTools } = activationHarness();
+      registerCommands(pi);
+      setActiveTools(["read", "ask_advisor", "record_advisor_outcome"]);
+
+      const models = modelsRegistry([
+        { id: "advisor", provider: "provider" },
+        { id: "executor", provider: "provider" },
+      ]);
+
+      const ctx = asExtensionContext({
+        cwd: agentDir,
+        hasUI: true,
+        isProjectTrusted: () => false,
+        modelRegistry: models,
+        ui: {
+          custom: (factory: any) =>
+            new Promise<void>((resolve) => {
+              const selector = factory(
+                { requestRender: () => {} },
+                plainTheme,
+                { matches: () => false },
+                () => resolve()
+              );
+
+              focusSettingsRow(selector, "Advisor tools");
+              selector.handleInput(" ");
+              selector.dispose();
+              resolve();
+            }),
+          notify: () => {},
+          setStatus: () => {},
+        },
+      });
+
+      await commands.get("advisor-settings").handler("", ctx);
+      expect(savedConfig(agentDir).advisorToolsEnabled).toBe(false);
+      expect(pi.getActiveTools()).toEqual(["read"]);
+
+      await commands.get("advisor-settings").handler("", ctx);
+      expect(savedConfig(agentDir).advisorToolsEnabled).toBe(true);
+      expect(pi.getActiveTools()).toEqual([
+        "read",
+        "ask_advisor",
+        "record_advisor_outcome",
+      ]);
+    });
+  });
+
+  test("keeps tools off in the current session when the settings save fails", async () => {
+    await withAgentDir({}, async (agentDir) => {
+      const { commands, pi, setActiveTools } = activationHarness();
+      registerCommands(pi);
+      setActiveTools(["read", "ask_advisor", "record_advisor_outcome"]);
+      const notes: string[] = [];
+
+      const ctx = asExtensionContext({
+        cwd: agentDir,
+        hasUI: true,
+        isProjectTrusted: () => false,
+        modelRegistry: modelsRegistry([]),
+        ui: {
+          custom: (factory: any) =>
+            new Promise<void>((resolve) => {
+              const selector = factory(
+                { requestRender: () => {} },
+                plainTheme,
+                { matches: () => false },
+                () => resolve()
+              );
+
+              focusSettingsRow(selector, "Advisor tools");
+              writeFileSync(join(agentDir, "advisor.json"), "{ invalid");
+              selector.handleInput(" ");
+              selector.dispose();
+              resolve();
+            }),
+          notify: (message: string) => notes.push(message),
+          setStatus: () => {},
+        },
+      });
+
+      await commands.get("advisor-settings").handler("", ctx);
+
+      expect(pi.getActiveTools()).toEqual(["read"]);
+      expect(notes.join("\n")).toContain(
+        "tools remain disabled for this session"
+      );
+    });
+  });
+
+  test("blocks stale Advisor tool calls after a persisted opt-out", async () => {
+    await withAgentDir({ advisorToolsEnabled: false }, async (agentDir) => {
+      const activeTools = ["ask_advisor", "record_advisor_outcome"];
+      const events = new Map<string, any>();
+      const pi = mockPi({ activeTools, events });
+      registerAdvisorTool(pi);
+      const toolCall = events.get("tool_call");
+      const ctx = activationContext(agentDir);
+
+      expect(
+        await toolCall(
+          { input: {}, toolCallId: "ask", toolName: "ask_advisor" },
+          ctx
+        )
+      ).toMatchObject({
+        block: true,
+        reason:
+          "Advisor tools are disabled. Enable them in /advisor-settings or run /advisor.",
+      });
+      expect(
+        await toolCall(
+          {
+            input: {},
+            toolCallId: "outcome",
+            toolName: "record_advisor_outcome",
+          },
+          ctx
+        )
+      ).toMatchObject({
+        block: true,
+        reason:
+          "Advisor tools are disabled. Enable them in /advisor-settings or run /advisor.",
+      });
+    });
+  });
+
+  test("keeps on-demand Advisor tools enabled by default", async () => {
+    await withAgentDir({}, async (agentDir) => {
+      const { events, pi, setActiveTools } = activationHarness();
+      registerCommands(pi);
+      setActiveTools(["read", "ask_advisor", "record_advisor_outcome"]);
+
+      await events.get("session_start")?.(
+        { reason: "startup" },
+        activationContext(agentDir)
+      );
+
+      expect(pi.getActiveTools()).toEqual([
+        "read",
+        "ask_advisor",
+        "record_advisor_outcome",
+      ]);
+    });
+  });
+
+  test("explicitly disabled tools take precedence over always-on", async () => {
+    await withAgentDir(
+      {
+        advisor: "provider/advisor",
+        advisorToolsEnabled: false,
+        alwaysOn: true,
+        executor: "provider/executor",
+      },
+      async (agentDir) => {
+        const { events, pi, selectedModels, setActiveTools } =
+          activationHarness();
+
+        registerCommands(pi);
+        setActiveTools(["read", "ask_advisor", "record_advisor_outcome"]);
+
+        await events.get("session_start")?.(
+          { reason: "startup" },
+          activationContext(agentDir)
+        );
+
+        expect(pi.getActiveTools()).toEqual(["read"]);
+        expect(selectedModels).toEqual([]);
+      }
+    );
+  });
+
+  test("/advisor re-enables a persisted tools opt-out after successful activation", async () => {
+    await withAgentDir(
+      {
+        advisor: "provider/advisor",
+        advisorToolsEnabled: false,
+        executor: "provider/executor",
+      },
+      async (agentDir) => {
+        const { commands, events, pi, setActiveTools } = activationHarness();
+        registerCommands(pi);
+        setActiveTools(["read", "ask_advisor", "record_advisor_outcome"]);
+        const ctx = activationContext(agentDir);
+        await events.get("session_start")?.({ reason: "startup" }, ctx);
+        expect(pi.getActiveTools()).toEqual(["read"]);
+
+        await commands.get("advisor").handler("", ctx);
+
+        expect(savedConfig(agentDir).advisorToolsEnabled).toBe(true);
+        expect(pi.getActiveTools()).toEqual([
+          "read",
+          "ask_advisor",
+          "record_advisor_outcome",
+        ]);
+      }
+    );
+  });
+
+  test("/advisor-off wins over an in-flight /advisor activation", async () => {
+    await withAgentDir(
+      {
+        advisor: "provider/advisor",
+        executor: "provider/executor",
+      },
+      async (agentDir) => {
+        const { commands, pi, selectedModels, setActiveTools } =
+          activationHarness();
+
+        registerCommands(pi);
+        setActiveTools(["read", "ask_advisor", "record_advisor_outcome"]);
+        let releaseAuth!: (result: { apiKey: string; ok: boolean }) => void;
+        let signalAuthStarted!: () => void;
+
+        const authStarted = new Promise<void>((resolve) => {
+          signalAuthStarted = resolve;
+        });
+
+        const ctx = asExtensionContext({
+          cwd: agentDir,
+          hasUI: true,
+          isProjectTrusted: () => false,
+          modelRegistry: {
+            find: (provider: string, id: string) => ({ id, provider }),
+            getApiKeyAndHeaders: () => {
+              signalAuthStarted();
+
+              return new Promise((resolve) => {
+                releaseAuth = resolve;
+              });
+            },
+          },
+          ui: { notify: () => {} },
+        });
+
+        const activation = commands
+          .get("advisor")
+          .handler("contextMaxChars=5000", ctx);
+
+        await authStarted;
+        await commands.get("advisor-off").handler("", ctx);
+        releaseAuth({ apiKey: "key", ok: true });
+        await activation;
+
+        expect(savedConfig(agentDir)).toMatchObject({
+          advisorToolsEnabled: false,
+        });
+        expect(savedConfig(agentDir).contextMaxChars).toBeUndefined();
+        expect(contextMaxCharsRef).toBe(15_000);
+        expect(pi.getActiveTools()).toEqual(["read"]);
+        expect(selectedModels).toEqual([]);
+      }
+    );
+  });
+
+  test("cancelled activation preserves settings saved while it was waiting", async () => {
+    await withAgentDir(
+      {
+        advisor: "provider/advisor",
+        executor: "provider/executor",
+      },
+      async (agentDir) => {
+        const { commands, pi, setActiveTools } = activationHarness();
+        registerCommands(pi);
+        setActiveTools(["read", "ask_advisor", "record_advisor_outcome"]);
+
+        const models = [
+          { id: "advisor", provider: "provider" },
+          { id: "executor", provider: "provider" },
+        ];
+
+        let releaseAuth!: (result: { apiKey: string; ok: boolean }) => void;
+        let signalAuthStarted!: () => void;
+
+        const authStarted = new Promise<void>((resolve) => {
+          signalAuthStarted = resolve;
+        });
+
+        const modelRegistry = {
+          find: (provider: string, id: string) =>
+            models.find(
+              (model) => model.provider === provider && model.id === id
+            ),
+          getApiKeyAndHeaders: () => {
+            signalAuthStarted();
+
+            return new Promise((resolve) => {
+              releaseAuth = resolve;
+            });
+          },
+          getAvailable: () => models,
+        };
+
+        const ctx = asExtensionContext({
+          cwd: agentDir,
+          hasUI: true,
+          isProjectTrusted: () => false,
+          modelRegistry,
+          ui: { notify: () => {} },
+        });
+
+        const settingsCtx = asExtensionContext({
+          cwd: agentDir,
+          hasUI: true,
+          isProjectTrusted: () => false,
+          modelRegistry,
+          ui: {
+            custom: (factory: any) =>
+              new Promise<void>((resolve) => {
+                const selector = factory(
+                  { requestRender: () => {} },
+                  plainTheme,
+                  { matches: () => false },
+                  () => resolve()
+                );
+
+                focusSettingsRow(selector, "Advisor tools");
+                selector.handleInput(" ");
+                changeSetting(selector, "Context window");
+                selector.dispose();
+                resolve();
+              }),
+            notify: () => {},
+            setStatus: () => {},
+          },
+        });
+
+        const activation = commands
+          .get("advisor")
+          .handler("contextMaxChars=5000", ctx);
+
+        await authStarted;
+        await commands.get("advisor-settings").handler("", settingsCtx);
+        expect(savedConfig(agentDir)).toMatchObject({
+          advisorToolsEnabled: false,
+          contextMaxChars: 25_000,
+        });
+
+        releaseAuth({ apiKey: "key", ok: true });
+        await activation;
+
+        expect(contextMaxCharsRef).toBe(25_000);
+        expect(pi.getActiveTools()).toEqual(["read"]);
+      }
+    );
+  });
+
+  test("failed activation keeps settings saved while it was waiting", async () => {
+    await withAgentDir(
+      {
+        advisor: "provider/advisor",
+        executor: "provider/executor",
+      },
+      async (agentDir) => {
+        const { commands, pi, setActiveTools } = activationHarness();
+        registerCommands(pi);
+        setActiveTools(["read", "ask_advisor", "record_advisor_outcome"]);
+
+        const models = [
+          { id: "advisor", provider: "provider" },
+          { id: "executor", provider: "provider" },
+        ];
+
+        let releaseAuth!: (result: { apiKey: string; ok: boolean }) => void;
+        let signalAuthStarted!: () => void;
+
+        const authStarted = new Promise<void>((resolve) => {
+          signalAuthStarted = resolve;
+        });
+
+        const modelRegistry = {
+          find: (provider: string, id: string) =>
+            models.find(
+              (model) => model.provider === provider && model.id === id
+            ),
+          getApiKeyAndHeaders: () => {
+            signalAuthStarted();
+
+            return new Promise((resolve) => {
+              releaseAuth = resolve;
+            });
+          },
+          getAvailable: () => models,
+        };
+
+        const ctx = asExtensionContext({
+          cwd: agentDir,
+          hasUI: true,
+          isProjectTrusted: () => false,
+          modelRegistry,
+          ui: { notify: () => {} },
+        });
+
+        const settingsCtx = asExtensionContext({
+          cwd: agentDir,
+          hasUI: true,
+          isProjectTrusted: () => false,
+          modelRegistry,
+          ui: {
+            custom: (factory: any) =>
+              new Promise<void>((resolve) => {
+                const selector = factory(
+                  { requestRender: () => {} },
+                  plainTheme,
+                  { matches: () => false },
+                  () => resolve()
+                );
+
+                changeSetting(selector, "Context window");
+                selector.dispose();
+                resolve();
+              }),
+            notify: () => {},
+            setStatus: () => {},
+          },
+        });
+
+        const activation = commands
+          .get("advisor")
+          .handler("contextMaxChars=5000", ctx);
+
+        await authStarted;
+        await commands.get("advisor-settings").handler("", settingsCtx);
+        expect(savedConfig(agentDir).contextMaxChars).toBe(25_000);
+
+        releaseAuth({ apiKey: "", ok: false });
+        await activation;
+
+        expect(contextMaxCharsRef).toBe(25_000);
+        expect(savedConfig(agentDir).contextMaxChars).toBe(25_000);
+        expect(pi.getActiveTools()).toContain("ask_advisor");
+      }
+    );
+  });
+
+  test("persists /advisor-off when always-on is already false", async () => {
+    await withAgentDir({ alwaysOn: false }, async (agentDir) => {
+      const { commands, events, pi, setActiveTools } = activationHarness();
+      registerCommands(pi);
+      setActiveTools(["read", "ask_advisor", "record_advisor_outcome"]);
+      const ctx = activationContext(agentDir);
+      await events.get("session_start")?.({ reason: "startup" }, ctx);
+
+      await commands.get("advisor-off").handler("", ctx);
+      expect(savedConfig(agentDir)).toMatchObject({
+        advisorToolsEnabled: false,
+        alwaysOn: false,
+      });
+      expect(pi.getActiveTools()).toEqual(["read"]);
+
+      setActiveTools(["read", "ask_advisor", "record_advisor_outcome"]);
+      await events.get("session_start")?.({ reason: "new" }, ctx);
+      expect(pi.getActiveTools()).toEqual(["read"]);
+    });
+  });
+
   test("turning the Advisor off also clears persistent activation", async () => {
+    await withAgentDir(
+      {
+        advisor: "provider/advisor",
+        alwaysOn: true,
+        executor: "provider/executor",
+      },
+      async (agentDir) => {
+        const { commands, events, pi, setActiveTools } = activationHarness();
+        registerCommands(pi);
+        const notes: string[] = [];
+        const ctx = activationContext(agentDir, notes);
+        await events.get("session_start")?.({ reason: "startup" }, ctx);
+
+        await commands.get("advisor-off").handler("", ctx);
+        expect(pi.getActiveTools()).not.toContain("ask_advisor");
+        expect(savedConfig(agentDir).alwaysOn).toBe(false);
+        expect(savedConfig(agentDir).advisorToolsEnabled).toBe(false);
+        expect(notes.at(-1)).toContain("Always on turned off");
+
+        setActiveTools(["read", "ask_advisor", "record_advisor_outcome"]);
+        await events.get("session_start")?.({ reason: "new" }, ctx);
+        expect(pi.getActiveTools()).toEqual(["read"]);
+      }
+    );
+  });
+
+  test("/advisor-off stays session-disabled if its persistent save fails", async () => {
     await withAgentDir(
       {
         advisor: "provider/advisor",
@@ -628,11 +1150,13 @@ describe("Advisor activation flow", () => {
         const notes: string[] = [];
         const ctx = activationContext(agentDir, notes);
         await events.get("session_start")?.({ reason: "startup" }, ctx);
+        writeFileSync(join(agentDir, "advisor.json"), "{ invalid");
+        resetConfigCache();
 
         await commands.get("advisor-off").handler("", ctx);
+
         expect(pi.getActiveTools()).not.toContain("ask_advisor");
-        expect(savedConfig(agentDir).alwaysOn).toBe(false);
-        expect(notes.at(-1)).toContain("Always on turned off");
+        expect(notes.at(-1)).toContain("configuration could not be reloaded");
       }
     );
   });
@@ -661,6 +1185,7 @@ describe("Advisor activation flow", () => {
     await withAgentDir({}, () => {
       const { pi, renderers } = activationHarness();
       registerCommands(pi);
+
       const render = (text: string) =>
         renderers
           .get("advisor-manual-result")(
@@ -677,6 +1202,7 @@ describe("Advisor activation flow", () => {
           )
           .render(120)
           .join("\n");
+
       expect(render("Verdict: sound\n\nNothing to change.")).toContain(
         "◆ ADVISOR · SOUND"
       );
@@ -684,6 +1210,7 @@ describe("Advisor activation flow", () => {
         "Usage: ↑100 · ↓20 · cw:3 · $0.0100"
       );
       setShowUsageDetailsRef(false);
+
       try {
         expect(render("Verdict: sound\n\nNothing to change.")).not.toContain(
           "Usage:"
@@ -691,6 +1218,7 @@ describe("Advisor activation flow", () => {
       } finally {
         setShowUsageDetailsRef(true);
       }
+
       expect(render("Consider reverting the migration.")).toContain(
         "◆ ADVISOR RESPONSE"
       );
@@ -759,7 +1287,8 @@ describe("Advisor activation flow", () => {
       import { writeFileSync } from "node:fs";
       import { join } from "node:path";
       import { loadExtensions } from "./packages/coding-agent/src/extensibility/extensions/loader.ts";
-      import { ExtensionRunner, TOP_LEVEL_AGENT } from "./packages/coding-agent/src/extensibility/extensions/runner.ts";
+      import { ExtensionRunner } from "./packages/coding-agent/src/extensibility/extensions/runner.ts";
+      const TOP_LEVEL_AGENT = { id: "main", kind: "main" };
       import { SessionManager } from "./packages/coding-agent/src/session/session-manager.ts";
 
       const agentDir = process.env.PI_CODING_AGENT_DIR;
@@ -965,6 +1494,7 @@ describe("Advisor activation flow", () => {
               }
             },
             search: "chosen-advisor",
+            searchAt: 0,
           }),
           notify: (message: string) => notices.push(message),
         },
@@ -974,14 +1504,13 @@ describe("Advisor activation flow", () => {
       await commands.get("advisor-on").handler("", ctx);
 
       expect(selectedModels).toEqual([
-        "provider/chosen-executor",
         "provider/chosen-advisor",
         "Disabled (no fallback)",
       ]);
       expect(savedConfig(agentDir)).toMatchObject({
         advisor: "provider/chosen-advisor",
-        executor: "provider/chosen-executor",
       });
+      expect(savedConfig(agentDir)).not.toHaveProperty("executor");
       expect(pi.getActiveTools()).toEqual([
         "ask_advisor",
         "record_advisor_outcome",

@@ -20,11 +20,11 @@ created: 2026-10-28
 
 ## Phases and ownership
 
-| Phase | Deliverable | Dependency | Status | Effort |
-| --- | --- | --- | --- | --- |
-| [01 — Command and activation coverage](phase-01-command-and-activation.md) | Alias registration, exactly seven commands, behavioral parity tests | None | Pending | 20m |
-| [02 — User documentation](phase-02-documentation.md) | README, configuration guide, Unreleased changelog | Phase 01 | Pending | 15m |
-| [03 — Bundle and integration](phase-03-bundle-and-integration.md) | Built-host contract update, regenerated bundle, coherent verification | Phases 01–02 | Pending | 25m |
+| Phase                                                                      | Deliverable                                                           | Dependency   | Status  | Effort |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------ | ------- | ------ |
+| [01 — Command and activation coverage](phase-01-command-and-activation.md) | Alias registration, exactly seven commands, behavioral parity tests   | None         | Pending | 20m    |
+| [02 — User documentation](phase-02-documentation.md)                       | README, configuration guide, Unreleased changelog                     | Phase 01     | Pending | 15m    |
+| [03 — Bundle and integration](phase-03-bundle-and-integration.md)          | Built-host contract update, regenerated bundle, coherent verification | Phases 01–02 | Pending | 25m    |
 
 One implementation owner handles Phase 01; documentation owner handles Phase 02; Main is integration owner for Phase 03 and final verification. These are sequential handoffs, not concurrent writers. Durable task IDs and exact writable files live in each linked phase.
 

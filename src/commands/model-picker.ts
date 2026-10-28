@@ -1,7 +1,10 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { SearchableModelSelector } from "../ui/model-selector.ts";
-import { FALLBACK_ADVISOR_MODEL_DISABLED } from "../ui/types.ts";
+import {
+  EXECUTOR_FOLLOWS_SESSION_MODEL,
+  FALLBACK_ADVISOR_MODEL_DISABLED,
+} from "../ui/types.ts";
 import {
   effortChoices,
   getAvailableModelRefs,
@@ -33,14 +36,18 @@ export const selectAdvisorModels = async (
   if (!ctx.hasUI) {
     return undefined;
   }
+
   const refs = getAvailableModelRefs(ctx);
+
   if (refs && refs.length === 0) {
     ctx.ui.notify(
       "No selectable models are available. Configure a provider with /login or models.json, then retry.",
       "error"
     );
+
     return undefined;
   }
+
   const allOptions = [
     ...new Set(
       refs ??
@@ -49,6 +56,7 @@ export const selectAdvisorModels = async (
         )
     ),
   ];
+
   let {
     advisor,
     advisorEffort,
@@ -61,8 +69,8 @@ export const selectAdvisorModels = async (
     const selectedExecutor = await ctx.ui.custom<string | undefined>(
       (tui, theme, keybindings, done) =>
         new SearchableModelSelector({
-          allOptions,
-          currentOption: executor || undefined,
+          allOptions: [EXECUTOR_FOLLOWS_SESSION_MODEL, ...allOptions],
+          currentOption: executor || EXECUTOR_FOLLOWS_SESSION_MODEL,
           keybindings,
           onCancel: () => done(undefined),
           onSelect: done,
@@ -71,17 +79,24 @@ export const selectAdvisorModels = async (
           tui,
         })
     );
+
     if (!selectedExecutor) {
       return undefined;
     }
+
     const selectedExecutorEffort = await ctx.ui.select(
       "Select Executor Reasoning/Thinking Level",
       effortChoices(executorEffort)
     );
+
     if (!selectedExecutorEffort) {
       return undefined;
     }
-    executor = selectedExecutor;
+
+    executor =
+      selectedExecutor === EXECUTOR_FOLLOWS_SESSION_MODEL
+        ? ""
+        : selectedExecutor;
     executorEffort = selectedEffort(selectedExecutorEffort);
   }
 
@@ -99,16 +114,20 @@ export const selectAdvisorModels = async (
           tui,
         })
     );
+
     if (!selectedAdvisor) {
       return undefined;
     }
+
     const selectedAdvisorEffort = await ctx.ui.select(
       "Select Advisor Reasoning/Thinking Level",
       effortChoices(advisorEffort)
     );
+
     if (!selectedAdvisorEffort) {
       return undefined;
     }
+
     advisor = selectedAdvisor;
     advisorEffort = selectedEffort(selectedAdvisorEffort);
   }
@@ -132,22 +151,25 @@ export const selectAdvisorModels = async (
         tui,
       })
   );
+
   if (selectedFallback === undefined) {
     return undefined;
   }
+
   advisorFallbackModel =
     selectedFallback === FALLBACK_ADVISOR_MODEL_DISABLED
       ? undefined
       : selectedFallback;
 
-  if (!(advisor && executor)) {
+  if (!advisor) {
     return undefined;
   }
+
   return {
     advisor,
     advisorEffort,
     advisorFallbackModel,
-    executor,
+    executor: executor ?? "",
     executorEffort,
   };
 };

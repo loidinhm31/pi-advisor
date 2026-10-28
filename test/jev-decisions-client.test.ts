@@ -86,6 +86,7 @@ describe("OpenAI Decisions request builder", () => {
         type: "score",
       },
     };
+
     expect(() => buildDecisionsRequest(state, invalid)).toThrow(
       "duplicate level labels"
     );
@@ -93,6 +94,7 @@ describe("OpenAI Decisions request builder", () => {
 });
 
 const requestQuestions = buildDecisionsRequest(state, questions).questions;
+
 const readFixture = (name: string): Response =>
   new Response(
     readFileSync(resolve("test/fixtures/decisions", name), "utf-8"),
@@ -100,11 +102,13 @@ const readFixture = (name: string): Response =>
       headers: { "content-type": "application/json" },
     }
   );
+
 const normalize = async (response: Response) =>
   normalizeDecisionsResponse(
     await parseDecisionsApiResponse(response),
     requestQuestions
   );
+
 const scoreAnswer = {
   confidence: 0.9,
   name: "stakes",
@@ -116,11 +120,13 @@ const scoreAnswer = {
   score: 0.15,
   type: "score",
 };
+
 const predicateAnswer = {
   name: "self_answerable",
   probability: 0.9,
   type: "predicate",
 };
+
 const decisionsResponse = {
   answers: [scoreAnswer, predicateAnswer],
   model: "gpt-6-luna",
@@ -202,6 +208,7 @@ describe("OpenAI Decisions response normalization", () => {
         "label/value",
       ],
     ];
+
     for (const [response, message] of invalidResponses) {
       await expect(normalize(Response.json(response))).rejects.toThrow(message);
     }

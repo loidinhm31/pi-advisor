@@ -16,6 +16,7 @@ describe("Conversation Module", () => {
       { data: "xyz", type: "image" },
       { text: "Line 2", type: "text" },
     ];
+
     expect(textFrom(blocks)).toBe("Line 1\n\nLine 2");
   });
 
@@ -33,6 +34,7 @@ describe("Conversation Module", () => {
         ],
       },
     });
+
     expect(recentConversation(ctx, 0)).toBe("");
   });
 
@@ -54,6 +56,7 @@ describe("Conversation Module", () => {
         ],
       },
     });
+
     const conversation = recentConversation(ctx);
     expect(conversation).not.toContain("cleared private prompt");
     expect(conversation).toContain("current request");
@@ -90,6 +93,7 @@ describe("Conversation Module", () => {
         ],
       },
     });
+
     const conversation = recentConversation(ctx);
     expect(conversation).not.toContain("discarded private history");
     expect(conversation).toContain("System Compaction Summary");
@@ -106,6 +110,7 @@ describe("Conversation Module", () => {
         ],
       },
     });
+
     const result = recentConversation(ctx, 22);
     expect(result.length).toBeLessThanOrEqual(22);
     expect(result).toContain("[Older context");
@@ -123,6 +128,7 @@ describe("Conversation Module", () => {
         ],
       },
     });
+
     const result = recentConversation(ctx, 60);
     expect(result.length).toBeLessThanOrEqual(60);
     expect(result).not.toContain("complete entries");
@@ -138,6 +144,7 @@ describe("Conversation Module", () => {
         ],
       },
     });
+
     const result = recentConversation(ctx, 10);
     expect(result).toHaveLength(10);
     expect(result).not.toContain("0 complete entries");
@@ -161,6 +168,7 @@ describe("Conversation Module", () => {
       10
     );
     expect(oversized.content.split("\n")).toHaveLength(1);
+
     const ctx = asExtensionContext({
       sessionManager: {
         getBranch: () => [
@@ -175,6 +183,7 @@ describe("Conversation Module", () => {
         ],
       },
     });
+
     const result = recentConversation(ctx, Number.MAX_SAFE_INTEGER, 2, 100);
     expect(result).toContain("[Tool Result for bash]");
     expect(result).toContain("a");
@@ -184,6 +193,7 @@ describe("Conversation Module", () => {
   test("redacts secrets from messages, tool arguments, and full results", () => {
     const secret = "AKIAABCDEFGHIJKLMNOP";
     const password = 'prefix"secret-suffix';
+
     const ctx = asExtensionContext({
       sessionManager: {
         getBranch: () => [
@@ -215,6 +225,7 @@ describe("Conversation Module", () => {
         ],
       },
     });
+
     const result = recentConversation(
       ctx,
       Number.MAX_SAFE_INTEGER,
@@ -223,6 +234,7 @@ describe("Conversation Module", () => {
       {},
       true
     );
+
     expect(result).not.toContain(secret);
     expect(result).not.toContain(password);
     expect(result).not.toContain("secret-suffix");
@@ -256,6 +268,7 @@ describe("Conversation Module", () => {
       "AKIAABCDEFGHIJKLMNOP",
       "aws_secret_access_key=cloud-secret-value",
     ];
+
     for (const secret of secrets) {
       const output = redactSecrets(secret);
       expect(output).toContain("[REDACTED SECRET]");
@@ -270,6 +283,7 @@ describe("Conversation Module", () => {
   test("redacts complete secrets before applying tool-output limits", () => {
     const secret =
       "-----BEGIN PRIVATE KEY-----\nvery-private\n-----END PRIVATE KEY-----";
+
     const ctx = asExtensionContext({
       sessionManager: {
         getBranch: () => [
@@ -280,6 +294,7 @@ describe("Conversation Module", () => {
         ],
       },
     });
+
     const result = recentConversation(
       ctx,
       Number.MAX_SAFE_INTEGER,
@@ -288,6 +303,7 @@ describe("Conversation Module", () => {
       {},
       true
     );
+
     expect(result).toContain("[REDACTED SECRET]");
     expect(result).not.toContain("BEGIN PRIVATE KEY");
     expect(result).not.toContain("very-private");
@@ -297,6 +313,7 @@ describe("Conversation Module", () => {
   test("tool policies default to full and omit protected call arguments and output", () => {
     const source = "private result bytes";
     const callArguments = "private call argument";
+
     const contextFor = (toolName: string) =>
       asExtensionContext({
         sessionManager: {
@@ -321,6 +338,7 @@ describe("Conversation Module", () => {
           ],
         },
       });
+
     const full = recentConversation(
       contextFor("custom"),
       Number.MAX_SAFE_INTEGER,
@@ -328,8 +346,10 @@ describe("Conversation Module", () => {
       50 * 1024,
       {}
     );
+
     expect(full).toContain(callArguments);
     expect(full).toContain(source);
+
     const summary = recentConversation(
       contextFor("bash"),
       Number.MAX_SAFE_INTEGER,
@@ -337,12 +357,14 @@ describe("Conversation Module", () => {
       50 * 1024,
       { bash: "summary" }
     );
+
     expect(summary).toContain(
       "arguments omitted by Advisor tool policy: summary"
     );
     expect(summary).toContain("status: success");
     expect(summary).not.toContain(callArguments);
     expect(summary).not.toContain(source);
+
     const excluded = recentConversation(
       contextFor("deploy"),
       Number.MAX_SAFE_INTEGER,
@@ -350,6 +372,7 @@ describe("Conversation Module", () => {
       50 * 1024,
       { deploy: "exclude" }
     );
+
     expect(excluded).toContain("excluded by Advisor tool policy");
     expect(excluded).not.toContain(callArguments);
     expect(excluded).not.toContain(source);
@@ -381,6 +404,7 @@ describe("Conversation Module", () => {
         ],
       },
     });
+
     expect(
       recentConversation(
         ctx,
@@ -417,6 +441,7 @@ describe("Conversation Module", () => {
         ],
       },
     });
+
     const result = recentConversation(
       ctx,
       Number.MAX_SAFE_INTEGER,
@@ -424,6 +449,7 @@ describe("Conversation Module", () => {
       50 * 1024,
       {}
     );
+
     expect(result).toContain("User: first");
     expect(result).toContain('[Tool Call: bash({"command":"pwd"})]');
   });

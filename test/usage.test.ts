@@ -91,6 +91,7 @@ describe("Advisor usage", () => {
       input: 1200,
       output: 456,
     };
+
     expect(advisorUsageForPi(partial)).toBeUndefined();
 
     const totals = emptyAdvisorUsageTotals();

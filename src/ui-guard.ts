@@ -11,6 +11,7 @@ export const uiAvailable = (ctx: ExtensionContext): boolean => {
     if (isStaleContext(error)) {
       return false;
     }
+
     throw error;
   }
 };

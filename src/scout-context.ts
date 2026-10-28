@@ -23,6 +23,7 @@ import { sessionContextEntries } from "./session-context.ts";
 
 // Re-exports preserve scout-context's historical public import surface.
 export { reconstructScoutConversation } from "./scout-reconstruct.ts";
+
 export type {
   BuildScoutManifestOptions,
   ScoutManifest,
@@ -81,6 +82,7 @@ const requiredOverflow = (
       reason: "required-group-overflow",
     };
   }
+
   if (
     caps.maxConversationChars !== undefined &&
     contentChars(required) > caps.maxConversationChars
@@ -92,6 +94,7 @@ const requiredOverflow = (
       reason: "required-group-overflow",
     };
   }
+
   return undefined;
 };
 
@@ -121,9 +124,11 @@ const fitToBudget = (
 ): ScoutManifestResult => {
   const { groups, protocolOmittedBytes, protocolOmittedCount } = built;
   const availableCount = groups.length + protocolOmittedCount;
+
   const availableBytes =
     groups.reduce((sum, group) => sum + groupWireBytes(group), 0) +
     protocolOmittedBytes;
+
   if (caps.maxManifestBytes <= 0) {
     return {
       manifest: {
@@ -136,16 +141,21 @@ const fitToBudget = (
       ok: true,
     };
   }
+
   const required = groups.filter((group) => group.required);
   const overflow = requiredOverflow(required, caps);
+
   if (overflow) {
     return overflow;
   }
+
   const selected = groups.filter(
     (group) => group.required || group.bytes <= caps.maxGroupBytes
   );
+
   while (!fits(selected, caps)) {
     const optionalIndex = selected.findIndex((group) => !group.required);
+
     if (optionalIndex === -1) {
       return {
         message: "Required Scout context exceeds fixed manifest limits.",
@@ -153,10 +163,13 @@ const fitToBudget = (
         reason: "required-group-overflow",
       };
     }
+
     selected.splice(optionalIndex, 1);
   }
+
   const selectedIds = new Set(selected.map((group) => group.id));
   const omitted = groups.filter((group) => !selectedIds.has(group.id));
+
   return {
     manifest: {
       availableBytes,
@@ -178,12 +191,16 @@ export const buildScoutManifest = (
   const entries = sessionContextEntries(ctx);
   const caps = resolveCaps(options);
   const indexed = indexToolCalls(entries);
+
   if (!indexed.ok) {
     return indexed;
   }
+
   const built = buildGroups(entries, indexed.index, caps);
+
   if (!built.ok) {
     return built;
   }
+
   return fitToBudget(built, caps);
 };

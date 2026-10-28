@@ -26,16 +26,21 @@ export const setupActions = (
   state: JevProviderViewState
 ): JevProviderAction[] => {
   const actions = providerActions();
+
   if (state.canEnterKey) {
     actions.push("enter-key");
   }
+
   if (state.canReuseProviderLogin) {
     actions.push("reuse-provider-login");
   }
+
   if (state.credentials && canClearCredential(state.credentials)) {
     actions.push("clear-stored-key");
   }
+
   actions.push("done");
+
   return actions;
 };
 
@@ -44,18 +49,23 @@ const setupLabels = (state: JevProviderViewState): string[] =>
     if (action === "clear-stored-key") {
       return "Clear stored key";
     }
+
     if (action === "done") {
       return "Done";
     }
+
     if (action === "enter-key") {
       return `Enter an API key for ${providerName(state.selectedTransport ?? "typesafe")}`;
     }
+
     if (action === "reuse-provider-login") {
       return "Reuse a Pi provider login";
     }
+
     if (action === "typesafe-compatible") {
       return `${providerName(action)}…`;
     }
+
     return providerName(action);
   });
 
@@ -66,6 +76,7 @@ const inputLines = (
   width: number
 ): string[] => {
   const rendered = input.render(Math.max(10, width - 4))[0] ?? "";
+
   const titles = {
     "base-url": [
       "Base URL of a System One–compatible endpoint",
@@ -82,7 +93,9 @@ const inputLines = (
       "The Pi provider whose stored login supplies this endpoint's key, for example openrouter.",
     ],
   } as const;
+
   const [title, description] = titles[key];
+
   return [`  ${title}`, `  ${description}`, `  ${rendered}`];
 };
 
@@ -94,6 +107,7 @@ export const renderJevProvider = (
 ): string[] => {
   const { theme } = options;
   const lines = [theme.fg("accent", theme.bold("  Jev provider")), ""];
+
   if (state.credentials) {
     lines.push(`  Credential: ${transportLabel(state.credentials)}`);
   } else if (state.selectedTransport) {
@@ -101,16 +115,21 @@ export const renderJevProvider = (
   } else {
     lines.push(`  Saved transport: ${options.currentTransport}`);
   }
+
   if (state.baseUrl) {
     lines.push(`  Base URL: ${state.baseUrl}`);
   }
+
   if (state.providerId) {
     lines.push(`  Pi provider: ${state.providerId}`);
   }
+
   if (state.notice) {
     lines.push("", theme.fg("warning", `  ${state.notice}`));
   }
+
   lines.push("");
+
   if (state.mode === "resolving") {
     lines.push("  Checking the selected provider credentials…");
   } else if (state.mode === "verifying") {
@@ -123,9 +142,11 @@ export const renderJevProvider = (
     state.mode === "provider-id"
   ) {
     lines.push(...inputLines(state.mode, state, input, width));
+
     if (state.inputError) {
       lines.push(theme.fg("error", `  ${state.inputError}`));
     }
+
     lines.push(theme.fg("dim", "  Enter: continue · Esc: return"));
   } else {
     for (const [index, label] of setupLabels(state).entries()) {
@@ -133,5 +154,6 @@ export const renderJevProvider = (
       lines.push(`${prefix}${label}`);
     }
   }
+
   return lines.map((line) => truncateToWidth(line, width));
 };

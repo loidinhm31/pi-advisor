@@ -13,14 +13,17 @@ const entry = (id: string, message: any) => ({
   timestamp: "2026-01-01T00:00:00Z",
   type: "message",
 });
+
 const boundary = (id: string, type: "reset_boundary") => ({
   id,
   parentId: null,
   timestamp: "2026-01-01T00:00:00Z",
   type,
 });
+
 const user = (id: string, content: string) =>
   entry(id, { content, role: "user", timestamp: 1 });
+
 const assistant = (id: string, content: unknown[], stopReason = "toolUse") =>
   entry(id, {
     api: "test",
@@ -32,6 +35,7 @@ const assistant = (id: string, content: unknown[], stopReason = "toolUse") =>
     timestamp: 1,
     usage: {},
   });
+
 const result = (id: string, callId: string, name: string, content: string) =>
   entry(id, {
     content: [{ text: content, type: "text" }],
@@ -41,6 +45,7 @@ const result = (id: string, callId: string, name: string, content: string) =>
     toolCallId: callId,
     toolName: name,
   });
+
 const context = (entries: any[]) =>
   asExtensionContext({
     sessionManager: { buildContextEntries: () => entries },
@@ -69,10 +74,13 @@ describe("Scout context", () => {
         result("r2", "c2", "read", "second"),
       ])
     );
+
     expect(built.ok).toBe(true);
+
     if (!built.ok) {
       return;
     }
+
     expect(built.manifest.groups).toHaveLength(2);
     const [, exchange] = built.manifest.groups;
     expect(exchange.kind).toBe("tool-exchange");
@@ -88,6 +96,7 @@ describe("Scout context", () => {
     );
 
     expect(built.ok).toBe(true);
+
     if (built.ok) {
       expect(built.manifest.groups[0]?.content).toContain("request");
     }
@@ -107,10 +116,12 @@ describe("Scout context", () => {
     );
 
     expect(built.ok).toBe(true);
+
     if (built.ok) {
       const disclosed = built.manifest.groups
         .map((group) => group.content)
         .join("\n");
+
       expect(disclosed).not.toContain("cleared secret request");
       expect(disclosed).toContain("current request");
     }
@@ -122,6 +133,7 @@ describe("Scout context", () => {
       boundary("reset", "reset_boundary"),
       user("current", "host-selected current context"),
     ];
+
     const built = buildScoutManifest(
       asExtensionContext({
         sessionManager: {
@@ -132,10 +144,12 @@ describe("Scout context", () => {
     );
 
     expect(built.ok).toBe(true);
+
     if (built.ok) {
       const disclosed = built.manifest.groups
         .map((group) => group.content)
         .join("\n");
+
       expect(disclosed).toContain("host-selected old context");
       expect(disclosed).toContain("host-selected current context");
       expect(disclosed).not.toContain("wrong fallback branch");
@@ -164,10 +178,12 @@ describe("Scout context", () => {
     );
 
     expect(built.ok).toBe(true);
+
     if (built.ok) {
       const disclosed = built.manifest.groups
         .map((group) => group.content)
         .join("\n");
+
       expect(disclosed).not.toContain("discarded secret history");
       expect(disclosed).toContain("retained request");
       expect(disclosed).toContain("safe compaction summary");
@@ -198,10 +214,12 @@ describe("Scout context", () => {
     );
 
     expect(built.ok).toBe(true);
+
     if (built.ok) {
       const disclosed = built.manifest.groups
         .map((group) => group.content)
         .join("\n");
+
       expect(disclosed).not.toContain("cleared private history");
       expect(disclosed).toContain("retained after reset");
       expect(disclosed).toContain("post-reset summary");
@@ -232,10 +250,12 @@ describe("Scout context", () => {
     );
 
     expect(built.ok).toBe(true);
+
     if (built.ok) {
       const disclosed = built.manifest.groups
         .map((group) => group.content)
         .join("\n");
+
       expect(disclosed).not.toContain("discarded secret history");
       expect(disclosed).not.toContain("retained request");
       expect(disclosed).not.toContain("safe compaction summary");
@@ -282,10 +302,13 @@ describe("Scout context", () => {
         user("u1", "current"),
       ])
     );
+
     expect(built.ok).toBe(true);
+
     if (!built.ok) {
       return;
     }
+
     expect(built.manifest.omittedCount).toBe(1);
     expect(built.manifest.omittedBytes).toBeGreaterThan(0);
     expect(
@@ -304,13 +327,17 @@ describe("Scout context", () => {
         user("u2", "current"),
       ])
     );
+
     expect(built.ok).toBe(true);
+
     if (!built.ok) {
       return;
     }
+
     const exchange = built.manifest.groups.find(
       (group) => group.kind === "tool-exchange"
     );
+
     expect(exchange?.content).toContain("late result");
     expect(
       built.manifest.groups.filter((group) => group.kind === "tool-exchange")
@@ -326,10 +353,13 @@ describe("Scout context", () => {
         user("u1", "current request"),
       ])
     );
+
     expect(built.ok).toBe(true);
+
     if (!built.ok) {
       return;
     }
+
     expect(built.manifest.omittedCount).toBe(1);
     expect(built.manifest.omittedBytes).toBeGreaterThan(0);
     expect(
@@ -352,10 +382,13 @@ describe("Scout context", () => {
       ]),
       { currentInvocationId: "advisor-call" }
     );
+
     expect(built.ok).toBe(true);
+
     if (!built.ok) {
       return;
     }
+
     expect(built.manifest.groups.at(-1)).toMatchObject({
       kind: "pending-invocation",
       required: true,
@@ -380,10 +413,13 @@ describe("Scout context", () => {
         redact: false,
       }
     );
+
     expect(built.ok).toBe(true);
+
     if (!built.ok) {
       return;
     }
+
     expect(built.manifest.groups).toMatchObject([
       { content: expect.stringContaining('"command":"pwd"') },
     ]);
@@ -411,10 +447,13 @@ describe("Scout context", () => {
       ]),
       { currentInvocationId: "advisor-call" }
     );
+
     expect(built.ok).toBe(true);
+
     if (!built.ok) {
       return;
     }
+
     const pending = built.manifest.groups.at(-1);
     expect(pending?.kind).toBe("pending-invocation");
     expect(pending?.content).toContain('"gitContext":"summary"');
@@ -501,15 +540,19 @@ describe("Scout context", () => {
         },
       ]),
     ];
+
     const wide = buildScoutManifest(context(entries), {
       currentInvocationId: "advisor-call",
       maxConversationChars: 2000,
       maxManifestBytes: 10_000,
     });
+
     expect(wide.ok).toBe(true);
+
     if (!wide.ok) {
       return;
     }
+
     const manifestBytes = Buffer.byteLength(
       JSON.stringify(
         wide.manifest.groups.map((group) => ({
@@ -523,6 +566,7 @@ describe("Scout context", () => {
       ),
       "utf-8"
     );
+
     expect(manifestBytes).toBeGreaterThan(1000);
 
     const separate = buildScoutManifest(context(entries), {
@@ -530,6 +574,7 @@ describe("Scout context", () => {
       maxConversationChars: 2000,
       maxManifestBytes: manifestBytes + 1,
     });
+
     expect(separate.ok).toBe(true);
   });
 
@@ -537,6 +582,7 @@ describe("Scout context", () => {
     const built = buildScoutManifest(context([user("u1", "current request")]), {
       maxBytes: 0,
     });
+
     expect(built).toMatchObject({ manifest: { groups: [] }, ok: true });
   });
 
@@ -548,20 +594,25 @@ describe("Scout context", () => {
         user("u2", "current request"),
       ])
     );
+
     expect(built.ok).toBe(true);
+
     if (!built.ok) {
       return;
     }
+
     expect(built.manifest.groups.map((group) => group.required)).toEqual([
       false,
       false,
       true,
     ]);
+
     const conversation = reconstructScoutConversation(
       built.manifest,
       [built.manifest.groups[0].id],
       "The decision remains open."
     );
+
     expect(conversation.indexOf("old request")).toBeLessThan(
       conversation.indexOf("current request")
     );
@@ -572,16 +623,20 @@ describe("Scout context", () => {
     const built = buildScoutManifest(context([user("u1", "current request")]), {
       maxBytes: 10_000,
     });
+
     expect(built.ok).toBe(true);
+
     if (!built.ok) {
       return;
     }
+
     const conversation = reconstructScoutConversation(
       built.manifest,
       built.manifest.groups.map((group) => group.id),
       "synthesis that must be bounded",
       13
     );
+
     expect(conversation.length).toBe(13);
     expect(conversation).toContain("User: current");
   });
@@ -594,10 +649,12 @@ describe("Scout context", () => {
         maxGroupBytes: 20,
       }
     );
+
     expect(oversized).toMatchObject({
       ok: false,
       reason: "required-group-overflow",
     });
+
     const atomic = buildScoutManifest(
       context([
         user("u1", "current"),
@@ -619,14 +676,17 @@ describe("Scout context", () => {
         maxGroupBytes: 50,
       }
     );
+
     expect(atomic).toMatchObject({
       ok: false,
       reason: "required-group-overflow",
     });
+
     const aggregate = buildScoutManifest(
       context([user("u1", "first"), user("u2", "second")]),
       { maxBytes: 1, maxGroupBytes: 1000 }
     );
+
     expect(aggregate).toMatchObject({
       ok: false,
       reason: "required-group-overflow",
@@ -639,21 +699,26 @@ describe("Scout context", () => {
       assistant("a1", [{ text: "middle", type: "text" }], "stop"),
       user("u2", "required newest"),
     ];
+
     const first = buildScoutManifest(context(entries), {
       maxBytes: 10_000,
       maxGroupBytes: 1000,
       maxGroups: 2,
     });
+
     const second = buildScoutManifest(context(entries), {
       maxBytes: 10_000,
       maxGroupBytes: 1000,
       maxGroups: 2,
     });
+
     expect(first.ok).toBe(true);
     expect(second).toEqual(first);
+
     if (!first.ok) {
       return;
     }
+
     expect(first.manifest.omittedCount).toBe(1);
     expect(
       first.manifest.groups.map((group) => group.content).join("\n")
@@ -681,13 +746,17 @@ describe("Scout context", () => {
         toolResultMaxLines: 1,
       }
     );
+
     expect(built.ok).toBe(true);
+
     if (!built.ok) {
       return;
     }
+
     const content = built.manifest.groups
       .map((group) => group.content)
       .join("\n");
+
     expect(content).toContain("[REDACTED SECRET]");
     expect(content).toContain("arguments omitted");
     expect(content).not.toContain("private output");
@@ -697,9 +766,11 @@ describe("Scout context", () => {
     const entries = [user("u1", "same"), user("u2", "same")];
     const built = buildScoutManifest(context(entries));
     expect(built.ok).toBe(true);
+
     if (!built.ok) {
       return;
     }
+
     expect(new Set(built.manifest.groups.map((group) => group.id)).size).toBe(
       2
     );

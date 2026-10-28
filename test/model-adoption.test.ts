@@ -99,6 +99,7 @@ describe("Executor model adoption", () => {
             ctx
           );
         }
+
         await commands.get("advisor").handler("", ctx);
 
         expect(savedConfig(agentDir).executor).toBe("configured/executor");

@@ -15,10 +15,10 @@ import {
   keyEntryPrompt,
 } from "./jev-setup-support.ts";
 import type {
+  JevProviderAction,
   JevProviderMode,
   JevProviderSubmenuOptions,
   JevProviderViewState,
-  JevProviderAction,
 } from "./jev-setup-support.ts";
 import { MaskedInput } from "./masked-input.ts";
 import type { JevProviderSelection, JevSetupDeps } from "./types.ts";
@@ -26,7 +26,22 @@ import type { JevProviderSelection, JevSetupDeps } from "./types.ts";
 // Justified exception to the ~300-line guidance: one cohesive modal state machine.
 export class JevProviderSubmenu implements Component, Focusable {
   private readonly options: JevProviderSubmenuOptions;
-  private readonly deps: Required<JevSetupDeps>;
+  private readonly deps: Required<
+    Omit<
+      JevSetupDeps,
+      | "modelRegistry"
+      | "resolveClassifierKey"
+      | "persistClassifierKey"
+      | "restoreClassifierKey"
+    >
+  > &
+    Pick<
+      JevSetupDeps,
+      | "modelRegistry"
+      | "resolveClassifierKey"
+      | "persistClassifierKey"
+      | "restoreClassifierKey"
+    >;
   private maskedInput: MaskedInput;
   private readonly textInput = new Input();
   private credentials: JevCredentials | undefined;
@@ -72,21 +87,29 @@ export class JevProviderSubmenu implements Component, Focusable {
     if (this.mode === "key-entry") {
       this.maskedInput.handleInput(keyData);
       this.options.tui.requestRender();
+
       return;
     }
+
     if (this.mode === "base-url" || this.mode === "provider-id") {
       const before = this.textInput.getValue();
       this.textInput.handleInput(keyData);
+
       if (this.inputError && this.textInput.getValue() !== before) {
         this.inputError = undefined;
       }
+
       this.options.tui.requestRender();
+
       return;
     }
+
     if (this.mode !== "menu") {
       return;
     }
+
     const actions = setupActions(this.viewState());
+
     if (
       matchesKey(keyData, Key.down) ||
       keyData === "\u001B[B" ||
@@ -105,11 +128,13 @@ export class JevProviderSubmenu implements Component, Focusable {
     } else {
       return;
     }
+
     this.options.tui.requestRender();
   }
 
   render(width: number): string[] {
     const input = this.mode === "key-entry" ? this.maskedInput : this.textInput;
+
     return renderJevProvider(this.options, this.viewState(), input, width);
   }
 
@@ -139,22 +164,28 @@ export class JevProviderSubmenu implements Component, Focusable {
   private async refresh(): Promise<void> {
     this.mode = "resolving";
     this.options.tui.requestRender();
+
     try {
       const credentials = await this.deps.resolveTransport(
         this.options.currentTransport === "auto"
           ? undefined
           : this.options.currentTransport
       );
+
       this.credentials = credentials;
       this.selectedTransport = credentials?.transport;
+
       if (credentials?.transport === "typesafe-compatible") {
         this.baseUrl = credentials.baseUrl ?? this.baseUrl;
       }
+
       this.mode = "menu";
       this.selectedIndex = 0;
+
       if (credentials?.source === "advisor-json") {
         this.notice = consumeSetupPlaintextWarning();
       }
+
       this.options.tui.requestRender();
     } catch (error) {
       this.reportBackgroundError(
@@ -179,29 +210,40 @@ export class JevProviderSubmenu implements Component, Focusable {
   private activate(action: JevProviderAction): void {
     if (action === "done") {
       this.closeSetup();
+
       return;
     }
+
     if (action === "clear-stored-key") {
       void fireAndForget(this.clearStoredKey(), this.reportBackgroundError);
+
       return;
     }
+
     if (action === "enter-key") {
       if (this.selectedTransport) {
         this.openKeyEntry(this.selectedTransport);
       }
+
       return;
     }
+
     if (action === "reuse-provider-login") {
       this.openProviderIdEntry();
+
       return;
     }
+
     if (action === "typesafe-compatible") {
       this.openBaseUrlEntry();
+
       return;
     }
+
     if (this.mode !== "menu") {
       return;
     }
+
     void fireAndForget(this.selectProvider(action), this.reportBackgroundError);
   }
 
@@ -235,8 +277,10 @@ export class JevProviderSubmenu implements Component, Focusable {
   private submitText(value: string): void {
     if (this.mode === "base-url") {
       void fireAndForget(this.submitBaseUrl(value), this.reportBackgroundError);
+
       return;
     }
+
     if (this.mode === "provider-id") {
       void fireAndForget(
         this.submitProviderId(value),
@@ -247,55 +291,72 @@ export class JevProviderSubmenu implements Component, Focusable {
 
   private async submitBaseUrl(value: string): Promise<void> {
     const { baseUrl, error } = normalizeJevBaseUrl(value);
+
     if (!baseUrl) {
       this.inputError = error;
       this.options.tui.requestRender();
+
       return;
     }
+
     this.baseUrl = baseUrl;
     this.selectedTransport = "typesafe-compatible";
     this.mode = "resolving";
     this.inputError = undefined;
     this.options.tui.requestRender();
+
     const options = this.providerId
       ? { baseUrl, keyProvider: this.providerId }
       : { baseUrl };
+
     const credentials = await this.deps.resolveEndpoint(options);
+
     if (!credentials) {
       this.openKeyEntry("typesafe-compatible");
+
       return;
     }
+
     await this.verifyAndSave(credentials);
   }
 
   private async submitProviderId(value: string): Promise<void> {
     const providerId = value.trim();
+
     if (!providerId || /\s/u.test(providerId)) {
       this.inputError =
         "Enter a single Pi provider id, for example openrouter.";
       this.options.tui.requestRender();
+
       return;
     }
+
     if (!this.baseUrl) {
       this.inputError = "Enter the Base URL first.";
       this.options.tui.requestRender();
+
       return;
     }
+
     this.providerId = providerId;
     this.selectedTransport = "typesafe-compatible";
     this.mode = "resolving";
     this.inputError = undefined;
     this.options.tui.requestRender();
+
     const credentials = await this.deps.resolveEndpoint({
       baseUrl: this.baseUrl,
       keyProvider: providerId,
     });
+
     if (!credentials) {
       this.mode = "menu";
       this.notice = `No stored login for Pi provider "${providerId}". Add one in Pi and retry.`;
       this.options.tui.requestRender();
+
       return;
     }
+
     await this.verifyAndSave(credentials);
   }
 
@@ -306,16 +367,20 @@ export class JevProviderSubmenu implements Component, Focusable {
     this.canEnterKey = false;
     this.options.tui.requestRender();
     let credentials: JevCredentials | undefined;
+
     try {
       credentials = await this.deps.resolveTransport(transport);
     } catch (error) {
       this.mode = "menu";
       this.notice = `Credential lookup failed: ${error instanceof Error ? error.message : String(error)}`;
       this.options.tui.requestRender();
+
       return;
     }
+
     this.credentials = credentials;
     this.mode = "menu";
+
     if (!credentials) {
       if (transport === "typesafe" || transport === "openai-decisions") {
         this.notice = undefined;
@@ -323,15 +388,20 @@ export class JevProviderSubmenu implements Component, Focusable {
       } else {
         this.notice = "No OpenRouter Pi login found. Add one in Pi and retry.";
       }
+
       this.options.tui.requestRender();
+
       return;
     }
+
     if (credentials.transport !== transport) {
       this.notice =
         "The selected provider did not resolve matching credentials.";
       this.options.tui.requestRender();
+
       return;
     }
+
     await this.verifyAndSave(credentials);
   }
 
@@ -339,13 +409,17 @@ export class JevProviderSubmenu implements Component, Focusable {
     const transport = this.selectedTransport;
     const key = value.trim();
     this.maskedInput.setValue("");
+
     if (!transport || !key) {
       return;
     }
+
     const credentials: JevCredentials = { apiKey: key, transport };
+
     if (transport === "typesafe-compatible" && this.baseUrl) {
       credentials.baseUrl = this.baseUrl;
     }
+
     await this.verifyAndSave(credentials, key);
   }
 
@@ -357,36 +431,47 @@ export class JevProviderSubmenu implements Component, Focusable {
     this.notice = undefined;
     this.options.tui.requestRender();
     const outcome = await this.deps.verify(credentials);
+
     if (!outcome.ok) {
       this.notice = `Verification failed: ${outcome.message ?? "unknown error"}`;
       this.mode = enteredKey ? "key-entry" : "menu";
       this.canEnterKey = !enteredKey && canReplaceWithEnteredKey(credentials);
       this.options.tui.requestRender();
+
       return;
     }
+
     if (enteredKey) {
       const stored = await this.deps.writeKey(
         enteredKey,
         credentials.transport
       );
+
       if (!stored.ok) {
         this.notice = stored.message;
         this.mode = "key-entry";
         this.canEnterKey = false;
         this.options.tui.requestRender();
+
         return;
       }
+
       this.notice = `${stored.message} Verification succeeded.`;
+
       // An entered key is the more explicit choice, so it clears a reused login.
       if (credentials.transport === "typesafe-compatible") {
         this.providerId = undefined;
       }
     }
+
     this.credentials = credentials;
+
     if (this.commitSelection(credentials)) {
       this.closeSetup(true);
+
       return;
     }
+
     this.mode = "menu";
     this.canEnterKey = false;
     this.notice = "Provider verified, but settings could not be saved.";
@@ -397,6 +482,7 @@ export class JevProviderSubmenu implements Component, Focusable {
     if (!this.options.onSelection) {
       return false;
     }
+
     return this.options.onSelection(this.selectionFor(credentials));
   }
 
@@ -404,41 +490,51 @@ export class JevProviderSubmenu implements Component, Focusable {
     if (credentials.transport !== "typesafe-compatible") {
       return { transport: credentials.transport };
     }
+
     const selection: JevProviderSelection = {
       transport: credentials.transport,
     };
+
     if (this.baseUrl) {
       selection.baseUrl = this.baseUrl;
     }
+
     if (this.providerId) {
       selection.keyProvider = this.providerId;
     }
+
     return selection;
   }
 
   private async clearStoredKey(): Promise<void> {
     const { credentials } = this;
+
     if (!(credentials && credentials.source)) {
       return;
     }
+
     this.mode = "clearing";
     this.notice = undefined;
     this.options.tui.requestRender();
     const result = await this.deps.clearStoredKey(credentials.transport);
     this.mode = "menu";
     this.notice = result.message;
+
     if (result.ok) {
       this.credentials = undefined;
       this.pendingSelectionRefresh = true;
     }
+
     this.options.tui.requestRender();
   }
 
   private closeSetup(refreshSettings = false): void {
     this.options.done();
+
     if (refreshSettings || this.pendingSelectionRefresh) {
       this.options.afterSelection?.();
     }
+
     this.pendingSelectionRefresh = false;
   }
 }

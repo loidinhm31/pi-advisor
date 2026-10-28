@@ -32,6 +32,7 @@ export interface PreparedActivationModels {
 export const loadCommandConfig = (ctx: ExtensionContext) => {
   try {
     loadConfig(ctx);
+
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -40,6 +41,7 @@ export const loadCommandConfig = (ctx: ExtensionContext) => {
       `Advisor command could not load configuration: ${message} Fix advisor.json and retry.`,
       "error"
     );
+
     return false;
   }
 };
@@ -54,6 +56,7 @@ export const prepareActivationModels = async (
   const persisted = getPersistedModelRefs();
   const availableRefs = getAvailableModelRefs(ctx);
   const availableRefSet = availableRefs ? new Set(availableRefs) : undefined;
+
   const explicitError =
     getExplicitModelError(
       ctx,
@@ -69,8 +72,10 @@ export const prepareActivationModels = async (
       advisorOverride,
       availableRefSet
     );
+
   if (explicitError) {
     notify(ctx, explicitError, "error");
+
     return;
   }
 
@@ -84,7 +89,9 @@ export const prepareActivationModels = async (
     advisorOverride,
     availableRefSet
   );
+
   setExecutorRef(plan.pendingExecutor ?? executorRef);
+
   if (!(plan.selectExecutor || plan.selectAdvisor)) {
     return { pendingExecutor: plan.pendingExecutor, pickedModels: false };
   }
@@ -97,8 +104,10 @@ export const prepareActivationModels = async (
       "Advisor models are not configured or available. Run /advisor to choose them.",
       "error"
     );
+
     return;
   }
+
   const selection = await selectAdvisorModels(ctx, {
     advisor: advisorOverride || persisted.advisor ? advisorRef : "",
     advisorEffort: advisorEffortRef,
@@ -111,13 +120,16 @@ export const prepareActivationModels = async (
     selectAdvisor: plan.selectAdvisor,
     selectExecutor: plan.selectExecutor,
   });
+
   if (!selection) {
     return;
   }
+
   setAdvisorRef(selection.advisor);
   setAdvisorFallbackModelRef(selection.advisorFallbackModel);
   setAdvisorEffortRef(selection.advisorEffort);
   setExecutorRef(selection.executor);
   setExecutorEffortRef(selection.executorEffort);
+
   return { pendingExecutor: plan.pendingExecutor, pickedModels: true };
 };

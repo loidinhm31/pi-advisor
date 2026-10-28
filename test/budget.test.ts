@@ -15,9 +15,11 @@ import { mockPi } from "./helpers/mock-pi.ts";
 
 const deferred = () => {
   let resolvePromise: (() => void) | undefined;
+
   const promise = new Promise<void>((resolve) => {
     resolvePromise = resolve;
   });
+
   return { promise, resolve: () => resolvePromise?.() };
 };
 
@@ -77,6 +79,7 @@ describe("Advisor loop-gate budget behavior", () => {
                 },
                 type: "fallback",
               });
+
               return {
                 decision: "proceed" as const,
                 markdown: "Decision: proceed",
@@ -95,12 +98,14 @@ describe("Advisor loop-gate budget behavior", () => {
           }
         );
         const toolCall = events.get("tool_call");
+
         const ctx = asExtensionContext({
           cwd: agentDir,
           hasUI: false,
           isProjectTrusted: () => false,
           signal: new AbortController().signal,
         });
+
         await toolCall(
           { input: { command: "pwd" }, toolCallId: "one", toolName: "bash" },
           ctx
@@ -130,6 +135,7 @@ describe("Advisor loop-gate budget behavior", () => {
   test("applies the configured policy to a blocked automatic gate decision", async () => {
     await withAgentDir({}, async (agentDir) => {
       const configPath = join(agentDir, "advisor.json");
+
       const results: Record<
         string,
         { aborted: boolean; blocked: boolean; result: unknown }
@@ -175,6 +181,7 @@ describe("Advisor loop-gate budget behavior", () => {
           }
         );
         const toolCall = events.get("tool_call");
+
         const ctx = asExtensionContext({
           abort: () => {
             aborted = true;
@@ -188,6 +195,7 @@ describe("Advisor loop-gate budget behavior", () => {
             setStatus: () => {},
           },
         });
+
         // The modes share the process-global configuration refs, so each case
         // must finish before the next one rewrites its configuration.
         // biome-ignore lint/performance/noAwaitInLoops: table-driven cases intentionally run sequentially.
@@ -199,6 +207,7 @@ describe("Advisor loop-gate budget behavior", () => {
           },
           ctx
         );
+
         const result = await toolCall(
           {
             input: { command: "pwd" },
@@ -207,6 +216,7 @@ describe("Advisor loop-gate budget behavior", () => {
           },
           ctx
         );
+
         results[mode] = { aborted, blocked: state.blocked, result };
       }
 
@@ -274,15 +284,18 @@ describe("Advisor loop-gate budget behavior", () => {
       registerCommands(mockPi({ commands }, { sendMessage: () => {} }), {
         consult: () => {
           consultations += 1;
+
           return Promise.resolve({ markdown: "ok", thinkingText: "" });
         },
         sessionState: state,
       });
+
       const ctx = asExtensionContext({
         cwd: agentDir,
         hasUI: false,
         isProjectTrusted: () => false,
       });
+
       await commands.get("advisor-manual").handler("", ctx);
       expect(consultations).toBe(0);
 
@@ -326,10 +339,12 @@ describe("Advisor loop-gate budget behavior", () => {
       expect(state.reattachedAdviceFor("what is 2+2?")).toBe(
         "The answer is 4."
       );
+
       // SAFETY: manual result messages carry string content by construction.
       const content = sent.find(
         (message) => message.customType === "advisor-manual-result"
       )?.content as string;
+
       expect(content).toContain("for your awareness");
       expect(content).toContain("no action or follow-up consultation");
     });
@@ -374,6 +389,7 @@ describe("Advisor loop-gate budget behavior", () => {
         {
           consult: async () => {
             consultations += 1;
+
             return {
               adviceId: "advice",
               markdown: "Done.",
@@ -384,6 +400,7 @@ describe("Advisor loop-gate budget behavior", () => {
           },
           screen: async () => {
             screens += 1;
+
             return screens === 1
               ? {
                   decision: "skip" as const,
@@ -395,11 +412,13 @@ describe("Advisor loop-gate budget behavior", () => {
         }
       );
       const { execute } = tools.get("ask_advisor");
+
       const ctx = asExtensionContext({
         cwd: agentDir,
         hasUI: false,
         isProjectTrusted: () => false,
       });
+
       const { signal } = new AbortController();
 
       const skipped = await execute("first", {}, signal, undefined, ctx);
@@ -426,6 +445,7 @@ describe("Advisor loop-gate budget behavior", () => {
         { screen: () => Promise.reject(new Error("screen cancelled")) }
       );
       const { execute } = tools.get("ask_advisor");
+
       const ctx = asExtensionContext({
         cwd: agentDir,
         hasUI: false,
@@ -457,17 +477,21 @@ describe("Advisor loop-gate budget behavior", () => {
           ),
           session
         );
+
         const ctx = asExtensionContext({
           cwd: agentDir,
           hasUI: false,
           isProjectTrusted: () => false,
           model: { id: "allowed", provider: "provider" },
         });
+
         const toolCall = events.get("tool_call");
+
         const firstPermission = await toolCall(
           { input: {}, toolCallId: "first", toolName: "ask_advisor" },
           ctx
         );
+
         const deniedCtx = asExtensionContext({
           cwd: agentDir,
           hasUI: false,
@@ -486,6 +510,7 @@ describe("Advisor loop-gate budget behavior", () => {
               deniedCtx
             )
         ).rejects.toThrow("provider/other");
+
         const secondPermission = await toolCall(
           { input: {}, toolCallId: "second", toolName: "ask_advisor" },
           ctx
@@ -515,6 +540,7 @@ describe("Advisor loop-gate budget behavior", () => {
         {
           consult: async () => {
             consultations += 1;
+
             return {
               adviceId: "advice",
               markdown: "Done.",
@@ -527,36 +553,47 @@ describe("Advisor loop-gate budget behavior", () => {
             screens += 1;
             screeningStarted.resolve();
             await screeningBarrier.promise;
+
             return { decision: "allow" };
           },
         }
       );
+
       const ctx = asExtensionContext({
         cwd: agentDir,
         hasUI: false,
         isProjectTrusted: () => false,
       });
+
       const toolCall = events.get("tool_call");
+
       const firstPermission = await toolCall(
         { input: {}, toolCallId: "first", toolName: "ask_advisor" },
         ctx
       );
+
       const firstExecution = tools
         .get("ask_advisor")
         .execute("first", {}, new AbortController().signal, undefined, ctx);
+
       await screeningStarted.promise;
+
       const secondPermission = await toolCall(
         { input: {}, toolCallId: "second", toolName: "ask_advisor" },
         ctx
       );
+
       let secondExecution: Promise<unknown> | undefined;
+
       if (!secondPermission?.block) {
         secondExecution = tools
           .get("ask_advisor")
           .execute("second", {}, new AbortController().signal, undefined, ctx);
       }
+
       screeningBarrier.resolve();
       await firstExecution;
+
       if (secondExecution) {
         await secondExecution;
       }

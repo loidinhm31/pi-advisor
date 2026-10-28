@@ -75,14 +75,14 @@
 
 ## 3. Acceptance Matrix & Implementation Phases
 
-| Scenario | Host / Config | Expected Observable Behavior |
-| --- | --- | --- |
-| Prompt injection (OMP `xd://`) | OMP (`event.systemPrompt: string[]` containing `xd://ask_advisor`), `simpleMode: false`, gates `true` | Returns `{ systemPrompt }` preserving all base blocks + 1 trailing `Advisor invocation settings:` block instructing `write` to `xd://ask_advisor` with `draft` for Plan/Completion and failure rules. |
-| Prompt injection (Pi `sections`) | Pi (`event.systemPromptOptions.sections`) | Mutates `sections.advisor_invocation_settings` with direct `ask_advisor` wording; returns `undefined`. |
-| Dedupe & off/access guards | OMP retry or `/advisor-off` or non-whitelisted/same model | Strips prior `Advisor invocation settings:` block; returns `undefined` if base had none; injects nothing when off/disallowed/same-model. |
-| Simple mode vs Gate toggles | `/advisor-settings` toggles `Simple mode` `On` ↔ `Off` | `On`: hides gate rows, injects single on-demand rule without budget line. `Off`: shows `Plan gate`, `Failure gate`, `Completion gate`, `Custom invocation`; respects explicit `false` in `advisor.json`. |
-| `write xd://ask_advisor` lifecycle | Model calls `write` with `path: "xd://ask_advisor"` | Outer `write` does not increment loop-gate repetition or advance `followUpTo` `toolCallsSince`; `pendingInvocationDisclosure` strips `draft` from `content`. |
-| Turn settle & child isolation | OMP `agent_end` (`willContinue: false/true`); subagent `ctx.agent.kind === "sub"` | Clears stale reservations on `agent_end`; notifies summary only when `!willContinue`; subagent keeps host model/thinking and never overwrites `advisor.json`. |
+| Scenario                           | Host / Config                                                                                         | Expected Observable Behavior                                                                                                                                                                             |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prompt injection (OMP `xd://`)     | OMP (`event.systemPrompt: string[]` containing `xd://ask_advisor`), `simpleMode: false`, gates `true` | Returns `{ systemPrompt }` preserving all base blocks + 1 trailing `Advisor invocation settings:` block instructing `write` to `xd://ask_advisor` with `draft` for Plan/Completion and failure rules.    |
+| Prompt injection (Pi `sections`)   | Pi (`event.systemPromptOptions.sections`)                                                             | Mutates `sections.advisor_invocation_settings` with direct `ask_advisor` wording; returns `undefined`.                                                                                                   |
+| Dedupe & off/access guards         | OMP retry or `/advisor-off` or non-whitelisted/same model                                             | Strips prior `Advisor invocation settings:` block; returns `undefined` if base had none; injects nothing when off/disallowed/same-model.                                                                 |
+| Simple mode vs Gate toggles        | `/advisor-settings` toggles `Simple mode` `On` ↔ `Off`                                                | `On`: hides gate rows, injects single on-demand rule without budget line. `Off`: shows `Plan gate`, `Failure gate`, `Completion gate`, `Custom invocation`; respects explicit `false` in `advisor.json`. |
+| `write xd://ask_advisor` lifecycle | Model calls `write` with `path: "xd://ask_advisor"`                                                   | Outer `write` does not increment loop-gate repetition or advance `followUpTo` `toolCallsSince`; `pendingInvocationDisclosure` strips `draft` from `content`.                                             |
+| Turn settle & child isolation      | OMP `agent_end` (`willContinue: false/true`); subagent `ctx.agent.kind === "sub"`                     | Clears stale reservations on `agent_end`; notifies summary only when `!willContinue`; subagent keeps host model/thinking and never overwrites `advisor.json`.                                            |
 
 ### Suggested Phases
 

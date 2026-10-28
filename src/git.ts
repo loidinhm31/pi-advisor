@@ -28,11 +28,7 @@ export const clampGitContextLevel = (
   LEVEL_RANK[requested] <= LEVEL_RANK[allowed] ? requested : allowed;
 
 type GitContextStatus =
-  | "disabled"
-  | "no-changes"
-  | "collected"
-  | "not-a-repository"
-  | "failed";
+  "disabled" | "no-changes" | "collected" | "not-a-repository" | "failed";
 
 export interface GitContextResult {
   /** Why collection produced nothing, for diagnostics. Never sent verbatim. */
@@ -64,7 +60,9 @@ export const capRepositoryContext = (value: string, maxChars: number) => {
   if (value.length <= maxChars) {
     return { text: value, truncated: false };
   }
+
   const contentChars = Math.max(0, maxChars - TRUNCATION_NOTICE.length);
+
   return {
     text:
       maxChars < TRUNCATION_NOTICE.length
@@ -84,11 +82,14 @@ export type GitRunner = (args: string[], cwd: string) => string;
 /** Shares one deadline across commands so a pathological repository cannot block for the sum of per-command timeouts. */
 const deadlineRunner = (): GitRunner => {
   const expiresAt = Date.now() + GIT_TOTAL_TIMEOUT_MS;
+
   return (args, cwd) => {
     const remaining = expiresAt - Date.now();
+
     if (remaining <= 0) {
       throw new Error("Git context collection exceeded its time budget.");
     }
+
     return execFileSync("git", args, {
       cwd,
       encoding: "utf-8",
@@ -106,6 +107,7 @@ const deadlineRunner = (): GitRunner => {
 const diffBase = (run: GitRunner, cwd: string): string => {
   try {
     run(["rev-parse", "--verify", "--quiet", "HEAD"], cwd);
+
     return "HEAD";
   } catch {
     return EMPTY_TREE;
@@ -123,6 +125,7 @@ export const collectGitContext = (
   if (level === "off" || maxChars <= 0) {
     return { level: "off", status: "disabled", text: "" };
   }
+
   try {
     run(["rev-parse", "--is-inside-work-tree"], cwd);
   } catch (error) {
@@ -138,6 +141,7 @@ export const collectGitContext = (
     const base = diffBase(run, cwd);
     const nameStatus = run(["diff", "--name-status", base], cwd).trim();
     const shortstat = run(["diff", "--shortstat", base], cwd).trim();
+
     const untracked = run(
       ["ls-files", "--others", "--exclude-standard"],
       cwd

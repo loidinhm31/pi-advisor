@@ -53,6 +53,7 @@ const makeModelSelector = (
   testTheme: any = theme
 ) => {
   let selected: string | undefined;
+
   const selector = new SearchableModelSelector({
     allOptions,
     currentOption,
@@ -66,11 +67,13 @@ const makeModelSelector = (
     title: "Select Model",
     tui: { requestRender: () => {} },
   });
+
   return { selected: () => selected, selector };
 };
 
 const makeTui = () => {
   let renders = 0;
+
   // SAFETY: mock implements requestRender and terminal.rows, the members the dialog under test reads.
   const tui = {
     requestRender: () => {
@@ -78,6 +81,7 @@ const makeTui = () => {
     },
     terminal: { rows: 24 },
   } as TUI;
+
   return { renders: () => renders, tui };
 };
 
@@ -91,6 +95,7 @@ const makeDialog = ({
   const submitted: ManualAdvisorRequest[] = [];
   let cancelled = 0;
   const { tui, renders } = makeTui();
+
   const dialog = new ManualAdvisorDialog({
     gitContext,
     initialMessage,
@@ -104,7 +109,9 @@ const makeDialog = ({
     theme,
     tui,
   });
+
   dialog.focused = true;
+
   return { cancelled: () => cancelled, dialog, renders, submitted };
 };
 
@@ -114,6 +121,7 @@ describe("ManualAdvisorDialog", () => {
       gitContext: "full",
       initialMessage: "Check the migration",
     });
+
     const screen = stripTerminalSequences(dialog.render(90).join("\n"))
       .replaceAll(/[│]/gu, " ")
       .replaceAll(/\s+/gu, " ");
@@ -142,6 +150,7 @@ describe("ManualAdvisorDialog", () => {
     const summary = makeDialog({ gitContext: "summary" })
       .dialog.render(90)
       .join("\n");
+
     expect(summary).toContain("● Summary");
     expect(summary).not.toContain("Full — summary plus patch");
 
@@ -157,6 +166,7 @@ describe("ManualAdvisorDialog", () => {
     expect(matchesKey("\r", Key.enter)).toBe(true);
     expect(matchesKey("\n", Key.shift("enter"))).toBe(false);
     dialog.handleInput("\n");
+
     for (const character of "Second") {
       dialog.handleInput(character);
     }
@@ -260,12 +270,14 @@ describe("ManualAdvisorDialog", () => {
   test("keeps the dialog retryable when submit fails", () => {
     const { tui } = makeTui();
     let attempts = 0;
+
     const dialog = new ManualAdvisorDialog({
       gitContext: "summary",
       keybindings: getKeybindings(),
       onCancel: () => {},
       onSubmit: () => {
         attempts += 1;
+
         if (attempts === 1) {
           throw new Error("submit failed");
         }
@@ -273,6 +285,7 @@ describe("ManualAdvisorDialog", () => {
       theme,
       tui,
     });
+
     dialog.focused = true;
 
     expect(() => dialog.handleInput("\r")).toThrow("submit failed");
@@ -283,6 +296,7 @@ describe("ManualAdvisorDialog", () => {
   test("ignores reentrant submit events while submitting", () => {
     const { tui } = makeTui();
     let attempts = 0;
+
     const dialog = new ManualAdvisorDialog({
       gitContext: "summary",
       keybindings: getKeybindings(),
@@ -294,6 +308,7 @@ describe("ManualAdvisorDialog", () => {
       theme,
       tui,
     });
+
     dialog.focused = true;
 
     dialog.handleInput("\r");
@@ -322,6 +337,7 @@ describe("ManualAdvisorDialog", () => {
       for (const line of dialog.render(width)) {
         const lineWidth = visibleWidth(line);
         expect(lineWidth).toBeLessThanOrEqual(width);
+
         if (width >= 2) {
           expect(lineWidth).toBe(width);
         }
@@ -373,12 +389,14 @@ describe("SearchableModelSelector", () => {
       muted: 37,
       text: 39,
     };
+
     // SAFETY: recording theme emits real ANSI escapes so width math sees them as zero-width.
     const recordingTheme = {
       bold: (value: string) => `\u001B[1m${value}\u001B[22m`,
       fg: (color: string, value: string) =>
         `\u001B[${codes[color] ?? 39}m${value}\u001B[39m`,
     } as any;
+
     const { selector } = makeModelSelector(
       ["provider/one"],
       undefined,
@@ -396,6 +414,7 @@ describe("SearchableModelSelector", () => {
     const { selected, selector } = makeModelSelector([
       "a-very-long-provider-name/and-a-very-long-model-name",
     ]);
+
     selector.render(30);
     selector.handleInput("\r");
     expect(selected()).toBe(
@@ -407,6 +426,7 @@ describe("SearchableModelSelector", () => {
 describe("TextSettingSubmenu", () => {
   test("shows a validation error and clears it on the next input change", () => {
     const submitted: string[] = [];
+
     const submenu = new TextSettingSubmenu({
       description: "Enter a value.",
       initial: "",
@@ -414,8 +434,10 @@ describe("TextSettingSubmenu", () => {
       onSubmit: (value) => {
         if (value.includes("@")) {
           submitted.push(value);
+
           return { value };
         }
+
         return { error: "Needs an @." };
       },
       theme,
@@ -444,8 +466,10 @@ describe("AdvisorSettingsSelector simple mode label", () => {
     },
     { description: "20k chars", label: "20k", value: 20_000 },
   ];
+
   const makeSelector = (simpleMode: boolean) => {
     let renders = 0;
+
     const selector = new AdvisorSettingsSelector({
       effortLevels: ["Default (Model Default)"],
       initial: {
@@ -470,12 +494,15 @@ describe("AdvisorSettingsSelector simple mode label", () => {
         },
       },
     });
+
     selector.focused = true;
+
     return { renders: () => renders, selector };
   };
 
   test("shimmers the Simple mode label while simple mode is on", () => {
     const { selector } = makeSelector(true);
+
     try {
       // Per-character gradient escapes fragment the label text.
       const screen = selector.render(80).join("\n");
@@ -488,6 +515,7 @@ describe("AdvisorSettingsSelector simple mode label", () => {
 
   test("leaves the label plain when simple mode is off", () => {
     const { selector } = makeSelector(false);
+
     try {
       expect(selector.render(80).join("\n")).toContain("Simple mode");
     } finally {
@@ -597,7 +625,8 @@ describe("MaskedInput and OMP host TUI boundaries (Phase 02 / T1-T5)", () => {
       import { installLegacyPiSpecifierShim, loadLegacyPiModule } from "./packages/coding-agent/src/extensibility/plugins/legacy-pi-compat.ts";
       import { getSelectListTheme, getSettingsListTheme, initTheme } from "./packages/coding-agent/src/extensibility/legacy-pi-coding-agent-shim.ts";
       import { theme } from "./packages/tui/src/theme/theme.ts";
-      import { Editor, Input, SettingsList, getKeybindings, stripTerminalSequences, visibleWidth } from "./packages/coding-agent/src/extensibility/legacy-pi-tui-shim.ts";
+      import { stripVTControlCharacters as stripTerminalSequences } from "node:util";
+      import { Editor, Input, SettingsList, getKeybindings, visibleWidth } from "./packages/coding-agent/src/extensibility/legacy-pi-tui-shim.ts";
 
       installLegacyPiSpecifierShim();
       await initTheme("dark");

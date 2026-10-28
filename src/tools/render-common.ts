@@ -27,6 +27,7 @@ export const SPINNER_FRAMES = [
 
 const THINKING_PREFIX = "  ";
 const THINKING_PREFIX_WIDTH = visibleWidth(THINKING_PREFIX);
+
 export type ThinkingTheme = Pick<Theme, "fg">;
 
 /** Shared no-op for interface-required methods that manage no state. */
@@ -49,6 +50,7 @@ class ThinkingMarkdown implements Component {
     const renderWidth = Math.max(1, Math.floor(width));
     const contentWidth = Math.max(1, renderWidth - THINKING_PREFIX_WIDTH);
     const lines = this.markdown.render(contentWidth);
+
     return lines.map((line, index) =>
       truncateToWidth(
         index === 0 ? `${this.prefix}${line}` : line,
@@ -66,6 +68,7 @@ class ThinkingMarkdown implements Component {
 /** Collapsed placeholder shown when Pi's hide_thinking setting is on. */
 const hiddenThinkingLabel = (theme: ThinkingTheme): Component => {
   const label = theme.fg("thinkingText", `${THINKING_PREFIX}Thinking…`);
+
   return {
     invalidate: noop,
     render: () => [label],
@@ -90,10 +93,12 @@ export const renderAdvisorCallBox = (
 ) => {
   const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
   const label = theme.fg("customMessageLabel", theme.bold("[advisor]"));
+
   const title = theme.fg(
     "customMessageText",
     followUp ? "Executor → Advisor · Follow-up" : "Executor → Advisor"
   );
+
   box.addChild(
     new Text(
       question
@@ -103,10 +108,12 @@ export const renderAdvisorCallBox = (
       0
     )
   );
+
   return box;
 };
 
 const COLLAPSED_ADVICE_LINES = 12;
+
 // The system prompt requires this exact first line, so the match is exact too.
 const SOUND_VERDICT = /^Verdict:\s*sound$/u;
 
@@ -125,9 +132,12 @@ export const adviceForDisplay = (advice: string, expanded: boolean) => {
   if (!advisorCollapseResponsesRef || expanded) {
     return advice;
   }
+
   const lines = advice.split("\n");
+
   if (lines.length <= COLLAPSED_ADVICE_LINES) {
     return advice;
   }
+
   return `${lines.slice(0, COLLAPSED_ADVICE_LINES).join("\n")}\n\n… (${lines.length - COLLAPSED_ADVICE_LINES} more lines, Ctrl+O to expand)`;
 };

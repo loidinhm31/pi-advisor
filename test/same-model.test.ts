@@ -110,6 +110,7 @@ describe("same-model Advisor suppression", () => {
           {
             consult: async () => {
               consultCalls += 1;
+
               return {
                 adviceId: "later",
                 markdown: "Advice",
@@ -124,6 +125,7 @@ describe("same-model Advisor suppression", () => {
             },
             screen: async () => {
               screenCalls += 1;
+
               return { decision: "allow" };
             },
           }
@@ -137,10 +139,13 @@ describe("same-model Advisor suppression", () => {
             same
           )
         ).toBeUndefined();
+
         const skipped = await tools
           .get("ask_advisor")
           .execute("skip", params, same.signal, undefined, same);
+
         expect(skipped.details.skipReason).toContain("Advisor disabled");
+
         for (const toolCallId of ["a", "b"]) {
           expect(
             await call(
@@ -149,6 +154,7 @@ describe("same-model Advisor suppression", () => {
             )
           ).toBeUndefined();
         }
+
         expect(session.consumedCalls).toBe(0);
         expect(session.blocked).toBe(false);
         expect([screenCalls, consultCalls, gateCalls]).toEqual([0, 0, 0]);
@@ -160,9 +166,11 @@ describe("same-model Advisor suppression", () => {
             other
           )
         ).toEqual({});
+
         const result = await tools
           .get("ask_advisor")
           .execute("go", params, other.signal, undefined, other);
+
         expect(result.details.text).toBe("Advice");
         expect([screenCalls, consultCalls, gateCalls]).toEqual([1, 1, 0]);
         expect(session.consumedCalls).toBe(1);
@@ -196,6 +204,7 @@ describe("same-model Advisor suppression", () => {
         registerCommands(mockPi({ commands }), {
           consult: async () => {
             calls += 1;
+
             return { markdown: "Advice", thinkingText: "" };
           },
           sessionState: state,
@@ -234,26 +243,17 @@ describe("same-model Advisor suppression", () => {
         const same = modelContext(agentDir, "advisor");
         loadConfig(same);
         const session = new AdvisorSessionState();
-        let checks = 0;
+
         const registration: JevTurnGateRegistration = {
           activeTools: () => ["ask_advisor"],
           consult: async () => {
             throw new Error("The Advisor must not run");
           },
-          deps: {
-            resolveTransport: () => {
-              checks += 1;
-              return Promise.resolve({
-                apiKey: "test",
-                transport: "typesafe" as const,
-              });
-            },
-          },
           send: () => {},
           session,
         };
+
         await handleJevTurnEnd(registration, same);
-        expect(checks).toBe(0);
         expect(session.consumedCalls).toBe(0);
       }
     );
@@ -267,6 +267,7 @@ describe("same-model Advisor suppression", () => {
         registerCommands(pi);
         const notices: string[] = [];
         let picker = 0;
+
         const ctx = asExtensionContext({
           cwd: agentDir,
           hasUI: true,
@@ -293,11 +294,13 @@ describe("same-model Advisor suppression", () => {
                   { matches: () => false },
                   resolve
                 );
+
                 if (picker === 1) {
                   for (const key of "other") {
                     list.handleInput(key);
                   }
                 }
+
                 picker += 1;
                 list.render(100);
                 list.handleInput("\r");
@@ -306,6 +309,7 @@ describe("same-model Advisor suppression", () => {
             select: () => Promise.resolve("✓ Default (Model Default)"),
           },
         });
+
         await events.get("session_start")?.({ reason: "startup" }, ctx);
         expect(
           notices.filter((note) => note.startsWith("Advisor disabled:"))

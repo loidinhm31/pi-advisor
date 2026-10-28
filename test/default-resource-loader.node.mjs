@@ -1,3 +1,4 @@
+import "./isolate-herdr.mjs";
 import assert from "node:assert/strict";
 import {
   existsSync,
@@ -16,9 +17,11 @@ import {
 } from "../node_modules/@earendil-works/pi-coding-agent/dist/index.js";
 
 const packageRoot = resolvePath(import.meta.dirname, "..");
+
 const packageManifest = JSON.parse(
   readFileSync(join(packageRoot, "package.json"), "utf-8")
 );
+
 const bundledEntry = resolvePath(packageRoot, packageManifest.main);
 const CONTEXT_WINDOW_PATTERN = /Context window[\s\S]*100k/u;
 const ADVISOR_EFFORT_PATTERN = /Advisor reasoning[\s\S]*off/u;
@@ -44,27 +47,32 @@ const fakeTheme = {
 
 const runSettingsCommand = async (handler, context, change) => {
   let rendered;
+
   const ui = {
     custom: async (factory) =>
       new Promise((resolve) => {
         const done = () => resolve();
         const selector = factory({ requestRender: noop }, fakeTheme, {}, done);
+
         if (change) {
-          // Context starts at 25k: one right-arrow selects 100k. Four down
-          // arrows select Advisor reasoning, then right-arrow selects "off".
+          // Context starts at 25k; five down-arrows select Advisor reasoning.
           selector.handleInput("\u001B[C");
+          selector.handleInput("\u001B[B");
           selector.handleInput("\u001B[B");
           selector.handleInput("\u001B[B");
           selector.handleInput("\u001B[B");
           selector.handleInput("\u001B[B");
           selector.handleInput("\u001B[C");
         }
+
         rendered = selector.render(120).join("\n");
         selector.handleInput("\u001B");
       }),
     notify: noop,
   };
+
   await handler("", { ...context, ui });
+
   return rendered;
 };
 
@@ -109,16 +117,19 @@ test("bundled package keeps settings state shared under Node DefaultResourceLoad
     assert.ok(firstCommand, "advisor-settings command was not registered");
 
     const context = extensionContext(cwd);
+
     const firstRendered = await runSettingsCommand(
       firstCommand.handler,
       context,
       true
     );
+
     assert.match(firstRendered, MODEL_WHITELIST_PATTERN);
 
     const saved = JSON.parse(
       readFileSync(join(agentDir, "advisor.json"), "utf-8")
     );
+
     assert.equal(saved.contextMaxChars, 100_000);
     assert.equal(saved.advisorEffort, "off");
     assert.equal(saved.executor, "provider/executor");
@@ -131,11 +142,13 @@ test("bundled package keeps settings state shared under Node DefaultResourceLoad
       secondCommand,
       "advisor-settings command disappeared after reload"
     );
+
     const reopened = await runSettingsCommand(
       secondCommand.handler,
       context,
       false
     );
+
     assert.match(reopened, CONTEXT_WINDOW_PATTERN);
     assert.match(reopened, ADVISOR_EFFORT_PATTERN);
 
@@ -143,14 +156,18 @@ test("bundled package keeps settings state shared under Node DefaultResourceLoad
     // Node loader path rather than relying on an in-process extension cache.
     const freshLoader = new DefaultResourceLoader({ agentDir, cwd });
     await freshLoader.reload();
+
     const freshCommand = freshLoader
       .getExtensions()
       .extensions[0]?.commands.get("advisor-settings");
+
     assert.ok(freshCommand, "advisor-settings command failed on fresh load");
     await runSettingsCommand(freshCommand.handler, context, false);
+
     const reloaded = JSON.parse(
       readFileSync(join(agentDir, "advisor.json"), "utf-8")
     );
+
     assert.equal(reloaded.contextMaxChars, 100_000);
     assert.equal(reloaded.advisorEffort, "off");
     assert.equal(reloaded.executor, "provider/executor");
@@ -196,6 +213,7 @@ test("bundled package keeps settings state shared under Node DefaultResourceLoad
     } else {
       process.env.PI_CODING_AGENT_DIR = originalAgentDir;
     }
+
     rmSync(agentDir, { force: true, recursive: true });
     rmSync(cwd, { force: true, recursive: true });
   }

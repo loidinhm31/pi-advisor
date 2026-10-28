@@ -14,6 +14,7 @@ import type { JevSecretsLike } from "../src/jev/key-store.ts";
 
 const fileStoreSpy = () => {
   const written: string[] = [];
+
   return {
     deleteFileStore: () => {
       written.pop();
@@ -31,14 +32,17 @@ const memorySecrets = (
   initial?: Map<string, string>
 ): JevSecretsLike & { stored: Map<string, string> } => {
   const stored = initial ?? new Map<string, string>();
+
   return {
     delete: (options) => {
       stored.delete(keyOf(options));
+
       return Promise.resolve(true);
     },
     get: (options) => Promise.resolve(stored.get(keyOf(options))),
     set: (options) => {
       stored.set(keyOf(options), options.value);
+
       return Promise.resolve();
     },
     stored,
@@ -65,6 +69,7 @@ describe("resolveTypeSafeKey", () => {
         new Map([["pi-advisor/typesafe-api-key", "stored-key"]])
       ),
     });
+
     expect(resolution).toEqual({ key: "stored-key", source: "bun-secrets" });
   });
 
@@ -75,6 +80,7 @@ describe("resolveTypeSafeKey", () => {
       readFileStore: () => {},
       secrets: memorySecrets(),
     });
+
     expect(resolution).toEqual({ key: "env-key", source: "env" });
   });
 
@@ -85,6 +91,7 @@ describe("resolveTypeSafeKey", () => {
       readFileStore: () => {},
       secrets: null,
     });
+
     expect(resolution).toEqual({ key: "config-key", source: "advisor-json" });
   });
 
@@ -95,6 +102,7 @@ describe("resolveTypeSafeKey", () => {
       readFileStore: () => {},
       secrets: null,
     });
+
     expect(resolution).toEqual({});
   });
 
@@ -105,13 +113,16 @@ describe("resolveTypeSafeKey", () => {
       readFileStore: () => " file-key\n",
       secrets: null,
     });
+
     expect(fromFile).toEqual({ key: "file-key", source: "file" });
+
     const envWins = await resolveTypeSafeKey({
       env: { TYPESAFE_API_KEY: "env-key" },
       readAdvisorJson: () => ({}),
       readFileStore: () => "file-key",
       secrets: null,
     });
+
     expect(envWins).toEqual({ key: "env-key", source: "env" });
   });
 
@@ -121,6 +132,7 @@ describe("resolveTypeSafeKey", () => {
       readAdvisorJson: () => ({}),
       secrets: failingSecrets("keychain locked"),
     });
+
     expect(resolution).toEqual({ key: "env-key", source: "env" });
   });
 
@@ -131,6 +143,7 @@ describe("resolveTypeSafeKey", () => {
       readFileStore: () => {},
       secrets: null,
     });
+
     expect(resolution).toEqual({});
   });
 });
@@ -138,15 +151,18 @@ describe("resolveTypeSafeKey", () => {
 describe("writeKeyTypeSafeKey", () => {
   test("stores a normalized key in Bun.secrets and creates no file", async () => {
     const agentDir = mkdtempSync(join(tmpdir(), "pi-advisor-keystore-"));
+
     try {
       const secrets = memorySecrets();
       const files = fileStoreSpy();
+
       const result = await writeKeyTypeSafeKey("  pasted-key \n", {
         env: {},
         ...files,
         readAdvisorJson: () => ({}),
         secrets,
       });
+
       expect(result.ok).toBe(true);
       expect(secrets.stored.get("pi-advisor/typesafe-api-key")).toBe(
         "pasted-key"
@@ -159,12 +175,14 @@ describe("writeKeyTypeSafeKey", () => {
 
   test("writes the 0600 file store when Bun.secrets is unavailable", async () => {
     const files = fileStoreSpy();
+
     const result = await writeKeyTypeSafeKey(" key ", {
       env: {},
       ...files,
       readAdvisorJson: () => ({}),
       secrets: null,
     });
+
     expect(result.ok).toBe(true);
     expect(result.message).toContain("0600");
     expect(files.files).toEqual(["key"]);
@@ -180,6 +198,7 @@ describe("writeKeyTypeSafeKey", () => {
         throw new Error("disk full");
       },
     });
+
     expect(result.ok).toBe(false);
     expect(result.message).toContain("disk full");
     expect(result.message).toContain("TYPESAFE_API_KEY");
@@ -192,6 +211,7 @@ describe("writeKeyTypeSafeKey", () => {
       readAdvisorJson: () => ({}),
       secrets: failingSecrets("write denied"),
     });
+
     expect(result.ok).toBe(false);
     expect(result.message).toContain("write denied");
     expect(result.message).toContain("TYPESAFE_API_KEY");
@@ -204,6 +224,7 @@ describe("writeKeyTypeSafeKey", () => {
       readAdvisorJson: () => ({}),
       secrets: memorySecrets(),
     });
+
     expect(result.ok).toBe(false);
   });
 });
@@ -213,12 +234,14 @@ describe("clearKeyTypeSafeKey", () => {
     const secrets = memorySecrets(
       new Map([["pi-advisor/typesafe-api-key", "stored-key"]])
     );
+
     const result = await clearKeyTypeSafeKey({
       env: {},
       ...fileStoreSpy(),
       readAdvisorJson: () => ({}),
       secrets,
     });
+
     expect(result.ok).toBe(true);
     expect(secrets.stored.has("pi-advisor/typesafe-api-key")).toBe(false);
   });
@@ -230,6 +253,7 @@ describe("clearKeyTypeSafeKey", () => {
       readAdvisorJson: () => ({}),
       secrets: null,
     });
+
     expect(result.ok).toBe(true);
     expect(result.message).toContain("cleared");
   });

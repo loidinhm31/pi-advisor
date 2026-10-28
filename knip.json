@@ -7,6 +7,6 @@
     "test/**/*.{ts,mjs}",
     "scripts/**/*.mjs"
   ],
-  "ignoreBinaries": ["check"],
-  "ignore": ["dist/**", "node_modules/**"]
+  "ignoreBinaries": ["fmt", "check"],
+  "ignoreDependencies": ["lint-staged"]
 }

@@ -27,7 +27,7 @@ export interface JevKeyStoreResult {
   ok: boolean;
 }
 
-export interface JevSecretEntry {
+interface JevSecretEntry {
   name: string;
   service: string;
 }
@@ -50,10 +50,10 @@ export interface JevKeyStoreDeps {
   writeFileStore?: (key: string) => void;
 }
 
-export const TYPESAFE_KEY_ENV_VAR = "TYPESAFE_API_KEY";
-export const TYPESAFE_KEY_SERVICE = "pi-advisor";
-export const TYPESAFE_KEY_NAME = "typesafe-api-key";
-export const TYPESAFE_KEY_CONFIG_FIELD = "typesafe_api_key";
+const TYPESAFE_KEY_ENV_VAR = "TYPESAFE_API_KEY";
+const TYPESAFE_KEY_SERVICE = "pi-advisor";
+const TYPESAFE_KEY_NAME = "typesafe-api-key";
+const TYPESAFE_KEY_CONFIG_FIELD = "typesafe_api_key";
 
 const KEY_FILE_MODE = 0o600;
 
@@ -66,11 +66,9 @@ interface BunGlobal {
 const runtimeSecrets = (): JevSecretsLike | undefined => {
   // SAFETY: only Bun runtimes expose Bun.secrets on globalThis; others leave it undefined.
   const bun = globalThis as BunGlobal;
+
   return bun.Bun?.secrets;
 };
-
-/** Whether the current runtime offers a Bun.secrets store. */
-export const hasRuntimeSecretStore = () => runtimeSecrets() !== undefined;
 
 const normalizeKey = (value: string | null | undefined): string | undefined =>
   value?.trim() || undefined;
@@ -107,6 +105,7 @@ export const resolveTypeSafeKey = async (
   deps: JevKeyStoreDeps = {}
 ): Promise<JevKeyResolution> => {
   const secrets = deps.secrets === undefined ? runtimeSecrets() : deps.secrets;
+
   if (secrets) {
     try {
       const stored = normalizeKey(
@@ -115,6 +114,7 @@ export const resolveTypeSafeKey = async (
           service: TYPESAFE_KEY_SERVICE,
         })
       );
+
       if (stored) {
         return { key: stored, source: "bun-secrets" };
       }
@@ -122,24 +122,32 @@ export const resolveTypeSafeKey = async (
       // An unavailable secret store falls through to the next source.
     }
   }
+
   const env = deps.env ?? process.env;
   const fromEnv = normalizeKey(env[TYPESAFE_KEY_ENV_VAR]);
+
   if (fromEnv) {
     return { key: fromEnv, source: "env" };
   }
+
   const readFileStore = deps.readFileStore ?? defaultReadFileStore;
   const fromFile = normalizeKey(readFileStore());
+
   if (fromFile) {
     return { key: fromFile, source: "file" };
   }
+
   const config = (deps.readAdvisorJson ?? readAdvisorJsonConfig)();
   const staged = config[TYPESAFE_KEY_CONFIG_FIELD];
+
   if (isString(staged)) {
     const fromConfig = normalizeKey(staged);
+
     if (fromConfig) {
       return { key: fromConfig, source: "advisor-json" };
     }
   }
+
   return {};
 };
 
@@ -151,10 +159,13 @@ export const writeKeyTypeSafeKey = async (
   deps: JevKeyStoreDeps = {}
 ): Promise<JevKeyStoreResult> => {
   const normalized = normalizeKey(key);
+
   if (!normalized) {
     return { message: "The key is empty.", ok: false };
   }
+
   const secrets = deps.secrets === undefined ? runtimeSecrets() : deps.secrets;
+
   if (secrets) {
     try {
       await secrets.set({
@@ -162,6 +173,7 @@ export const writeKeyTypeSafeKey = async (
         service: TYPESAFE_KEY_SERVICE,
         value: normalized,
       });
+
       return { message: "Key stored in Bun.secrets.", ok: true };
     } catch (error) {
       return {
@@ -170,8 +182,10 @@ export const writeKeyTypeSafeKey = async (
       };
     }
   }
+
   try {
     (deps.writeFileStore ?? defaultWriteFileStore)(normalized);
+
     return {
       message: "Key stored in ~/.pi/agent/typesafe_api_key (mode 0600).",
       ok: true,
@@ -192,6 +206,7 @@ export const clearKeyTypeSafeKey = async (
   let clearedSomething = false;
   let firstError: string | undefined;
   const secrets = deps.secrets === undefined ? runtimeSecrets() : deps.secrets;
+
   if (secrets) {
     try {
       await secrets.delete({
@@ -203,22 +218,26 @@ export const clearKeyTypeSafeKey = async (
       firstError = messageOf(error);
     }
   }
+
   try {
     if (deps.deleteFileStore) {
       deps.deleteFileStore();
     } else if (existsSync(keyFilePath())) {
       defaultDeleteFileStore();
     }
+
     clearedSomething = true;
   } catch (error) {
     firstError ??= messageOf(error);
   }
+
   if (firstError) {
     return {
       message: `Clearing the stored key failed: ${firstError}.`,
       ok: false,
     };
   }
+
   return {
     message: `Stored key cleared.${clearedSomething ? "" : ` Nothing was stored; unset ${TYPESAFE_KEY_ENV_VAR} and remove ${TYPESAFE_KEY_CONFIG_FIELD} from advisor.json yourself if you use them.`}`,
     ok: true,
@@ -231,16 +250,20 @@ export const removeTypeSafeKeyFromAdvisorJson = (): JevKeyStoreResult => {
   try {
     const path = join(getAgentDir(), "advisor.json");
     const existing = readExistingConfig(path);
+
     if (!(TYPESAFE_KEY_CONFIG_FIELD in existing)) {
       return { message: "No plaintext key in advisor.json.", ok: true };
     }
+
     const retained = Object.fromEntries(
       Object.entries(existing).filter(
         ([key]) => key !== TYPESAFE_KEY_CONFIG_FIELD
       )
     );
+
     writeFileSync(path, `${JSON.stringify(retained, null, 2)}\n`);
     resetConfigCache();
+
     return { message: "Plaintext key removed from advisor.json.", ok: true };
   } catch (error) {
     return {
@@ -257,7 +280,9 @@ export const consumePlaintextKeyWarning = (): string | undefined => {
   if (warnedPlaintextKey) {
     return undefined;
   }
+
   warnedPlaintextKey = true;
+
   return `Advisor is using a plaintext ${TYPESAFE_KEY_CONFIG_FIELD} from advisor.json; this is not recommended. Open /advisor-settings → Jev/Decisions consultation filter to migrate it into a secure store, or use the ${TYPESAFE_KEY_ENV_VAR} environment variable.`;
 };
 

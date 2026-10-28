@@ -5,21 +5,20 @@ import {
 
 import type { GitContextLevel } from "../git.ts";
 
-export {
-  DEFAULT_MAX_BYTES,
-  DEFAULT_MAX_LINES,
-} from "@earendil-works/pi-coding-agent";
-
 export const DEFAULT_CONTEXT_MAX_CHARS = 15_000;
 export const MAX_CONTEXT_MAX_CHARS = Number.MAX_SAFE_INTEGER;
 const DEFAULT_ADVISOR_TOOL_RESULT_MAX_LINES = PI_DEFAULT_MAX_LINES;
 const DEFAULT_ADVISOR_TOOL_RESULT_MAX_BYTES = PI_DEFAULT_MAX_BYTES;
+
 export {
   DEFAULT_ADVISOR_TOOL_RESULT_MAX_BYTES,
   DEFAULT_ADVISOR_TOOL_RESULT_MAX_LINES,
 };
+
 export const DEFAULT_ADVISOR_GIT_CONTEXT_MAX_CHARS = 20_000;
 export const DEFAULT_JEV_MODEL = "jev-latest";
+export const JEV_API_KEY_CLASSIFIER = "jev-api-key";
+
 // Provisional: the latency benchmark was dropped from scope; revisit if live
 // measurements suggest a different bound.
 export const DEFAULT_JEV_TIMEOUT_MS = 8000;
@@ -32,13 +31,16 @@ export const DEFAULT_JEV_FILTER_NOUL_MARGIN = 0.35;
 export const DEFAULT_JEV_FILTER_OVERRIDE_WINDOW = 10;
 export const DEFAULT_JEV_TURN_GATE_EVERY_TURNS = 0;
 export const DEFAULT_JEV_TURN_GATE_NOUL_THRESHOLD = 0.8;
+
 export type JevTransport =
   | "auto"
   | "typesafe"
   | "openrouter"
   | "openai-decisions"
   | "typesafe-compatible";
+
 export const DEFAULT_JEV_TRANSPORT: JevTransport = "auto";
+
 export const JEV_TRANSPORTS: JevTransport[] = [
   "auto",
   "typesafe",
@@ -48,7 +50,9 @@ export const JEV_TRANSPORTS: JevTransport[] = [
 ];
 
 export type AdvisorToolPolicy = "full" | "summary" | "exclude";
+
 export type AdvisorToolPolicies = Record<string, AdvisorToolPolicy>;
+
 export const ADVISOR_TOOL_POLICIES: AdvisorToolPolicy[] = [
   "full",
   "summary",
@@ -56,9 +60,8 @@ export const ADVISOR_TOOL_POLICIES: AdvisorToolPolicy[] = [
 ];
 
 export type GateFailureMode =
-  | "block-session"
-  | "block-tool"
-  | "warn-and-continue";
+  "block-session" | "block-tool" | "warn-and-continue";
+
 export const GATE_FAILURE_MODES: GateFailureMode[] = [
   "block-session",
   "block-tool",
@@ -81,6 +84,7 @@ export interface AdvisorConfig {
   advisorGitContextMaxChars?: number;
   advisorHerdrIntegration?: boolean;
   advisorJevBaseUrl?: string;
+  advisorJevClassifier?: string;
   advisorJevDigestMaxChars?: number;
   advisorJevFilterEnabled?: boolean;
   advisorJevFilterNoulMargin?: number;
@@ -106,6 +110,7 @@ export interface AdvisorConfig {
   advisorToolResultMaxBytes?: number;
   advisorToolResultMaxLines?: number;
   advisorTrackedFileContent?: boolean;
+  advisorToolsEnabled?: boolean;
   advisorUntrackedContent?: boolean;
   alwaysOn?: boolean;
   contextMaxChars?: number;

@@ -51,11 +51,11 @@
 
 ### Explicit Three-Layer Distinction
 
-| Layer | Governing Mechanism | Proof Boundary |
-| --- | --- | --- |
-| **1. Config allow / activation** | `pi.getActiveTools().includes("ask_advisor")` (startup `discoverable` mount vs `/advisor-off`), `alwaysOn` (restores model pair at main `session_start`, NOT per-turn consultation), `advisorModelWhitelist`, `advisorDisableSameModel`. | Unit/integration check on `before_agent_start` guard return and active tool list. |
-| **2. Prompt influence** | `simpleMode` (`true` suppresses gates/budget; `false` enables `advisorPlanGate`, `advisorFailureGate`, `advisorCompletionGate`, `advisorCustomInvocation`). | Outbound system prompt contains or omits the semantic gate policies and conditional `xd://ask_advisor` / `ask_advisor` routing instruction. |
-| **3. Observed provider call** | Cooperative Executor calls `write xd://ask_advisor` or `ask_advisor`, or deterministic `autoLoopGate` triggers in `tool_call`. | Captured Advisor/Scout provider request and `session.consumedCalls` transition; prompt injection alone never counts as an Advisor call. |
+| Layer                            | Governing Mechanism                                                                                                                                                                                                                      | Proof Boundary                                                                                                                              |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1. Config allow / activation** | `pi.getActiveTools().includes("ask_advisor")` (startup `discoverable` mount vs `/advisor-off`), `alwaysOn` (restores model pair at main `session_start`, NOT per-turn consultation), `advisorModelWhitelist`, `advisorDisableSameModel`. | Unit/integration check on `before_agent_start` guard return and active tool list.                                                           |
+| **2. Prompt influence**          | `simpleMode` (`true` suppresses gates/budget; `false` enables `advisorPlanGate`, `advisorFailureGate`, `advisorCompletionGate`, `advisorCustomInvocation`).                                                                              | Outbound system prompt contains or omits the semantic gate policies and conditional `xd://ask_advisor` / `ask_advisor` routing instruction. |
+| **3. Observed provider call**    | Cooperative Executor calls `write xd://ask_advisor` or `ask_advisor`, or deterministic `autoLoopGate` triggers in `tool_call`.                                                                                                           | Captured Advisor/Scout provider request and `session.consumedCalls` transition; prompt injection alone never counts as an Advisor call.     |
 
 ## Architecture
 
@@ -98,22 +98,22 @@
 
 ## Related Code Files
 
-| File Path | Action | Role / Ownership |
-| --- | --- | --- |
-| `/home/loidinh/WS/pi-advisor/src/tools/prompt-assets.d.ts` | Create | Ambient `*.md` text module declaration for TypeScript (`bun check`) |
-| `/home/loidinh/WS/pi-advisor/src/tools/prompts/simple-mode.md` | Create | Static Markdown instruction template for Simple mode |
-| `/home/loidinh/WS/pi-advisor/src/tools/prompts/plan-gate.md` | Create | Static Markdown instruction template for Plan gate |
-| `/home/loidinh/WS/pi-advisor/src/tools/prompts/failure-gate.md` | Create | Static Markdown instruction template for Failure gate |
-| `/home/loidinh/WS/pi-advisor/src/tools/prompts/completion-gate.md` | Create | Static Markdown instruction template for Completion gate |
-| `/home/loidinh/WS/pi-advisor/src/tools/prompts/invocation-routing.md` | Create | Static Markdown instruction template for conditional `xd://` vs direct routing and default payload |
-| `/home/loidinh/WS/pi-advisor/src/tools/prompts.ts` | Modify | Import static `.md` assets and assemble `advisorInvocationGuidelines()` without prose parsing or new options |
-| `/home/loidinh/WS/pi-advisor/src/tools/register-lifecycle.ts` | Modify | Implement dual-host `before_agent_start` (`sections` + `systemPrompt: string[]`) with unique `pi-advisor-flow` block delimiters (Sequential handoff to Phase 04) |
-| `/home/loidinh/WS/pi-advisor/scripts/check-package.mjs` | Modify | Single integration owner registers `src/tools/prompt-assets.d.ts` and `src/tools/prompts/*.md` in sorted `expectedFiles` |
-| `/home/loidinh/WS/pi-advisor/test/default-resource-loader.node.mjs` | Modify | Verify bundled `dist/index.js` loads static `.md` prompt assets under Node `DefaultResourceLoader` with zero runtime file reads |
-| `/home/loidinh/WS/pi-advisor/test/consultation.test.ts` | Modify | Replace old exact direct-wording assertions with semantic policy and conditional routing assertions across Pi `sections` and OMP `string[]` |
-| `/home/loidinh/WS/pi-advisor/test/activation.test.ts` | Modify | Add dual-host `before_agent_start` composition, retry deduplication, foreign-heading preservation, and `/advisor-off` removal tests |
-| `/home/loidinh/WS/pi-advisor/test/model-whitelist.test.ts` | Modify | Verify disallowed/same-model Executor strips only the delimited owned block and returns `undefined` when clean |
-| `/home/loidinh/WS/pi-advisor/test/budget.test.ts` | Modify | Verify remaining session budget line appears in `simpleMode: false` and is omitted in `simpleMode: true` on OMP `string[]` |
+| File Path                                                             | Action | Role / Ownership                                                                                                                                                 |
+| --------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/home/loidinh/WS/pi-advisor/src/tools/prompt-assets.d.ts`            | Create | Ambient `*.md` text module declaration for TypeScript (`bun check`)                                                                                              |
+| `/home/loidinh/WS/pi-advisor/src/tools/prompts/simple-mode.md`        | Create | Static Markdown instruction template for Simple mode                                                                                                             |
+| `/home/loidinh/WS/pi-advisor/src/tools/prompts/plan-gate.md`          | Create | Static Markdown instruction template for Plan gate                                                                                                               |
+| `/home/loidinh/WS/pi-advisor/src/tools/prompts/failure-gate.md`       | Create | Static Markdown instruction template for Failure gate                                                                                                            |
+| `/home/loidinh/WS/pi-advisor/src/tools/prompts/completion-gate.md`    | Create | Static Markdown instruction template for Completion gate                                                                                                         |
+| `/home/loidinh/WS/pi-advisor/src/tools/prompts/invocation-routing.md` | Create | Static Markdown instruction template for conditional `xd://` vs direct routing and default payload                                                               |
+| `/home/loidinh/WS/pi-advisor/src/tools/prompts.ts`                    | Modify | Import static `.md` assets and assemble `advisorInvocationGuidelines()` without prose parsing or new options                                                     |
+| `/home/loidinh/WS/pi-advisor/src/tools/register-lifecycle.ts`         | Modify | Implement dual-host `before_agent_start` (`sections` + `systemPrompt: string[]`) with unique `pi-advisor-flow` block delimiters (Sequential handoff to Phase 04) |
+| `/home/loidinh/WS/pi-advisor/scripts/check-package.mjs`               | Modify | Single integration owner registers `src/tools/prompt-assets.d.ts` and `src/tools/prompts/*.md` in sorted `expectedFiles`                                         |
+| `/home/loidinh/WS/pi-advisor/test/default-resource-loader.node.mjs`   | Modify | Verify bundled `dist/index.js` loads static `.md` prompt assets under Node `DefaultResourceLoader` with zero runtime file reads                                  |
+| `/home/loidinh/WS/pi-advisor/test/consultation.test.ts`               | Modify | Replace old exact direct-wording assertions with semantic policy and conditional routing assertions across Pi `sections` and OMP `string[]`                      |
+| `/home/loidinh/WS/pi-advisor/test/activation.test.ts`                 | Modify | Add dual-host `before_agent_start` composition, retry deduplication, foreign-heading preservation, and `/advisor-off` removal tests                              |
+| `/home/loidinh/WS/pi-advisor/test/model-whitelist.test.ts`            | Modify | Verify disallowed/same-model Executor strips only the delimited owned block and returns `undefined` when clean                                                   |
+| `/home/loidinh/WS/pi-advisor/test/budget.test.ts`                     | Modify | Verify remaining session budget line appears in `simpleMode: false` and is omitted in `simpleMode: true` on OMP `string[]`                                       |
 
 ## Implementation Steps
 
@@ -153,11 +153,11 @@
 
 ## Risk Assessment
 
-| Risk | Impact | Mitigation |
-| --- | --- | --- |
-| Merge conflict on `src/tools/register-lifecycle.ts` with Phase 04 | High | Enforce strict sequential dependency: Phase 04 starts only after Phase 03 finishes editing `register-lifecycle.ts`. |
-| Deleting a foreign block that shares the `"Advisor invocation settings:"` heading | High | Match and strip only blocks bounded by `ADVISOR_PROMPT_BLOCK_START` and `ADVISOR_PROMPT_BLOCK_END`. |
-| Unregistered `.md` assets fail `scripts/check-package.mjs` or Node ESM loader | Medium | Bundle `.md` files into `dist/index.js` via `--loader .md:text` and register all created `src/tools/**` files in `scripts/check-package.mjs`. |
+| Risk                                                                              | Impact | Mitigation                                                                                                                                    |
+| --------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Merge conflict on `src/tools/register-lifecycle.ts` with Phase 04                 | High   | Enforce strict sequential dependency: Phase 04 starts only after Phase 03 finishes editing `register-lifecycle.ts`.                           |
+| Deleting a foreign block that shares the `"Advisor invocation settings:"` heading | High   | Match and strip only blocks bounded by `ADVISOR_PROMPT_BLOCK_START` and `ADVISOR_PROMPT_BLOCK_END`.                                           |
+| Unregistered `.md` assets fail `scripts/check-package.mjs` or Node ESM loader     | Medium | Bundle `.md` files into `dist/index.js` via `--loader .md:text` and register all created `src/tools/**` files in `scripts/check-package.mjs`. |
 
 ## Security Considerations
 

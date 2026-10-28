@@ -28,12 +28,15 @@ export class HerdrAdvisorBlock {
     if (!this.enabled()) {
       return;
     }
+
     const label = cleanNotification(reason, 200);
     const wasBlocked: boolean = this.#blocked;
+
     if (!wasBlocked) {
       // The listener refcounts, so only the false → true edge may emit.
       this.safeEmitBlocked(true, label);
     }
+
     this.#blocked = true;
     this.safeReport({ blocked: label });
   }
@@ -41,12 +44,15 @@ export class HerdrAdvisorBlock {
   clear() {
     const wasBlocked: boolean = this.#blocked;
     this.#blocked = false;
+
     if (!wasBlocked) {
       return;
     }
+
     // Clearing previously reported state is a de-escalation and must still be
     // delivered if integration was disabled after the block was reported.
     this.safeEmitBlocked(false, "Advisor blocked");
+
     try {
       this.report({
         id: `${BLOCK_SOURCE}:${nextSequence()}`,
@@ -68,6 +74,7 @@ export class HerdrAdvisorBlock {
   private safeEmitBlocked(active: boolean, label: string): boolean {
     try {
       this.emitBlocked(active, label);
+
       return true;
     } catch {
       return false;
